@@ -204,8 +204,10 @@ document.querySelectorAll('.view-btn').forEach(btn => {
 	});
 });
 
-// 초기 렌더링
-document.addEventListener('DOMContentLoaded', () => {
+// 초기 렌더링 (상품 로드 완료 후)
+document.addEventListener('DOMContentLoaded', async () => {
+	// main.js의 loadProducts()가 완료될 때까지 기다림
+	await loadProducts();
 	renderAllProducts();
 });
 </script>
