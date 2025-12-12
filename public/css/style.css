@@ -1,0 +1,2469 @@
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   🎨 DewScent 2026 컬러 팔레트
+   - 메인: Sage + Rose
+   - 포인트: Ivory Gold + Mist/Aqua/Cloud
+============================================================ */
+:root {
+  /* 베이스 */
+  --white: #ffffff;
+  --cream: #f9f7f4; /* cloud dancer 느낌 */
+  --cloud: #f3f2ef;
+
+  /* 🌿 메인 Sage */
+  --sage: #5f7161; /* 메인 포커스 */
+  --sage-light: #7b8f73; /* 버튼 hover / 포인트 */
+  --sage-lighter: #d6e2cf; /* 카드/박스 배경 */
+  --sage-bg: #f3f5f1; /* 큰 섹션 배경 */
+  --sage-hover: #576658; /* hover용: 살짝 어둡게 */
+
+  /* 🌸 서브 메인 Rose */
+  --rose: #c96473; /* 포인트 */
+  --rose-light: #dfa0ab;
+  --rose-lighter: #f8dde1;
+
+  /* ✨ Ivory Gold 포인트 */
+  --ivory: #b6a273; /* 더 차분한 샴페인 골드 */
+  --ivory-light: #e9e2d3; /* 연한 아이보리 베이지 */
+
+  /* 2026 트렌드 컬러 (은은 포인트) */
+  --mist: #94b1c4;
+  --aqua: #b8d8d3;
+
+  /* 기본 톤 */
+  --dark: #2a2a2a;
+  --mid: #555555;
+  --light: #888888;
+  --muted: #aaaaaa;
+  --border: #e8e6e2;
+}
+
+/* BODY 기본 */
+body {
+  font-family: "Noto Sans KR", sans-serif;
+  background: var(--cream);
+  color: var(--dark);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   INTRO
+============================================================ */
+.intro {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  transition: opacity 1s;
+  overflow: hidden;
+}
+.intro.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.intro-sub {
+  font-size: 1rem;
+  color: var(--light);
+  letter-spacing: 0.3rem;
+  margin-bottom: 0.5rem;
+  opacity: 0;
+  animation: fadeUp 1s 0.3s forwards;
+}
+.intro-logo {
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  color: var(--sage);
+  letter-spacing: 0.2rem;
+  opacity: 0;
+  animation: fadeUp 1s 0.6s forwards;
+}
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 1rem 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.98);
+  border-bottom: 1px solid var(--border);
+  z-index: 1000;
+}
+.header-left {
+  flex: 1;
+}
+.header-left p {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.header-center {
+  flex: 1;
+  text-align: center;
+}
+.logo {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.6rem;
+  color: var(--sage);
+  text-decoration: none;
+}
+.header-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1.5rem;
+}
+.header-right a {
+  font-size: 0.8rem;
+  color: var(--mid);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.header-right a:hover {
+  color: var(--sage);
+}
+.cart-link {
+  position: relative;
+}
+.cart-count {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  width: 18px;
+  height: 18px;
+  background: var(--rose);
+  color: #fff;
+  font-size: 0.65rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+main {
+  padding-top: 70px;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+main.visible {
+  opacity: 1;
+}
+
+/* ============================================================
+   SLIDER
+============================================================ */
+.slider-section {
+  padding: 3rem 0;
+  /* 클라우드 + 세이지 그라데이션 */
+  background: linear-gradient(180deg, var(--white), var(--sage-bg));
+  overflow: hidden;
+}
+.slider-container {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.slider-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.slide-card {
+  position: absolute;
+  width: 280px;
+  height: 380px;
+  background: var(--white);
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slide-card.pos-far-left {
+  transform: translateX(-420px) scale(0.7);
+  opacity: 0.4;
+  z-index: 1;
+}
+.slide-card.pos-left {
+  transform: translateX(-280px) scale(0.85);
+  opacity: 0.7;
+  z-index: 2;
+}
+.slide-card.pos-center {
+  transform: translateX(0) scale(1.05);
+  opacity: 1;
+  z-index: 5;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+.slide-card.pos-right {
+  transform: translateX(280px) scale(0.85);
+  opacity: 0.7;
+  z-index: 2;
+}
+.slide-card.pos-far-right {
+  transform: translateX(420px) scale(0.7);
+  opacity: 0.4;
+  z-index: 1;
+}
+.slide-card-image {
+  width: 100%;
+  height: 70%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--light);
+  font-size: 0.85rem;
+}
+/* 카드별 그라데이션 – 세이지/로즈/아이보리/트렌드톤 믹스 */
+.slide-card:nth-child(1) .slide-card-image {
+  background: linear-gradient(135deg, var(--sage-lighter), var(--sage-light));
+}
+.slide-card:nth-child(2) .slide-card-image {
+  background: linear-gradient(135deg, var(--rose-lighter), var(--rose-light));
+}
+.slide-card:nth-child(3) .slide-card-image {
+  background: linear-gradient(135deg, var(--ivory-light), var(--ivory));
+}
+.slide-card:nth-child(4) .slide-card-image {
+  background: linear-gradient(135deg, var(--mist), var(--sage-bg));
+}
+.slide-card:nth-child(5) .slide-card-image {
+  background: linear-gradient(135deg, var(--aqua), var(--rose-lighter));
+}
+
+.slide-card-info {
+  padding: 1.2rem;
+  text-align: center;
+}
+.slide-card-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.slide-card-desc {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.slider-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 1.5rem;
+}
+.slider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.slider-dot.active {
+  background: var(--sage);
+  transform: scale(1.3);
+}
+
+/* ============================================================
+   SEARCH + HAMBURGER
+============================================================ */
+.search-section {
+  padding: 2rem 3rem;
+  background: var(--white);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+}
+.search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+}
+.search-input {
+  width: 100%;
+  padding: 1rem 1.5rem 1rem 1.5rem;
+  padding-right: 110px;
+  border: 2px solid var(--border);
+  border-radius: 50px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.3s;
+  background: var(--cloud);
+}
+.search-input:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 4px rgba(127, 143, 115, 0.12);
+}
+.search-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 40px;
+  border: none;
+  background: var(--sage);
+  color: #fff;
+  border-radius: 20px;
+  cursor: pointer;
+  padding: 0 14px;
+  font-size: 0.85rem;
+}
+
+.hamburger {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.hamburger span {
+  width: 20px;
+  height: 2px;
+  background: var(--mid);
+}
+.hamburger:hover {
+  border-color: var(--sage);
+}
+.hamburger:hover span {
+  background: var(--sage);
+}
+
+/* ============================================================
+   EMOTION SECTION
+============================================================ */
+.emotion-section {
+  padding: 5rem 3rem;
+  background: linear-gradient(180deg, var(--white) 0%, var(--sage-bg) 100%);
+}
+.section-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+.emotion-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+.emotion-section .section-title {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.7rem;
+  font-weight: 400;
+  color: var(--dark);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.5rem;
+}
+.emotion-sub {
+  font-size: 0.9rem;
+  color: var(--mid);
+}
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+.emotion-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.emotion-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.emotion-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(127, 143, 115, 0.1);
+}
+/* 감정별 비주얼 - 은은한 원형 그라데이션 */
+.emotion-visual {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+  opacity: 0.85;
+  transition: transform 0.3s, opacity 0.3s;
+}
+.emotion-card:hover .emotion-visual {
+  transform: scale(1.1);
+  opacity: 1;
+}
+/* 차분 - 세이지 */
+.emotion-card.calm .emotion-visual {
+  background: linear-gradient(135deg, var(--sage-lighter), var(--sage));
+}
+.emotion-card.calm:hover {
+  border-color: var(--sage);
+}
+/* 따뜻 - 로즈 */
+.emotion-card.warm .emotion-visual {
+  background: linear-gradient(135deg, var(--rose-lighter), var(--rose));
+}
+.emotion-card.warm:hover {
+  border-color: var(--rose);
+}
+/* 집중 - 아이보리/골드 */
+.emotion-card.focus .emotion-visual {
+  background: linear-gradient(135deg, var(--ivory-light), var(--ivory));
+}
+.emotion-card.focus:hover {
+  border-color: var(--ivory);
+}
+/* 상쾌 - 세이지+로즈 믹스 */
+.emotion-card.refresh .emotion-visual {
+  background: linear-gradient(135deg, var(--sage-bg), var(--rose-lighter));
+}
+.emotion-card.refresh:hover {
+  border-color: var(--sage-lighter);
+}
+/* 상쾌(fresh) - 미스트/아쿠아 */
+.emotion-card.fresh .emotion-visual {
+  background: linear-gradient(135deg, var(--aqua), var(--mist));
+}
+.emotion-card.fresh:hover {
+  border-color: var(--mist);
+}
+/* 로맨틱 - 로즈 */
+.emotion-card.romantic .emotion-visual {
+  background: linear-gradient(135deg, var(--rose-lighter), var(--rose-light));
+}
+.emotion-card.romantic:hover {
+  border-color: var(--rose);
+}
+.emotion-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--dark);
+  margin-bottom: 0.5rem;
+}
+.emotion-desc {
+  font-size: 0.8rem;
+  color: var(--light);
+  line-height: 1.5;
+}
+
+/* 감정 카드 반응형 */
+@media (max-width: 768px) {
+  .emotion-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .emotion-grid {
+    grid-template-columns: 1fr;
+  }
+  .emotion-card {
+    padding: 1.5rem 1rem;
+  }
+}
+
+/* ============================================================
+   BEST SECTION (다시 찾게 되는 향기)
+============================================================ */
+.best-section {
+  padding: 4rem 3rem;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    var(--sage-bg) 50%,
+    #ffffff 100%
+  );
+  position: relative;
+}
+.best-section::before {
+  content: "";
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle,
+    rgba(183, 166, 142, 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+.best-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+.best-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+.best-header .section-title {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: var(--dark);
+  margin-bottom: 0.75rem;
+}
+.best-desc {
+  font-size: 0.9rem;
+  color: var(--mid);
+  line-height: 1.7;
+}
+.best-footer {
+  text-align: center;
+  margin-top: 3rem;
+  padding: 2rem 2rem 2.5rem;
+}
+.best-quote {
+  font-size: 0.9rem;
+  color: var(--light);
+  letter-spacing: 0.08em;
+  margin-bottom: 1rem;
+}
+.best-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--mid);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  transition: all 0.3s ease;
+  position: relative;
+}
+.best-more::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--sage);
+  transition: width 0.3s ease;
+}
+.best-more:hover {
+  color: var(--sage);
+  letter-spacing: 0.15em;
+}
+.best-more:hover::after {
+  width: 100%;
+}
+.view-all {
+  font-size: 0.85rem;
+  color: var(--light);
+  text-decoration: none;
+}
+.view-all:hover {
+  color: var(--sage);
+}
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+.product-card {
+  background: var(--white);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.product-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12),
+    0 8px 16px rgba(127, 143, 115, 0.08);
+}
+.product-image {
+  width: 100%;
+  aspect-ratio: 4/5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: linear-gradient(180deg, var(--sage-lighter), var(--sage-light));
+}
+.product-card:nth-child(2) .product-image {
+  background: linear-gradient(180deg, var(--rose-lighter), var(--rose-light));
+}
+.product-card:nth-child(3) .product-image {
+  background: linear-gradient(180deg, var(--ivory-light), var(--ivory));
+}
+.product-card:nth-child(4) .product-image {
+  background: linear-gradient(180deg, var(--mist), var(--sage-bg));
+}
+.product-card:nth-child(5) .product-image {
+  background: linear-gradient(180deg, var(--aqua), var(--rose-lighter));
+}
+.product-card:nth-child(6) .product-image {
+  background: linear-gradient(180deg, var(--ivory), var(--sage-lighter));
+}
+.product-card:nth-child(7) .product-image {
+  background: linear-gradient(180deg, var(--sage-bg), var(--rose-lighter));
+}
+.product-card:nth-child(8) .product-image {
+  background: linear-gradient(180deg, #faf5f4, var(--sage-lighter));
+}
+.product-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 0.3rem 0.7rem;
+  background: var(--rose);
+  color: #fff;
+  font-size: 0.65rem;
+  border-radius: 20px;
+}
+.product-wishlist {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: #fff;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.product-wishlist.active {
+  background: var(--rose);
+  color: #fff;
+}
+.product-info {
+  padding: 1.2rem;
+}
+.product-brand {
+  font-size: 0.7rem;
+  color: var(--light);
+  margin-bottom: 0.3rem;
+}
+.product-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.product-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+.stars {
+  color: var(--ivory);
+  font-size: 0.75rem;
+}
+.rating-count {
+  font-size: 0.7rem;
+  color: var(--light);
+}
+.product-price {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--sage);
+}
+.product-price .original {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: line-through;
+  margin-left: 0.5rem;
+  font-weight: 400;
+}
+
+/* ============================================================
+   MORE PRODUCTS (더 많은 향기 만나기)
+============================================================ */
+.more-products {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: transparent;
+}
+.more-products-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 2rem;
+  border: 1px solid var(--sage);
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  color: var(--sage);
+  transition: all 0.3s ease;
+}
+.more-products-link:hover {
+  background: var(--sage);
+  color: #fff;
+}
+.more-arrow {
+  font-size: 1rem;
+  transition: transform 0.3s;
+}
+.more-products-link:hover .more-arrow {
+  transform: translateX(3px);
+}
+@keyframes bounce {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+footer {
+  padding: 3rem 3rem 1.5rem;
+  background: var(--white);
+  border-top: 1px solid var(--border);
+}
+.footer-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 2.5rem;
+  margin-bottom: 2rem;
+}
+.footer-brand {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.3rem;
+  color: var(--sage);
+  margin-bottom: 0.75rem;
+}
+.footer-desc {
+  font-size: 0.72rem;
+  color: var(--light);
+  line-height: 1.7;
+}
+.footer-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.05em;
+}
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.footer-links a {
+  font-size: 0.72rem;
+  color: var(--light);
+  text-decoration: none;
+}
+.footer-links a:hover {
+  color: var(--sage);
+}
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+.footer-bottom a {
+  color: var(--muted);
+  text-decoration: none;
+  margin-left: 1rem;
+}
+
+/* ============================================================
+   SIDE MENU
+============================================================ */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+  z-index: 2000;
+}
+.menu-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+.side-menu {
+  position: fixed;
+  top: 0;
+  right: -450px;
+  width: 450px;
+  max-width: 90%;
+  height: 100%;
+  background: var(--white);
+  z-index: 2001;
+  transition: right 0.4s;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.side-menu::-webkit-scrollbar {
+  width: 5px;
+}
+.side-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.side-menu::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.side-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--light);
+}
+.side-menu.active {
+  right: 0;
+}
+.menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+.menu-logo {
+  font-family: "Cormorant Garamond", serif !important;
+  font-size: 1.3rem !important;
+  color: #7f8f73 !important;
+  letter-spacing: 0.02em;
+}
+.menu-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--cream);
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--mid);
+}
+.menu-body {
+  padding: 2rem;
+}
+.menu-section {
+  margin-bottom: 2rem;
+}
+.menu-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.menu-badge {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.6rem;
+  background: var(--rose-lighter);
+  color: var(--rose);
+  border-radius: 10px;
+}
+.menu-links a {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--mid);
+  text-decoration: none;
+  padding: 0.5rem 0;
+  transition: all 0.2s;
+}
+.menu-links a:hover {
+  color: var(--sage);
+  padding-left: 0.5rem;
+}
+.menu-category {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--light);
+  margin-top: 1.5rem;
+  margin-bottom: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+}
+.menu-sub-links a {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--light);
+  text-decoration: none;
+  padding: 0.4rem 0 0.4rem 0.5rem;
+}
+.menu-sub-links a:hover {
+  color: var(--sage);
+}
+
+/* ============================================================
+   MODALS & POPUPS
+============================================================ */
+.modal-overlay,
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+.modal-overlay.active,
+.popup-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+.modal,
+.popup {
+  width: 90%;
+  max-width: 450px;
+  max-height: 90vh;
+  background: var(--white);
+  border-radius: 24px;
+  overflow: hidden;
+  overflow-y: auto;
+  transform: scale(0.9);
+  transition: transform 0.3s;
+}
+/* 모달/팝업 커스텀 스크롤바 */
+.modal::-webkit-scrollbar,
+.popup::-webkit-scrollbar {
+  width: 6px;
+}
+.modal::-webkit-scrollbar-track,
+.popup::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 12px 0;
+}
+.modal::-webkit-scrollbar-thumb,
+.popup::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.modal::-webkit-scrollbar-thumb:hover,
+.popup::-webkit-scrollbar-thumb:hover {
+  background: var(--light);
+}
+/* Firefox용 스크롤바 */
+.modal,
+.popup {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.modal-overlay.active .modal,
+.popup-overlay.active .popup {
+  transform: scale(1);
+}
+.modal-header,
+.popup-header {
+  padding: 2rem 2rem 1rem;
+  text-align: center;
+  position: relative;
+}
+.modal-close,
+.popup-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--cream);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--mid);
+}
+.modal-logo {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.8rem;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+}
+.modal-subtitle {
+  font-size: 0.85rem;
+  color: var(--light);
+}
+.modal-body,
+.popup-body {
+  padding: 1.5rem 2rem 2rem;
+}
+
+/* POPUP 상단 이미지 – 트렌드톤 믹스 */
+.popup-image {
+  width: 100%;
+  height: 250px;
+  background: linear-gradient(
+    135deg,
+    var(--sage-lighter),
+    var(--mist),
+    var(--rose-lighter)
+  );
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+.popup-image h2 {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+.popup-image p {
+  font-size: 0.9rem;
+  color: var(--mid);
+}
+
+/* ============================================================
+   FORM ELEMENTS
+============================================================ */
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--mid);
+  margin-bottom: 0.5rem;
+}
+.form-input {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.3s;
+}
+.form-input:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px rgba(127, 143, 115, 0.15);
+}
+.form-btn {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 0.5rem;
+}
+/* 메인/서브 버튼 컬러 확실히 */
+.form-btn.primary {
+  background: var(--sage);
+  color: #fff;
+}
+.form-btn.primary:hover {
+  background: var(--sage-hover);
+}
+.form-btn.secondary {
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--mid);
+}
+.form-btn.secondary:hover {
+  background: transparent;
+  color: var(--dark);
+  border-color: var(--dark);
+}
+
+/* Ivory Gold 버튼 (Sage와 조화) - 아웃라인 스타일 */
+.form-btn.ivory {
+  background: transparent;
+  color: var(--ivory);
+  border: 1px solid var(--ivory);
+}
+.form-btn.ivory:hover {
+  background: transparent;
+  color: var(--ivory);
+  border-color: var(--ivory-light);
+}
+
+.form-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.form-divider::before,
+.form-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.form-divider span {
+  padding: 0 1rem;
+}
+.form-input.invalid {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px rgba(201, 100, 115, 0.15);
+}
+.phone-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.phone-row .form-input {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.phone-row .form-btn {
+  width: auto;
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+.input-help {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.input-error {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--rose);
+}
+.mypage-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.mypage-tab {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.mypage-tab.active {
+  border-color: var(--sage);
+  color: var(--sage);
+  background: var(--sage-bg);
+}
+
+/* 마이페이지 항목들 정돈 */
+.address-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  margin-bottom: 0.5rem;
+}
+.address-title {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.2rem;
+}
+.address-text {
+  font-size: 0.85rem;
+  color: var(--mid);
+}
+.address-actions .form-btn {
+  margin-top: 0;
+}
+.btn-compact {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.form-btn.btn-compact {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* 주문내역 - 컴팩트 조회 UI */
+.orders-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.orders-filters-left {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.orders-filters-left .form-input {
+  width: 110px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+.orders-filters .form-btn {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+}
+.orders-filters-right {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+/* 공용 페이지 스타일 (SUPPORT / ABOUT) */
+.page-hero {
+  padding: 2.5rem 1.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--sage-bg), var(--rose-lighter));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  text-align: center;
+}
+.page-hero h1 {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.8rem;
+  color: var(--sage);
+  margin-bottom: 0.25rem;
+  letter-spacing: 0.02rem;
+}
+.page-hero p {
+  color: var(--mid);
+  font-size: 0.95rem;
+}
+.page-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.info-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+.info-card h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--sage);
+}
+.info-card p,
+.info-card li {
+  color: var(--mid);
+  font-size: 0.95rem;
+}
+.info-card ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.badge-soft {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--mid);
+  background: #fff;
+}
+.faq-list {
+  display: grid;
+  gap: 0.75rem;
+}
+.faq-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+}
+.faq-item h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+  color: var(--sage);
+}
+.faq-item p {
+  color: var(--mid);
+  font-size: 0.9rem;
+}
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  .page-hero {
+    padding: 1.8rem 1rem;
+  }
+}
+.form-btn.btn-compact {
+  width: auto; /* override global 100% */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+/* 주문내역 날짜 그룹 */
+.orders-group {
+  margin-bottom: 1rem;
+}
+.orders-date {
+  font-size: 0.9rem;
+  color: var(--mid);
+  margin: 0 0 0.4rem 0.2rem;
+  font-weight: 600;
+}
+.social-btns {
+  display: flex;
+  gap: 0.8rem;
+}
+.social-btn {
+  flex: 1;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.social-btn:hover {
+  border-color: var(--sage);
+  background: var(--sage-bg);
+}
+.form-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--light);
+}
+.form-footer a {
+  color: var(--rose);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+/* ============================================================
+   향기 테스트 모달
+============================================================ */
+.test-modal {
+  max-width: 550px;
+}
+.test-progress {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 2rem;
+}
+.test-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.test-progress-bar.active,
+.test-progress-bar.completed {
+  background: var(--sage);
+}
+.test-question {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.test-question h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+.test-question p {
+  font-size: 0.85rem;
+  color: var(--light);
+}
+.test-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.test-option {
+  padding: 1.2rem;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.test-option:hover {
+  border-color: var(--sage-light);
+  background: var(--sage-bg);
+}
+.test-option.selected {
+  border-color: var(--sage);
+  background: var(--sage-bg);
+}
+.test-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+.test-nav-btn {
+  padding: 0.8rem 2rem;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.test-nav-btn.prev {
+  background: var(--cream);
+  color: var(--mid);
+}
+.test-nav-btn.next {
+  background: var(--sage);
+  color: #fff;
+}
+.test-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.test-result {
+  text-align: center;
+  padding: 2rem 0;
+}
+.test-result-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+.test-result h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+}
+.test-result-type {
+  font-size: 1.5rem;
+  color: var(--sage);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.test-result p {
+  font-size: 0.9rem;
+  color: var(--mid);
+  margin-bottom: 2rem;
+  line-height: 1.8;
+}
+.recommended-products {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.recommended-item {
+  flex: 1;
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+}
+.recommended-item-image {
+  width: 60px;
+  height: 80px;
+  background: var(--sage-lighter);
+  border-radius: 8px;
+  margin: 0 auto 0.8rem;
+}
+.recommended-item-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.recommended-item-type {
+  font-size: 0.7rem;
+  color: var(--light);
+}
+
+/* ============================================================
+   CART MODAL
+============================================================ */
+.cart-modal {
+  max-width: 500px;
+}
+/* 강제: 장바구니 관련 헤더/타이틀 주변에 이모지/아이콘이 의도치 않게 붙는 경우 제거 */
+.cart-modal .modal-logo::before,
+.cart-modal .modal-logo::after,
+.cart-modal .modal-header::before,
+.cart-modal .modal-header::after {
+  content: none !important;
+}
+
+/* 페이지(장바구니) 섹션 타이틀에도 아이콘이 붙는 경우 방지 */
+body.cart-page .section-title::before,
+body.cart-page .section-title::after,
+body.cart-page .best-header::before,
+body.cart-page .best-header::after {
+  content: none !important;
+}
+
+/* 헤더의 장바구니 링크에 아이콘/이모지 강제 제거 */
+.cart-link::before,
+.cart-link::after {
+  content: none !important;
+  background: none !important;
+}
+.cart-items {
+  max-height: 350px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.cart-items::-webkit-scrollbar {
+  width: 5px;
+}
+.cart-items::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cart-items::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.cart-items::-webkit-scrollbar-thumb:hover {
+  background: var(--light);
+}
+.cart-item {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ✅ 장바구니 카드 이미지(네모 박스) 완전 숨기기 */
+.cart-item-image {
+  display: none !important;
+}
+
+.cart-item-info {
+  flex: 1;
+}
+
+.cart-item-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.cart-item-option {
+  font-size: 0.75rem;
+  color: var(--light);
+  margin-bottom: 0.3rem;
+}
+.cart-item-price {
+  font-size: 0.9rem;
+  color: var(--sage);
+  font-weight: 500;
+}
+.cart-item-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+.qty-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.qty-btn:hover {
+  border-color: var(--sage);
+}
+.cart-item-remove {
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+.cart-item-remove:hover {
+  color: var(--rose);
+}
+.cart-summary {
+  padding-top: 1rem;
+  border-top: 2px solid var(--dark);
+  margin-top: 1rem;
+}
+.cart-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.cart-row.total {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.cart-empty {
+  text-align: center;
+  padding: 3rem 0;
+  color: var(--mid); /* 글씨 조금 더 보이게 */
+  display: flex; /* 세로 정렬 */
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem; /* 글 ↔ 버튼 사이 간격 */
+}
+
+/* ============================================================
+   PRODUCT MODAL
+============================================================ */
+.product-modal {
+  max-width: 850px;
+  display: flex;
+  flex-direction: row;
+}
+.product-modal-image {
+  width: 45%;
+  min-height: 500px;
+  background: linear-gradient(135deg, var(--sage-lighter), var(--sage-light));
+}
+.product-modal-content {
+  width: 55%;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.product-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--cream);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.product-modal-brand {
+  font-size: 0.8rem;
+  color: var(--light);
+  margin-bottom: 0.3rem;
+}
+.product-modal-name {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+.product-modal-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.product-modal-rating .stars {
+  color: var(--ivory);
+}
+.product-modal-rating span {
+  font-size: 0.8rem;
+  color: var(--light);
+}
+.product-modal-price {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--sage);
+  margin-bottom: 1.5rem;
+}
+.product-modal-desc {
+  font-size: 0.9rem;
+  color: var(--mid);
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
+}
+.product-options {
+  margin-bottom: 1.5rem;
+}
+.option-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.8rem;
+}
+.option-btns {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.option-btn {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.option-btn:hover,
+.option-btn.selected {
+  border-color: var(--sage);
+  background: var(--sage-bg);
+  color: var(--sage);
+}
+.product-modal-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: auto;
+}
+.add-cart-btn,
+.buy-now-btn {
+  flex: 1;
+  padding: 1rem;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.add-cart-btn {
+  background: var(--sage);
+  color: #fff;
+}
+.buy-now-btn {
+  border: 2px solid var(--sage);
+  background: #fff;
+  color: var(--sage);
+}
+.wishlist-btn {
+  width: 50px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+/* 제품 모달 - 리뷰 버튼 영역 */
+.product-review-actions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.75rem;
+}
+.review-view-btn,
+.review-write-btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.review-view-btn {
+  background: var(--sage-bg);
+  color: var(--sage);
+  border: 1px solid var(--sage-lighter);
+}
+.review-view-btn:hover {
+  background: var(--sage-lighter);
+}
+.review-view-btn span {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+.review-write-btn {
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+}
+.review-write-btn:hover {
+  border-color: var(--sage);
+  color: var(--sage);
+}
+
+/* 리뷰 목록 모달 */
+.review-list-modal {
+  max-width: 500px;
+}
+.review-list-modal .modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.review-item {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.review-user {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.review-date {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.review-stars {
+  color: var(--ivory);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.review-content {
+  font-size: 0.85rem;
+  color: var(--mid);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   CHECKOUT MODAL
+============================================================ */
+.checkout-modal {
+  max-width: 500px;
+}
+.checkout-section {
+  margin-bottom: 1.5rem;
+}
+.checkout-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.payment-option {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.payment-option:hover,
+.payment-option.selected {
+  border-color: var(--sage);
+  background: var(--sage-bg);
+}
+.payment-option input {
+  accent-color: var(--sage);
+}
+.payment-option-info h5 {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.payment-option-info p {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.bank-info {
+  background: var(--cream);
+  padding: 1rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+.bank-info strong {
+  color: var(--sage);
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media (max-width: 1024px) {
+  .products-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .footer-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .slide-card.pos-far-left,
+  .slide-card.pos-far-right {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  header {
+    padding: 1rem 1.5rem;
+  }
+  .header-left {
+    display: none;
+  }
+  .emotion-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .slide-card {
+    width: 220px;
+    height: 300px;
+  }
+  .slide-card.pos-left {
+    transform: translateX(-180px) scale(0.85);
+  }
+  .slide-card.pos-right {
+    transform: translateX(180px) scale(0.85);
+  }
+  .footer-content {
+    grid-template-columns: 1fr;
+  }
+  .product-modal {
+    flex-direction: column;
+  }
+  .product-modal-image {
+    width: 100%;
+    min-height: 250px;
+  }
+  .product-modal-content {
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .emotion-grid {
+    grid-template-columns: 1fr;
+  }
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .slider-container {
+    height: 380px;
+  }
+  .slide-card {
+    width: 200px;
+    height: 270px;
+  }
+  .slide-card.pos-left {
+    transform: translateX(-140px) scale(0.8);
+  }
+  .slide-card.pos-center {
+    transform: translateX(0) scale(1);
+  }
+  .slide-card.pos-right {
+    transform: translateX(140px) scale(0.8);
+  }
+}
+/* 향기 테스트 팝업 버튼 컬러 튜닝 */
+.popup .form-btn.primary {
+  background: var(--sage);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(95, 113, 97, 0.18);
+}
+
+/* “나중에 할래요” 버튼 */
+.popup .form-btn.secondary {
+  background: transparent;
+  color: var(--ivory);
+  border: 1px solid var(--ivory);
+}
+
+.popup .form-btn.secondary:hover {
+  background: transparent;
+  color: var(--ivory);
+  border: 1px solid var(--ivory-light);
+}
+/* 장바구니 화면 푸터 여백 */
+.best-section {
+  padding-bottom: 80px; /* 원하는 만큼 조절 가능: 60~120 추천 */
+}
+/* 장바구니 페이지 전용 여백 */
+body.cart-page .best-section {
+  padding-bottom: 100px;
+}
+
+/* ============================================================
+   INQUIRY MODAL (문의하기)
+============================================================ */
+.inquiry-modal {
+  max-width: 480px;
+}
+.inquiry-modal select.form-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+.inquiry-notice {
+  background: var(--sage-bg);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+.inquiry-notice p {
+  font-size: 0.8rem;
+  color: var(--mid);
+  line-height: 1.6;
+}
+
+/* 내 문의 내역 모달 */
+.inquiry-list-modal {
+  max-width: 520px;
+}
+.inquiry-list-modal .modal-body {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.inquiry-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+.inquiry-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--sage-bg);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.inquiry-item-header:hover {
+  background: var(--sage-lighter);
+}
+.inquiry-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.inquiry-type-badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--sage);
+  color: #fff;
+}
+.inquiry-type-badge.exchange {
+  background: var(--rose);
+}
+.inquiry-type-badge.shipping {
+  background: var(--ivory);
+  color: var(--dark);
+}
+.inquiry-type-badge.product {
+  background: var(--mid);
+}
+.inquiry-type-badge.order {
+  background: #6b8cce;
+}
+.inquiry-item-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.inquiry-item-date {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.inquiry-item-body {
+  padding: 1rem;
+  display: none;
+  border-top: 1px solid var(--border);
+}
+.inquiry-item.open .inquiry-item-body {
+  display: block;
+}
+.inquiry-item-content {
+  font-size: 0.85rem;
+  color: var(--mid);
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+.inquiry-item-meta {
+  font-size: 0.75rem;
+  color: var(--light);
+}
+.inquiry-answer {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--sage-bg);
+  border-radius: 8px;
+}
+.inquiry-answer-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+}
+.inquiry-answer-content {
+  font-size: 0.85rem;
+  color: var(--mid);
+  line-height: 1.6;
+}
+.inquiry-status {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+.inquiry-status.waiting {
+  background: var(--border);
+  color: var(--mid);
+}
+.inquiry-status.answered {
+  background: var(--sage-lighter);
+  color: var(--sage);
+}
+.inquiry-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--light);
+}
+.inquiry-empty p {
+  margin-bottom: 0.5rem;
+}
+
+/* ============================================================
+   PRODUCTS LISTING PAGE (전체 상품)
+============================================================ */
+.products-hero {
+  text-align: center;
+  padding: 2rem 0 2.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.products-hero-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+.products-hero-title {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.8rem;
+  font-weight: 400;
+  color: var(--dark);
+  margin-bottom: 0.5rem;
+}
+.products-hero-sub {
+  font-size: 0.9rem;
+  color: var(--mid);
+}
+
+.products-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.products-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.toolbar-hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.toolbar-hamburger:hover {
+  background: var(--sage-bg);
+}
+.toolbar-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--mid);
+  border-radius: 1px;
+  transition: background 0.2s;
+}
+.toolbar-hamburger:hover span {
+  background: var(--sage);
+}
+.products-count {
+  font-size: 0.9rem;
+  color: var(--mid);
+}
+.products-count strong {
+  color: var(--sage);
+}
+.products-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.products-sort {
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--dark);
+  background: #fff;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+.products-sort:focus {
+  outline: none;
+  border-color: var(--sage);
+}
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  color: var(--light);
+  transition: all 0.2s;
+}
+.view-btn:first-child {
+  border-right: 1px solid var(--border);
+}
+.view-btn:hover {
+  color: var(--mid);
+}
+.view-btn.active {
+  background: var(--sage-bg);
+  color: var(--sage);
+}
+
+/* 리스트 뷰 */
+.products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.product-list-item {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.product-list-item:hover {
+  border-color: var(--sage-lighter);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.product-list-image {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, var(--sage-lighter), var(--rose-lighter));
+  border-radius: 10px;
+  position: relative;
+}
+.product-list-image .product-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+.product-list-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+.product-list-top .product-brand {
+  font-size: 0.75rem;
+  color: var(--light);
+  margin-bottom: 0.25rem;
+}
+.product-list-top .product-name {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+.product-list-top .product-desc {
+  font-size: 0.85rem;
+  color: var(--mid);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-list-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+.product-list-bottom .product-price {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--dark);
+}
+.product-list-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+.product-list-actions .product-wishlist {
+  position: static;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.product-list-actions .product-wishlist:hover {
+  border-color: var(--rose);
+}
+.product-list-cart {
+  padding: 0.5rem 1rem;
+  background: var(--sage);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.product-list-cart:hover {
+  background: var(--sage-dark);
+}
+
+/* 반응형 */
+@media (max-width: 600px) {
+  .products-toolbar {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  .products-toolbar-right {
+    justify-content: space-between;
+  }
+  .product-list-item {
+    flex-direction: column;
+  }
+  .product-list-image {
+    width: 100%;
+    height: 160px;
+  }
+  .product-list-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+}
+
+/* ============================================================
+   REVIEW RATING SELECT (리뷰 별점 선택)
+============================================================ */
+.rating-option {
+  cursor: pointer;
+}
+.rating-btn {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--light);
+  background: #fff;
+  transition: all 0.2s;
+}
+.rating-option:hover .rating-btn {
+  border-color: var(--sage);
+  color: var(--sage);
+}
+.rating-option input:checked + .rating-btn {
+  border-color: var(--sage);
+  background: var(--sage-bg);
+  color: var(--sage);
+  font-weight: 500;
+}
