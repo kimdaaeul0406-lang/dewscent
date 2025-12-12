@@ -1,4 +1,4 @@
-<!-- ✅ 웰컴 팝업 (향기 테스트) -->
+<!-- 웰컴 팝업 (향기 테스트) -->
 <div class="popup-overlay" id="welcomePopup">
     <div class="popup">
         <div class="popup-header">
@@ -23,7 +23,7 @@
     </div>
 </div>
 
-<!-- ✅ 위시리스트 모달 -->
+<!-- 위시리스트 모달 -->
 <div class="modal-overlay" id="wishlistModal">
     <div class="modal">
         <div class="modal-header">
@@ -37,7 +37,7 @@
     </div>
 </div>
 
-<!-- ✅ 관리자 로그인 모달 -->
+<!-- 관리자 로그인 모달 -->
 <div class="modal-overlay" id="adminLoginModal">
     <div class="modal">
         <div class="modal-header">
@@ -60,9 +60,9 @@
             </form>
         </div>
     </div>
-    </div>
+</div>
 
-<!-- ✅ 로그인 모달 -->
+<!-- 로그인 모달 -->
 <div class="modal-overlay" id="loginModal">
     <div class="modal">
         <div class="modal-header">
@@ -98,7 +98,7 @@
     </div>
 </div>
 
-<!-- ✅ 회원가입 모달 -->
+<!-- 회원가입 모달 -->
 <div class="modal-overlay" id="signupModal">
     <div class="modal">
         <div class="modal-header">
@@ -129,7 +129,7 @@
     </div>
 </div>
 
-<!-- ✅ 마이페이지 모달 -->
+<!-- 마이페이지 모달 -->
 <div class="modal-overlay" id="mypageModal">
     <div class="modal">
         <div class="modal-header">
@@ -141,9 +141,9 @@
             <!-- JS로 사용자 정보가 렌더링됩니다 -->
         </div>
     </div>
-    </div>
+</div>
 
-<!-- ✅ 향기 테스트 모달 -->
+<!-- 향기 테스트 모달 -->
 <div class="modal-overlay" id="testModal">
     <div class="modal test-modal">
         <div class="modal-header">
@@ -157,7 +157,7 @@
     </div>
 </div>
 
-<!-- ✅ 상품 상세 모달 -->
+<!-- 상품 상세 모달 -->
 <div class="modal-overlay" id="productModal">
     <div class="modal product-modal">
         <div class="product-modal-image"></div>
@@ -204,7 +204,7 @@
     </div>
 </div>
 
-<!-- ✅ 리뷰 목록 모달 -->
+<!-- 리뷰 목록 모달 -->
 <div class="modal-overlay" id="reviewListModal">
     <div class="modal review-list-modal">
         <div class="modal-header">
@@ -219,7 +219,7 @@
     </div>
 </div>
 
-<!-- ✅ 장바구니 모달 -->
+<!-- 장바구니 모달 -->
 <div class="modal-overlay" id="cartModal">
     <div class="modal cart-modal">
         <div class="modal-header">
@@ -233,7 +233,7 @@
     </div>
 </div>
 
-<!-- ✅ 리뷰 작성 모달 -->
+<!-- 리뷰 작성 모달 -->
 <div class="modal-overlay" id="reviewModal">
     <div class="modal">
         <div class="modal-header">
@@ -276,7 +276,7 @@
     </div>
 </div>
 
-<!-- ✅ 결제(주문서) 모달 -->
+<!-- 결제(주문서) 모달 -->
 <div class="modal-overlay" id="checkoutModal">
     <div class="modal checkout-modal">
         <div class="modal-header">
@@ -351,7 +351,7 @@
     </div>
 </div>
 
-<!-- ✅ 문의하기 모달 -->
+<!-- 문의하기 모달 -->
 <div class="modal-overlay" id="inquiryModal">
     <div class="modal inquiry-modal">
         <div class="modal-header">
@@ -392,7 +392,7 @@
     </div>
 </div>
 
-<!-- ✅ 내 문의 내역 모달 -->
+<!-- 내 문의 내역 모달 -->
 <div class="modal-overlay" id="inquiryListModal">
     <div class="modal inquiry-list-modal">
         <div class="modal-header">

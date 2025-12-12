@@ -24,10 +24,10 @@ $pageTitle = "DewScent | 당신의 향기를 찾아서";
 
     <main id="main">
         <?php include __DIR__ . '/includes/home.php'; ?>
-        <!-- ❌ 여기서 footer는 include 하지 않음 -->
+        <!-- 여기서 footer는 include 하지 않음 -->
     </main>
 
-    <!-- ✅ footer는 main 밖, body 안에서 한 번만 include -->
+    <!-- footer는 main 밖, body 안에서 한 번만 include -->
     <?php include __DIR__ . '/includes/footer.php'; ?>
 
     <?php include __DIR__ . '/includes/sidebar.php'; ?>

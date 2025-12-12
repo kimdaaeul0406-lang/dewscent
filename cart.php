@@ -125,9 +125,9 @@ $pageTitle = "장바구니 | DewScent";
 
     <?php include __DIR__ . '/includes/header.php'; ?>
 
-    <!-- ✅ 인트로 없이 바로 보이게 -->
+    <!-- 인트로 없이 바로 보이게 -->
     <main id="main" class="visible">
-        <!-- ✅ home의 best-section 스타일 재사용 (전체 그라데이션) -->
+        <!-- home의 best-section 스타일 재사용 (전체 그라데이션) -->
         <section class="best-section">
             <div class="best-header">
                 <h2 class="section-title">장바구니</h2>
@@ -135,7 +135,7 @@ $pageTitle = "장바구니 | DewScent";
             </div>
 
             <?php if (empty($cart)): ?>
-                <!-- ✅ 이모지 제거, 깔끔하게 텍스트만 -->
+                <!-- 깔끔하게 텍스트만 -->
                 <div class="cart-empty">
                     <p>장바구니가 비어 있습니다.</p>
                     <a href="index.php" class="form-btn ivory" style="margin-top:1rem;">
