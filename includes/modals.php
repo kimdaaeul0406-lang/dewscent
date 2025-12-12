@@ -60,7 +60,7 @@
             </form>
         </div>
     </div>
-    </div>
+</div>
 
 <!-- ✅ 로그인 모달 -->
 <div class="modal-overlay" id="loginModal">
@@ -141,7 +141,7 @@
             <!-- JS로 사용자 정보가 렌더링됩니다 -->
         </div>
     </div>
-    </div>
+</div>
 
 <!-- ✅ 향기 테스트 모달 -->
 <div class="modal-overlay" id="testModal">
