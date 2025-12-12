@@ -313,7 +313,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				<div class="admin-card" id="tab-popups" style="display:none">
 					<!-- 설명 박스 -->
 					<div style="background:linear-gradient(135deg,#f5ebe8,#e8f0e5);padding:1rem;border-radius:12px;margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
-						<div style="width:80px;height:60px;background:var(--rose-lighter);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;">💬</div>
+						<div style="width:80px;height:60px;background:var(--rose-lighter);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--rose);">POPUP</div>
 						<div>
 							<strong style="color:var(--rose);">사이트 팝업</strong>
 							<p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">메인 페이지 진입 시 나타나는 이벤트/공지 팝업입니다.</p>
@@ -324,7 +324,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					<div style="background:var(--sage-bg);padding:1rem;border-radius:10px;margin-bottom:1rem;">
 						<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
 							<div>
-								<strong style="color:var(--sage);">🌸 향기 테스트 팝업</strong>
+								<strong style="color:var(--sage);">향기 테스트 팝업</strong>
 								<p style="font-size:.8rem;color:var(--light);margin-top:.25rem;">"오늘 기분에 어울리는 향기를 찾아볼까요?" 웰컴 팝업</p>
 							</div>
 							<div style="display:flex;gap:.5rem;">
@@ -431,7 +431,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				<div class="admin-card" id="tab-mainproducts" style="display:none">
 					<!-- 설명 박스 -->
 					<div style="background:linear-gradient(135deg,#f5ebe8,#eef5f3);padding:1rem;border-radius:12px;margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
-						<div style="width:80px;height:60px;background:var(--ivory-light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;">⭐</div>
+						<div style="width:80px;height:60px;background:var(--ivory-light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--ivory);">BEST</div>
 						<div>
 							<strong style="color:var(--ivory);">메인 베스트 상품</strong>
 							<p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">메인 페이지 "다시 찾게 되는 향기" 섹션에 표시될 상품입니다.</p>
@@ -442,9 +442,9 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					<div style="background:var(--sage-bg);padding:1rem;border-radius:10px;margin-bottom:1rem;">
 						<p style="font-size:.9rem;font-weight:500;margin-bottom:.5rem;">빠른 설정</p>
 						<div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectBest()">🏆 BEST 상품만</button>
-							<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectNew()">✨ NEW 상품만</button>
-							<button class="badge" style="cursor:pointer;background:var(--ivory);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectBestAndNew()">🌟 BEST + NEW</button>
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectBest()">BEST 상품만</button>
+							<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectNew()">NEW 상품만</button>
+							<button class="badge" style="cursor:pointer;background:var(--ivory);color:#fff;border:none;padding:.5rem .75rem;" onclick="autoSelectBestAndNew()">BEST + NEW</button>
 							<button class="badge" style="cursor:pointer;border:none;padding:.5rem .75rem;" onclick="clearMainProducts()">전체 해제</button>
 						</div>
 					</div>
@@ -1114,15 +1114,15 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			const hideUntil = localStorage.getItem(WELCOME_HIDE_KEY);
 			const statusEl = document.getElementById('welcomeStatusText');
 			if (!hideUntil) {
-				statusEl.textContent = '✅ 향기 테스트 팝업이 정상적으로 표시됩니다.';
+				statusEl.textContent = '향기 테스트 팝업이 정상적으로 표시됩니다.';
 				statusEl.style.color = 'var(--sage)';
 			} else {
 				const until = new Date(parseInt(hideUntil));
 				if (Date.now() < parseInt(hideUntil)) {
-					statusEl.textContent = `⏰ ${until.toLocaleDateString('ko-KR')} ${until.toLocaleTimeString('ko-KR')}까지 숨김 상태입니다.`;
+					statusEl.textContent = `${until.toLocaleDateString('ko-KR')} ${until.toLocaleTimeString('ko-KR')}까지 숨김 상태입니다.`;
 					statusEl.style.color = 'var(--rose)';
 				} else {
-					statusEl.textContent = '✅ 숨김 기간이 만료되어 팝업이 표시됩니다.';
+					statusEl.textContent = '숨김 기간이 만료되어 팝업이 표시됩니다.';
 					statusEl.style.color = 'var(--sage)';
 				}
 			}

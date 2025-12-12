@@ -23,12 +23,12 @@
   --sage-bg: #f3f5f1; /* 큰 섹션 배경 */
   --sage-hover: #576658; /* hover용: 살짝 어둡게 */
 
-  /* 🌸 서브 메인 Rose */
+  /* 서브 메인 Rose */
   --rose: #c96473; /* 포인트 */
   --rose-light: #dfa0ab;
   --rose-lighter: #f8dde1;
 
-  /* ✨ Ivory Gold 포인트 */
+  /* Ivory Gold 포인트 */
   --ivory: #b6a273; /* 더 차분한 샴페인 골드 */
   --ivory-light: #e9e2d3; /* 연한 아이보리 베이지 */
 
@@ -1603,7 +1603,7 @@ body.cart-page .best-header::after {
   border-bottom: 1px solid var(--border);
 }
 
-/* ✅ 장바구니 카드 이미지(네모 박스) 완전 숨기기 */
+/* 장바구니 카드 이미지(네모 박스) 완전 숨기기 */
 .cart-item-image {
   display: none !important;
 }

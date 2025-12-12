@@ -34,7 +34,7 @@ $basePrefix = $inPages ? '../' : '';
         <a href="#" id="mypageLink" style="display:none;" onclick="openMypageTab('profile'); return false;">마이페이지</a>
         <a href="#" id="logoutLink" style="display:none;" onclick="logoutUser(); return false;">로그아웃</a>
 
-        <!-- ✅ 무조건 팝업 장바구니로만 동작하게 -->
+        <!-- 무조건 팝업 장바구니로만 동작하게 -->
         <a href="#"
            class="cart-link"
            onclick="renderCart(); openModal('cartModal'); return false;">

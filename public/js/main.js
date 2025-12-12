@@ -681,7 +681,7 @@ function renderTestStep() {
 
     body.innerHTML = `
         <div class="test-result">
-          <div class="test-result-icon">🌸</div>
+          <div class="test-result-icon">DewScent</div>
           <h3>당신의 향기 타입은</h3>
           <p class="test-result-type">${result.name}</p>
           <p>${result.desc}</p>
@@ -970,7 +970,7 @@ function renderCart() {
   const cartBody = document.getElementById("cartBody");
   if (!cartBody) return;
 
-  // ✅ 비어 있을 때: 이모지 제거 + 듀센트 감성으로 심플하게
+  // 비어 있을 때
   if (cart.length === 0) {
     cartBody.innerHTML = `
       <div class="cart-empty">
@@ -1052,7 +1052,7 @@ function renderCart() {
     `;
 }
 
-// ✅ 헤더에서 쓰기 좋은 장바구니 열기 함수
+// 헤더에서 쓰기 좋은 장바구니 열기 함수
 function openCart() {
   renderCart();
   openModal("cartModal");
@@ -2412,7 +2412,7 @@ function showSitePopups() {
   renderCurrentPopup();
 }
 
-// 페이지 로드 시 팝업 표시 (메인 페이지에서만)
+// 페이지 로드 시 팝업 표시 (메인 페이지에서만, 인트로 후에)
 if (document.querySelector(".slider-section")) {
-  setTimeout(showSitePopups, 1000); // 1초 후 팝업 표시
+  setTimeout(showSitePopups, 4000); // 인트로(2.5초) + 여유시간 후 팝업 표시
 }
