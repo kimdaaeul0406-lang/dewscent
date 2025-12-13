@@ -271,12 +271,12 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				<div class="admin-card" id="tab-banners" style="display:none">
 					<!-- 설명 박스 -->
 					<div style="background:linear-gradient(135deg,#e8f0e5,#f5ebe8);padding:1rem;border-radius:12px;margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
-						<div style="width:80px;height:60px;background:var(--sage-lighter);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;">🎠</div>
+						<div style="width:80px;height:60px;background:var(--sage-lighter);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;"></div>
 						<div>
 							<strong style="color:var(--sage);">메인 슬라이더 배너</strong>
 							<p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">메인 페이지 상단에 빙글빙글 돌아가는 이벤트 배너입니다.</p>
 						</div>
-						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewBannerSlider()">🔍 미리보기</button>
+						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewBannerSlider()">미리보기</button>
 					</div>
 					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
 						<h3 style="font-size:1rem;">배너/캐러셀 관리</h3>
@@ -318,7 +318,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 							<strong style="color:var(--rose);">사이트 팝업</strong>
 							<p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">메인 페이지 진입 시 나타나는 이벤트/공지 팝업입니다.</p>
 						</div>
-						<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewPopup()">🔍 미리보기</button>
+						<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewPopup()">미리보기</button>
 					</div>
 					<!-- 향기 테스트 관리 -->
 					<div style="background:var(--sage-bg);padding:1rem;border-radius:10px;margin-bottom:1rem;">
@@ -372,12 +372,12 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				<div class="admin-card" id="tab-emotions" style="display:none">
 					<!-- 설명 박스 -->
 					<div style="background:linear-gradient(135deg,#e8f0e5,#eef5f3);padding:1rem;border-radius:12px;margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
-						<div style="width:80px;height:60px;background:var(--aqua);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;">💭</div>
+						<div style="width:80px;height:60px;background:var(--aqua);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;"></div>
 						<div>
 							<strong style="color:var(--sage);">감정 선택 카드</strong>
 							<p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">메인 페이지 "오늘, 어떤 기분인가요?" 섹션의 감정 카드입니다.</p>
 						</div>
-						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewEmotions()">🔍 미리보기</button>
+						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewEmotions()">미리보기</button>
 					</div>
 					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
 						<h3 style="font-size:1rem;">감정 카드 관리</h3>
