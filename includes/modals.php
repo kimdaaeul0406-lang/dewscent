@@ -1,3 +1,8 @@
+<?php
+// 현재 경로가 /pages/ 하위인지에 따라 admin 경로 결정
+$inPages = strpos($_SERVER['PHP_SELF'], '/pages/') !== false;
+$adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
+?>
 <!-- 웰컴 팝업 (향기 테스트) -->
 <div class="popup-overlay" id="welcomePopup">
     <div class="popup">
@@ -46,7 +51,7 @@
             <p class="modal-subtitle">관리자 전용 영역입니다</p>
         </div>
         <div class="modal-body">
-            <form method="post" action="admin/index.php">
+            <form method="post" action="<?php echo $adminPath; ?>">
                 <div class="form-group">
                     <label class="form-label">이메일</label>
                     <input type="email" name="email" class="form-input" placeholder="admin@example.com" required>
