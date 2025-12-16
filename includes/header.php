@@ -7,6 +7,10 @@ $inPages = strpos($_SERVER['PHP_SELF'], '/pages/') !== false;
 $basePrefix = $inPages ? '../' : '';
 ?>
 
+<script>
+  window.DS_BASE_URL = "<?php echo rtrim(SITE_URL, '/'); ?>";
+</script>
+
 <?php if ($showIntro): ?>
 <div class="intro" id="intro">
     <p class="intro-sub">당신의 향기를 찾아서</p>
@@ -43,3 +47,5 @@ $basePrefix = $inPages ? '../' : '';
         </a>
     </div>
 </header>
+
+<?php include __DIR__ . '/auth_state.php'; ?>
