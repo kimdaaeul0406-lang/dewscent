@@ -186,6 +186,26 @@ function getProductReviews(productId) {
   return allReviews[productId] || [];
 }
 
+// 내 리뷰 삭제
+function deleteMyReview(reviewId, productId) {
+  if (!confirm('정말 이 리뷰를 삭제하시겠습니까?')) return;
+  
+  try {
+    const allReviews = getAllReviews();
+    if (!allReviews[productId]) return;
+    
+    allReviews[productId] = allReviews[productId].filter(r => r.id !== reviewId);
+    localStorage.setItem(REVIEWS_KEY, JSON.stringify(allReviews));
+    
+    // 리뷰 목록 갱신
+    openReviewList();
+    renderReviews();
+    alert('리뷰가 삭제되었습니다.');
+  } catch (e) {
+    alert('리뷰 삭제 중 오류가 발생했습니다.');
+  }
+}
+
 // 리뷰 저장
 function saveReview(productId, reviewData) {
   const allReviews = getAllReviews();
@@ -394,12 +414,16 @@ function loadBannerSlider() {
   if (typeof API !== "undefined" && API.getActiveBanners) {
     const adminBanners = API.getActiveBanners();
     if (adminBanners.length > 0) {
-      // 최소 5개 필요하므로 반복해서 채움
-      banners = [];
-      while (banners.length < 5) {
-        adminBanners.forEach((b) => {
-          if (banners.length < 5) banners.push(b);
-        });
+      // 관리자가 등록한 배너 사용 (최대 5개)
+      banners = adminBanners.slice(0, 5);
+      // 5개 미만이면 반복해서 채움
+      if (banners.length < 5) {
+        const originalBanners = [...banners];
+        while (banners.length < 5) {
+          originalBanners.forEach((b) => {
+            if (banners.length < 5) banners.push(b);
+          });
+        }
       }
     }
   }
@@ -408,9 +432,9 @@ function loadBannerSlider() {
   track.innerHTML = banners
     .map(
       (b, i) => `
-    <div class="slide-card ${positions[i]}" onclick="location.href='${
-        b.link || "#"
-      }'">
+    <div class="slide-card ${positions[i]}" onclick="handleBannerClick('${
+        b.link || "pages/products.php"
+      }')">
       <div class="slide-card-image" ${
         b.imageUrl
           ? `style="background-image:url(${b.imageUrl});background-size:cover;background-position:center;"`
@@ -473,14 +497,27 @@ function goToSlide(index) {
   currentSlide = index;
   updateSlider();
   clearInterval(sliderInterval);
-  sliderInterval = setInterval(nextSlide, 3000);
+  sliderInterval = setInterval(nextSlide, 4000);
+}
+
+// 배너 클릭 시 링크 이동
+function handleBannerClick(link) {
+  if (link && link !== "#" && link.trim() !== "") {
+    // 상대 경로 처리
+    if (link.startsWith("http://") || link.startsWith("https://")) {
+      window.location.href = link;
+    } else {
+      // 상대 경로인 경우
+      window.location.href = link;
+    }
+  }
 }
 
 // 슬라이더 초기화 (관리자 배너 로드)
 loadBannerSlider();
 
 // 자동 슬라이드 시작
-sliderInterval = setInterval(nextSlide, 3000);
+sliderInterval = setInterval(nextSlide, 4000);
 
 // 감정 섹션 동적 로드
 function loadEmotionSection() {
@@ -515,9 +552,115 @@ function loadEmotionSection() {
   grid.querySelectorAll('.emotion-card').forEach(card => {
     card.addEventListener('click', () => {
       const emotion = card.dataset.emotion;
-      openEmotionDetail(emotion);
+      const emotionData = emotions.find(e => e.key === emotion);
+      openEmotionRecommendation(emotion, emotionData);
     });
   });
+}
+
+// 감정별 향수 추천 모달 열기
+async function openEmotionRecommendation(emotionKey, emotionData) {
+  // 7일 주기로 추천 상품 가져오기
+  const recommendations = await getEmotionRecommendations(emotionKey);
+  
+  if (!recommendations || recommendations.length === 0) {
+    alert('이 감정에 맞는 추천 상품이 아직 없습니다.');
+    return;
+  }
+  
+  // 모달 생성
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay active';
+  modal.id = 'emotionRecommendationModal';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:1200px;width:95%;max-height:90vh;overflow-y:auto;">
+      <button class="modal-close" onclick="closeEmotionRecommendation()">×</button>
+      <div style="text-align:center;margin-bottom:2rem;">
+        <h2 style="font-family:'Cormorant Garamond',serif;font-size:2rem;color:var(--sage);margin-bottom:.5rem;">${emotionData?.title || '추천 향수'}</h2>
+        <p style="color:var(--mid);font-size:.95rem;">${emotionData?.desc || '이 기분에 어울리는 향기를 추천해드려요'}</p>
+      </div>
+      <div style="display:flex;flex-wrap:nowrap;gap:1.5rem;justify-content:center;align-items:stretch;padding:0.5rem 0;margin-bottom:1.5rem;overflow-x:auto;scrollbar-width:thin;">
+        ${recommendations.map((product, idx) => {
+          const productIndex = typeof products !== 'undefined' ? products.findIndex(p => p.id === product.id) : -1;
+          const onClickHandler = productIndex >= 0 
+            ? `openProductModal(${productIndex});closeEmotionRecommendation();`
+            : `window.location.href='pages/products.php';`;
+          return `
+          <div class="product-card" style="cursor:pointer;flex:0 0 auto;width:220px;min-width:200px;max-width:220px;" onclick="${onClickHandler}">
+            <div class="product-image" style="height:220px;background:${product.imageUrl ? `url(${product.imageUrl})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage))'};background-size:cover;background-position:center;border-radius:12px;">
+              ${product.badge ? `<span class="product-badge">${product.badge}</span>` : ''}
+            </div>
+            <div class="product-info" style="padding:1rem 0;">
+              <p class="product-brand" style="font-size:.8rem;">DewScent</p>
+              <p class="product-name" style="font-size:.95rem;margin:.5rem 0;">${product.name}</p>
+              <div class="product-rating" style="margin:.5rem 0;">
+                <span class="stars">${'★'.repeat(Math.round(product.rating || 4))}</span>
+                <span class="rating-count" style="font-size:.8rem;">(${product.reviews || 0})</span>
+              </div>
+              <p class="product-price" style="font-size:1rem;font-weight:600;color:var(--sage);">₩${(product.price || 0).toLocaleString()}</p>
+            </div>
+          </div>
+        `;
+        }).join('')}
+      </div>
+      <div style="text-align:center;padding-top:1rem;border-top:1px solid var(--border);">
+        <p style="font-size:.85rem;color:var(--light);">이 추천은 7일마다 새로운 향기로 업데이트됩니다.</p>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+}
+
+// 감정별 추천 닫기
+function closeEmotionRecommendation() {
+  const modal = document.getElementById('emotionRecommendationModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = '';
+  }
+}
+
+// 감정별 추천 상품 가져오기 (7일 주기)
+async function getEmotionRecommendations(emotionKey) {
+  if (typeof API === 'undefined' || !API.getEmotionRecommendations) {
+    // API가 없으면 기본 추천 로직
+    return getDefaultEmotionRecommendations(emotionKey);
+  }
+  
+  return await API.getEmotionRecommendations(emotionKey);
+}
+
+// 기본 감정별 추천 (관리자 설정이 없을 때)
+function getDefaultEmotionRecommendations(emotionKey) {
+  const allProducts = products.filter(p => p.status === '판매중');
+  
+  // 감정별 카테고리 매핑
+  const emotionCategoryMap = {
+    calm: ['향수', '디퓨저'],
+    warm: ['향수', '바디미스트'],
+    fresh: ['바디미스트', '섬유유연제'],
+    romantic: ['향수', '바디미스트'],
+    focus: ['향수', '디퓨저'],
+    refresh: ['바디미스트', '섬유유연제'],
+  };
+  
+  const categories = emotionCategoryMap[emotionKey] || ['향수'];
+  let filtered = allProducts.filter(p => categories.includes(p.category));
+  
+  // 7일 주기로 다른 상품 추천 (날짜 기반 랜덤)
+  const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+  const weekCycle = Math.floor(daysSinceEpoch / 7);
+  const seed = weekCycle + emotionKey.charCodeAt(0);
+  
+  // 시드 기반 셔플
+  const shuffled = [...filtered].sort((a, b) => {
+    const hashA = (a.id * seed) % 1000;
+    const hashB = (b.id * seed) % 1000;
+    return hashA - hashB;
+  });
+  
+  return shuffled.slice(0, 4);
 }
 
 // 섹션 타이틀 동적 로드
@@ -561,21 +704,35 @@ function renderProducts() {
 
   if (typeof API !== "undefined" && API.getMainProductIds) {
     const selectedIds = API.getMainProductIds();
-    if (selectedIds.length > 0) {
-      displayProducts = products.filter((p) => selectedIds.includes(p.id));
+    if (selectedIds && selectedIds.length > 0) {
+      // 선택된 ID에 해당하는 상품 찾기
+      const filtered = products.filter((p) => selectedIds.includes(p.id));
+      if (filtered.length > 0) {
+        displayProducts = filtered;
+      }
     }
+  }
+  
+  // 최대 4개만 표시
+  if (displayProducts.length > 4) {
+    displayProducts = displayProducts.slice(0, 4);
   }
 
   grid.innerHTML = displayProducts
     .map(
       (product, index) => `
         <div class="product-card" onclick="openProductModal(${index})">
-          <div class="product-image">
+          <div class="product-image" style="position:relative;">
             ${
               product.badge
                 ? `<span class="product-badge">${product.badge}</span>`
                 : ""
             }
+            ${(product.stock !== undefined && product.stock <= 0) || product.status === '품절' 
+              ? `<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:12px;z-index:1;">
+                   <span style="background:var(--rose);color:#fff;padding:.5rem 1rem;border-radius:8px;font-weight:600;font-size:.9rem;">품절</span>
+                 </div>`
+              : ''}
             <button class="product-wishlist" data-id="${
               product.id
             }" onclick="event.stopPropagation();toggleWishlist(this)">${
@@ -606,11 +763,167 @@ function renderProducts() {
     .join("");
 }
 
+// 공지사항/이벤트 로드
+function loadNotices() {
+  if (typeof API === 'undefined' || !API.getActiveNotices) return;
+  
+  const notices = API.getActiveNotices();
+  const section = document.getElementById('noticeSection');
+  const banner = document.getElementById('noticeBanner');
+  
+  if (!section || !banner || notices.length === 0) {
+    if (section) section.style.display = 'none';
+    return;
+  }
+  
+  // 첫 번째 활성 공지/이벤트만 표시
+  const notice = notices[0];
+  section.style.display = 'block';
+  
+  banner.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.25rem;background:var(--white);border-radius:12px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,0.05);transition:all 0.3s ease;">
+      <div style="flex:1;">
+        <span style="font-size:.7rem;color:${notice.type === 'event' ? 'var(--rose)' : 'var(--sage)'};font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:inline-block;padding:.2rem .6rem;background:${notice.type === 'event' ? 'var(--rose-lighter)' : 'var(--sage-bg)'};border-radius:4px;margin-bottom:.5rem;">${notice.type === 'event' ? '🎁 EVENT' : '📢 NOTICE'}</span>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--dark);margin:.5rem 0;font-weight:500;">${notice.title}</h3>
+        <p style="font-size:.85rem;color:var(--mid);line-height:1.6;">${notice.content}</p>
+      </div>
+      ${notice.imageUrl ? `
+        <div style="width:120px;height:80px;background:url(${notice.imageUrl});background-size:cover;background-position:center;border-radius:8px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.1);"></div>
+      ` : ''}
+      <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
+        ${notice.link ? `
+          <button class="form-btn secondary" style="font-size:.85rem;padding:.5rem 1rem;" onclick="window.location.href='${notice.link}'">자세히 보기</button>
+        ` : ''}
+        <button style="background:none;border:none;color:var(--light);cursor:pointer;font-size:1.5rem;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all 0.2s;" onmouseover="this.style.background='var(--sage-bg)';this.style.color='var(--sage)'" onmouseout="this.style.background='none';this.style.color='var(--light)'" onclick="document.getElementById('noticeSection').style.display='none'">×</button>
+      </div>
+    </div>
+  `;
+}
+
 // 처음 로드 시 상품 렌더링 (API에서 상품 로드 후)
 (async function initProducts() {
   await loadProducts();
   renderProducts();
+  initSearch();
+  loadNotices();
+  if (typeof renderRecentProducts === 'function') {
+    renderRecentProducts();
+  }
 })();
+
+// ───────────────────────────
+// 검색 기능
+// ───────────────────────────
+function initSearch() {
+  const searchInput = document.querySelector('.search-input');
+  const searchBtn = document.querySelector('.search-btn');
+  
+  if (!searchInput || !searchBtn) return;
+  
+  // 검색 버튼 클릭
+  searchBtn.addEventListener('click', () => {
+    performSearch(searchInput.value.trim());
+  });
+  
+  // Enter 키 입력
+  searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      performSearch(searchInput.value.trim());
+    }
+  });
+  
+  // 실시간 검색 (입력 중 자동완성)
+  let searchTimeout;
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    
+    if (query.length >= 2) {
+      searchTimeout = setTimeout(() => {
+        showSearchSuggestions(query);
+      }, 300);
+    } else {
+      hideSearchSuggestions();
+    }
+  });
+}
+
+// 검색 실행
+function performSearch(query) {
+  if (!query) {
+    alert('검색어를 입력해주세요.');
+    return;
+  }
+  
+  // products.php로 이동하면서 검색어 전달
+  window.location.href = `pages/products.php?search=${encodeURIComponent(query)}`;
+}
+
+// 검색 자동완성 표시
+function showSearchSuggestions(query) {
+  // 기존 자동완성 제거
+  hideSearchSuggestions();
+  
+  if (!products || products.length === 0) return;
+  
+  // 검색어와 일치하는 상품 찾기
+  const matches = products
+    .filter(p => {
+      const searchLower = query.toLowerCase();
+      return p.name.toLowerCase().includes(searchLower) ||
+             (p.desc && p.desc.toLowerCase().includes(searchLower)) ||
+             (p.category && p.category.toLowerCase().includes(searchLower));
+    })
+    .slice(0, 5); // 최대 5개만 표시
+  
+  if (matches.length === 0) return;
+  
+  // 자동완성 UI 생성
+  const searchWrapper = document.querySelector('.search-wrapper');
+  if (!searchWrapper) return;
+  
+  const suggestions = document.createElement('div');
+  suggestions.className = 'search-suggestions';
+  suggestions.id = 'searchSuggestions';
+  suggestions.innerHTML = matches.map(p => `
+    <div class="search-suggestion-item" onclick="selectSearchSuggestion('${p.name}')">
+      <span style="font-weight:500;">${highlightMatch(p.name, query)}</span>
+      <span style="font-size:.8rem;color:var(--light);">₩${p.price.toLocaleString()}</span>
+    </div>
+  `).join('');
+  
+  searchWrapper.style.position = 'relative';
+  searchWrapper.appendChild(suggestions);
+}
+
+// 검색어 하이라이트
+function highlightMatch(text, query) {
+  const regex = new RegExp(`(${query})`, 'gi');
+  return text.replace(regex, '<mark style="background:var(--sage-bg);color:var(--sage);">$1</mark>');
+}
+
+// 자동완성 숨기기
+function hideSearchSuggestions() {
+  const suggestions = document.getElementById('searchSuggestions');
+  if (suggestions) suggestions.remove();
+}
+
+// 자동완성 항목 선택
+function selectSearchSuggestion(productName) {
+  const searchInput = document.querySelector('.search-input');
+  if (searchInput) {
+    searchInput.value = productName;
+    performSearch(productName);
+  }
+  hideSearchSuggestions();
+}
+
+// 외부 클릭 시 자동완성 숨기기
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrapper')) {
+    hideSearchSuggestions();
+  }
+});
 
 // ───────────────────────────
 // 5. 메뉴 / 모달 열고 닫기
@@ -634,6 +947,25 @@ function toggleMenu() {
 function openModal(id) {
   const modal = document.getElementById(id);
   if (!modal) return;
+  
+  // 결제 모달이 열릴 때 쿠폰 정보 초기화 및 내 쿠폰 목록 로드, 저장된 주소/결제 정보 불러오기
+  if (id === 'checkoutModal') {
+    appliedCoupon = null;
+    const couponInfo = document.getElementById('couponInfo');
+    const couponCode = document.getElementById('couponCode');
+    if (couponInfo) couponInfo.style.display = 'none';
+    if (couponCode) couponCode.value = '';
+    
+    // 저장된 주소/결제 정보 불러오기
+    loadSavedCheckoutInfo();
+    
+    // 내 쿠폰 목록 로드
+    setTimeout(() => {
+      if (typeof loadMyCouponsForCheckout === 'function') {
+        loadMyCouponsForCheckout();
+      }
+    }, 100);
+  }
 
   modal.classList.add("active");
   document.body.style.overflow = "hidden";
@@ -846,6 +1178,7 @@ function openReviewList() {
   }
 
   const reviews = getProductReviews(currentProduct.id);
+  const user = getCurrentUser();
 
   if (subtitle) {
     subtitle.textContent = `${currentProduct.name} · ${reviews.length}개의 리뷰`;
@@ -862,18 +1195,25 @@ function openReviewList() {
   } else {
     container.innerHTML = reviews
       .map(
-        (r) => `
-          <div class="review-item">
+        (r) => {
+          const isMyReview = user && r.userId === user.email;
+          return `
+          <div class="review-item" style="position:relative;">
             <div class="review-header">
               <span class="review-user">${r.user}</span>
               <span class="review-date">${r.date}</span>
+              ${isMyReview ? `<span style="font-size:.7rem;color:var(--sage);margin-left:.5rem;">내 리뷰</span>` : ''}
             </div>
             <div class="review-stars">
               ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
             </div>
             <p class="review-content">${r.content}</p>
+            ${isMyReview ? `
+              <button style="position:absolute;top:.5rem;right:.5rem;background:var(--rose);color:#fff;border:none;padding:.3rem .6rem;border-radius:4px;font-size:.75rem;cursor:pointer;" onclick="deleteMyReview(${r.id}, ${currentProduct.id})">삭제</button>
+            ` : ''}
           </div>
         `
+        }
       )
       .join("");
 
@@ -925,6 +1265,20 @@ document.addEventListener("click", (e) => {
 // 8. 장바구니 / 결제 로직
 // ───────────────────────────
 function addToCart() {
+  // 재고 확인
+  if (currentProduct.stock !== undefined && currentProduct.stock <= 0) {
+    alert('품절된 상품입니다.');
+    return;
+  }
+  
+  const selectedSize = document.querySelector('.option-btn.selected.size')?.textContent || '';
+  const selectedType = document.querySelector('.option-btn.selected.type')?.textContent || '';
+  
+  // 재고 부족 확인
+  if (currentProduct.stock !== undefined && currentProduct.stock < 1) {
+    alert(`재고가 부족합니다. (현재 재고: ${currentProduct.stock}개)`);
+    return;
+  }
   if (!currentProduct) return;
 
   const size =
@@ -952,7 +1306,34 @@ function addToCart() {
 }
 
 function buyNow() {
-  addToCart();
+  // 재고 확인
+  if (currentProduct.stock !== undefined && currentProduct.stock <= 0) {
+    alert('품절된 상품입니다.');
+    return;
+  }
+  
+  if (!currentProduct) return;
+
+  const size =
+    document.querySelector("#productSizeOptions .option-btn.selected")?.dataset
+      .size || "30";
+  const type =
+    document.querySelector("#productTypeOptions .option-btn.selected")?.dataset
+      .type || "perfume";
+
+  // 장바구니에 추가 (alert 없이)
+  const existing = cart.find(
+    (item) =>
+      item.id === currentProduct.id && item.size === size && item.type === type
+  );
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({ ...currentProduct, size, type, qty: 1 });
+  }
+
+  updateCartCount();
   closeModal("productModal");
   openModal("checkoutModal");
   updateCheckoutSummary();
@@ -1073,10 +1454,75 @@ function removeFromCart(index) {
   renderCart();
 }
 
+// 쿠폰 적용
+let appliedCoupon = null;
+
+function applyCouponCode() {
+  const codeInput = document.getElementById('couponCode');
+  const code = codeInput?.value.trim().toUpperCase();
+  if (!code) {
+    alert('쿠폰 코드를 입력해주세요.');
+    return;
+  }
+  
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const result = API.validateCoupon(code, subtotal);
+  
+  if (!result.valid) {
+    alert(result.message);
+    return;
+  }
+  
+  appliedCoupon = result.coupon;
+  const discount = API.applyCoupon(result.coupon, subtotal);
+  
+  // 쿠폰 정보 표시
+  const couponInfo = document.getElementById('couponInfo');
+  const couponName = document.getElementById('couponName');
+  if (couponInfo && couponName) {
+    couponInfo.style.display = 'block';
+    couponName.textContent = `${result.coupon.name} (-₩${discount.toLocaleString()})`;
+  }
+  
+  updateCheckoutSummary();
+  if (codeInput) codeInput.value = '';
+  if (typeof loadMyCouponsForCheckout === 'function') {
+    loadMyCouponsForCheckout(); // 목록 새로고침
+  }
+}
+
+function removeCoupon() {
+  appliedCoupon = null;
+  const couponInfo = document.getElementById('couponInfo');
+  const couponCode = document.getElementById('couponCode');
+  if (couponInfo) couponInfo.style.display = 'none';
+  if (couponCode) couponCode.value = '';
+  updateCheckoutSummary();
+  loadMyCouponsForCheckout(); // 목록 새로고침
+}
+
 function updateCheckoutSummary() {
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  
+  // 쿠폰 할인 적용
+  let discount = 0;
+  if (appliedCoupon) {
+    discount = API.applyCoupon(appliedCoupon, subtotal);
+  }
+  
+  const discountRow = document.getElementById('couponDiscountRow');
+  const discountSpan = document.getElementById('checkoutDiscount');
+  if (discountRow && discountSpan) {
+    if (discount > 0) {
+      discountRow.style.display = 'flex';
+      discountSpan.textContent = `-₩${discount.toLocaleString()}`;
+    } else {
+      discountRow.style.display = 'none';
+    }
+  }
+  
   const shipping = subtotal >= 50000 ? 0 : 3000;
-  const total = subtotal + shipping;
+  const total = Math.max(0, subtotal - discount + shipping);
 
   const subtotalEl = document.getElementById("checkoutSubtotal");
   const shippingEl = document.getElementById("checkoutShipping");
@@ -1091,13 +1537,457 @@ function updateCheckoutSummary() {
 }
 
 function completeOrder() {
-  alert(
-    "주문이 완료되었습니다!\n\n입금 계좌: 신한은행 110-123-456789\n예금주: (주)듀센트\n\n24시간 이내 입금 부탁드립니다."
-  );
+  // 주문 정보 수집
+  const name = document.querySelector('#checkoutModal input[placeholder*="받으시는 분 이름"]')?.value.trim();
+  const phone = document.querySelector('#checkoutModal input[placeholder*="010"]')?.value.trim();
+  const address = document.querySelector('#checkoutModal input[placeholder*="배송"]')?.value.trim();
+  const paymentMethod = document.querySelector('#checkoutModal input[name="payment"]:checked')?.value || 'bank';
+  
+  if (!name || !phone || !address) {
+    alert('주문자 정보를 모두 입력해주세요.');
+    return;
+  }
+  
+  // 주소/결제 정보 저장
+  saveCheckoutInfo(name, phone, address, paymentMethod);
+  
+  // 주문번호 생성 (ORD-YYYYMMDD-HHMMSS)
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const orderId = `ORD-${year}${month}${day}-${hours}${minutes}${seconds}`;
+  
+  // 주문 금액 계산
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const discount = appliedCoupon ? API.applyCoupon(appliedCoupon, subtotal) : 0;
+  const shipping = subtotal >= 50000 ? 0 : 3000;
+  const total = Math.max(0, subtotal - discount + shipping);
+  
+  // 쿠폰 사용 횟수 증가 및 사용자 쿠폰 사용 처리
+  if (appliedCoupon) {
+    const coupons = API.getCoupons();
+    const couponIndex = coupons.findIndex(c => c.id === appliedCoupon.id);
+    if (couponIndex !== -1) {
+      coupons[couponIndex].usedCount = (coupons[couponIndex].usedCount || 0) + 1;
+      API.setCoupons(coupons);
+    }
+    
+    // 사용자 쿠폰 사용 처리
+    const userCoupons = getUserCoupons();
+    const userCouponIndex = userCoupons.findIndex(uc => uc.couponId === appliedCoupon.id);
+    if (userCouponIndex !== -1) {
+      userCoupons[userCouponIndex].used = true;
+      setUserCoupons(userCoupons);
+    }
+  }
+  
+  // 주문 정보 저장
+  const order = {
+    id: orderId,
+    items: cart.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      qty: item.qty,
+      size: item.size,
+      type: item.type,
+      imageUrl: item.imageUrl
+    })),
+    customer: {
+      name: name,
+      phone: phone,
+      address: address
+    },
+    payment: {
+      method: paymentMethod,
+      subtotal: subtotal,
+      discount: discount,
+      coupon: appliedCoupon ? appliedCoupon.code : null,
+      shipping: shipping,
+      total: total
+    },
+    status: '결제대기',
+    orderedAt: now.toISOString().split('T')[0],
+    createdAt: now.toISOString(),
+    tracking: {
+      number: null, // 운송장 번호 (결제 완료 후 생성)
+      carrier: 'CJ대한통운',
+      history: [
+        {
+          status: '결제대기',
+          date: now.toISOString().split('T')[0],
+          time: `${hours}:${minutes}`,
+          message: '주문이 접수되었습니다.'
+        }
+      ]
+    }
+  };
+  
+  // 주문 내역에 추가
+  const adds = getOrderAdds();
+  adds.push({
+    id: orderId,
+    total: total,
+    status: '결제대기',
+    orderedAt: order.orderedAt
+  });
+  setOrderAdds(adds);
+  
+  // 주문 상세 정보 저장 (주문 상세 보기용)
+  const ORDER_DETAILS_KEY = 'dewscent_order_details';
+  let orderDetails = {};
+  try {
+    const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+    if (stored) orderDetails = JSON.parse(stored);
+  } catch {}
+  orderDetails[orderId] = order;
+  localStorage.setItem(ORDER_DETAILS_KEY, JSON.stringify(orderDetails));
+  
+  // 장바구니 비우기 및 쿠폰 초기화
   cart = [];
+  appliedCoupon = null;
   updateCartCount();
   renderCart();
   closeModal("checkoutModal");
+  
+  // 쿠폰 정보 초기화
+  const couponInfo = document.getElementById('couponInfo');
+  const couponCode = document.getElementById('couponCode');
+  if (couponInfo) couponInfo.style.display = 'none';
+  if (couponCode) couponCode.value = '';
+  
+  // 주문 완료 모달 표시
+  showOrderCompleteModal(order);
+}
+
+// 주소/결제 정보 저장
+function saveCheckoutInfo(name, phone, address, paymentMethod) {
+  const CHECKOUT_INFO_KEY = 'dewscent_checkout_info';
+  const info = {
+    name: name,
+    phone: phone,
+    address: address,
+    paymentMethod: paymentMethod,
+    savedAt: new Date().toISOString()
+  };
+  localStorage.setItem(CHECKOUT_INFO_KEY, JSON.stringify(info));
+}
+
+// 저장된 주소/결제 정보 불러오기
+function loadSavedCheckoutInfo() {
+  const CHECKOUT_INFO_KEY = 'dewscent_checkout_info';
+  try {
+    const stored = localStorage.getItem(CHECKOUT_INFO_KEY);
+    if (!stored) return;
+    
+    const info = JSON.parse(stored);
+    
+    // 이름 입력
+    const nameInput = document.querySelector('#checkoutModal input[placeholder*="받으시는 분 이름"]');
+    if (nameInput && info.name) {
+      nameInput.value = info.name;
+    }
+    
+    // 연락처 입력
+    const phoneInput = document.querySelector('#checkoutModal input[placeholder*="010"]');
+    if (phoneInput && info.phone) {
+      phoneInput.value = info.phone;
+    }
+    
+    // 주소 입력
+    const addressInput = document.querySelector('#checkoutModal input[placeholder*="배송"]');
+    if (addressInput && info.address) {
+      addressInput.value = info.address;
+    }
+    
+    // 결제 방법 선택
+    if (info.paymentMethod) {
+      const paymentRadio = document.querySelector(`#checkoutModal input[name="payment"][value="${info.paymentMethod}"]`);
+      if (paymentRadio) {
+        paymentRadio.checked = true;
+        // 결제 옵션 UI 업데이트
+        document.querySelectorAll('#checkoutModal .payment-option').forEach(option => {
+          option.classList.remove('selected');
+        });
+        if (paymentRadio.closest('.payment-option')) {
+          paymentRadio.closest('.payment-option').classList.add('selected');
+        }
+        
+        // 무통장 입금 정보 표시/숨김
+        const bankInfo = document.getElementById('bankInfo');
+        if (bankInfo) {
+          bankInfo.style.display = info.paymentMethod === 'bank' ? 'block' : 'none';
+        }
+      }
+    }
+  } catch (e) {
+    console.error('저장된 결제 정보 불러오기 실패:', e);
+  }
+}
+
+// 주문 상세 보기
+function showOrderDetail(orderId) {
+  const ORDER_DETAILS_KEY = 'dewscent_order_details';
+  let orderDetails = {};
+  try {
+    const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+    if (stored) orderDetails = JSON.parse(stored);
+  } catch {}
+  
+  // 배송 추적 시뮬레이션 실행
+  if (typeof API !== 'undefined' && API.simulateShipping) {
+    API.simulateShipping(orderId);
+  }
+  
+  // 다시 로드
+  try {
+    const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+    if (stored) orderDetails = JSON.parse(stored);
+  } catch {}
+  
+  const order = orderDetails[orderId];
+  if (!order) {
+    alert('주문 정보를 찾을 수 없습니다.');
+    return;
+  }
+  
+  const subtitle = document.getElementById('orderDetailSubtitle');
+  const body = document.getElementById('orderDetailBody');
+  if (!subtitle || !body) {
+    alert(`주문번호: ${orderId}\n총 결제금액: ₩${order.payment.total.toLocaleString()}`);
+    return;
+  }
+  
+  subtitle.textContent = `주문번호: ${orderId}`;
+  
+  body.innerHTML = `
+    <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+      <p style="font-weight:600;color:var(--sage);margin-bottom:.5rem;">주문 상태</p>
+      <p style="font-size:1.1rem;color:var(--mid);"><span class="status-badge ${order.status === '결제완료' || order.status === '배송완료' ? 'answered' : 'waiting'}">${order.status}</span></p>
+      <p style="font-size:.85rem;color:var(--light);margin-top:.5rem;">주문일: ${order.orderedAt}</p>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">주문 상품</p>
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        ${order.items.map(item => `
+          <div style="display:flex;gap:1rem;padding:.75rem;background:var(--sage-bg);border-radius:8px;">
+            <div style="width:80px;height:80px;background:${item.imageUrl ? `url(${item.imageUrl})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage))'};background-size:cover;background-position:center;border-radius:8px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <p style="font-weight:500;margin-bottom:.25rem;">${item.name}</p>
+              <p style="font-size:.85rem;color:var(--light);margin-bottom:.25rem;">${item.size || ''} ${item.type || ''}</p>
+              <p style="font-size:.9rem;color:var(--mid);">수량: ${item.qty}개</p>
+              <p style="font-size:1rem;color:var(--sage);font-weight:600;margin-top:.25rem;">₩${(item.price * item.qty).toLocaleString()}</p>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">배송 정보</p>
+      <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;">
+        <p style="margin-bottom:.5rem;"><strong>받으시는 분:</strong> ${order.customer.name}</p>
+        <p style="margin-bottom:.5rem;"><strong>연락처:</strong> ${order.customer.phone}</p>
+        <p><strong>주소:</strong> ${order.customer.address}</p>
+      </div>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">결제 정보</p>
+      <div class="cart-row">
+        <span>상품 금액</span>
+        <span>₩${order.payment.subtotal.toLocaleString()}</span>
+      </div>
+      <div class="cart-row">
+        <span>배송비</span>
+        <span>${order.payment.shipping === 0 ? '무료' : '₩' + order.payment.shipping.toLocaleString()}</span>
+      </div>
+      <div class="cart-row total">
+        <span>총 결제금액</span>
+        <span>₩${order.payment.total.toLocaleString()}</span>
+      </div>
+      <p style="font-size:.85rem;color:var(--light);margin-top:.5rem;">결제 방법: ${order.payment.method === 'bank' ? '무통장 입금' : '카드 결제'}</p>
+    </div>
+    
+    ${order.payment.method === 'bank' && order.status === '결제대기' ? `
+    <div style="background:var(--rose-bg, #f5ebe8);padding:1rem;border-radius:8px;margin-bottom:1.5rem;border:1px solid var(--rose-lighter, #f8dde1);">
+      <p style="font-weight:600;color:var(--rose);margin-bottom:.5rem;">입금 계좌 안내</p>
+      <p style="font-size:.9rem;color:var(--mid);margin-bottom:.25rem;">신한은행 110-123-456789</p>
+      <p style="font-size:.9rem;color:var(--mid);">예금주: (주)듀센트</p>
+    </div>
+    ` : ''}
+    
+    ${order.status !== '결제대기' && order.status !== '주문취소' && order.tracking ? `
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">배송 추적</p>
+      <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;">
+        ${order.tracking.number ? `
+          <div style="margin-bottom:1rem;">
+            <p style="font-size:.85rem;color:var(--light);margin-bottom:.25rem;">운송장 번호</p>
+            <p style="font-size:1.1rem;font-weight:600;color:var(--sage);">${order.tracking.number}</p>
+            <p style="font-size:.85rem;color:var(--light);margin-top:.25rem;">${order.tracking.carrier || 'CJ대한통운'}</p>
+          </div>
+        ` : ''}
+        <div style="margin-top:1rem;">
+          <p style="font-size:.85rem;color:var(--light);margin-bottom:.75rem;">배송 현황</p>
+          ${order.tracking.history ? order.tracking.history.map((h, idx) => `
+            <div style="display:flex;gap:1rem;margin-bottom:.75rem;position:relative;${idx < order.tracking.history.length - 1 ? 'padding-bottom:.75rem;border-left:2px solid var(--border);margin-left:.5rem;padding-left:1rem;' : ''}">
+              <div style="width:8px;height:8px;background:${idx === order.tracking.history.length - 1 ? 'var(--sage)' : 'var(--border)'};border-radius:50%;position:absolute;left:-4px;top:4px;"></div>
+              <div style="flex:1;">
+                <p style="font-weight:500;color:var(--mid);margin-bottom:.25rem;">${h.message}</p>
+                <p style="font-size:.75rem;color:var(--light);">${h.date} ${h.time || ''}</p>
+              </div>
+            </div>
+          `).join('') : ''}
+        </div>
+        ${order.tracking.number ? `
+          <button class="form-btn secondary" style="margin-top:1rem;width:100%;" onclick="window.open('https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=${order.tracking.number}', '_blank')">배송 조회하기</button>
+        ` : ''}
+      </div>
+    </div>
+    ` : ''}
+    
+    <div style="display:flex;gap:.75rem;">
+      <button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderDetailModal')">닫기</button>
+      ${order.status === '결제대기' ? `<button class="form-btn secondary" style="flex:1;" onclick="cancelOrder('${orderId}')">주문 취소</button>` : ''}
+      ${order.status === '배송완료' ? `<button class="form-btn secondary" style="flex:1;" onclick="requestReturnExchange('${orderId}')">반품/교환 신청</button>` : ''}
+    </div>
+  `;
+  
+  openModal('orderDetailModal');
+}
+
+// 반품/교환 신청
+function requestReturnExchange(orderId) {
+  const ORDER_DETAILS_KEY = 'dewscent_order_details';
+  let orderDetails = {};
+  try {
+    const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+    if (stored) orderDetails = JSON.parse(stored);
+  } catch {}
+  
+  const order = orderDetails[orderId];
+  if (!order) {
+    alert('주문 정보를 찾을 수 없습니다.');
+    return;
+  }
+  
+  // 반품/교환 신청 모달 열기
+  openReturnExchangeModal(order);
+}
+
+// 주문 취소
+function cancelOrder(orderId) {
+  if (!confirm('정말 주문을 취소하시겠습니까?')) return;
+  
+  const adds = getOrderAdds();
+  const filtered = adds.filter(o => o.id !== orderId);
+  setOrderAdds(filtered);
+  
+  // 주문 상세 정보에서 상태 변경
+  const ORDER_DETAILS_KEY = 'dewscent_order_details';
+  let orderDetails = {};
+  try {
+    const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+    if (stored) orderDetails = JSON.parse(stored);
+  } catch {}
+  
+  if (orderDetails[orderId]) {
+    orderDetails[orderId].status = '주문취소';
+    localStorage.setItem(ORDER_DETAILS_KEY, JSON.stringify(orderDetails));
+  }
+  
+  alert('주문이 취소되었습니다.');
+  closeModal('orderDetailModal');
+  openMypageTab('orders');
+}
+
+// 주문 완료 모달 표시
+function showOrderCompleteModal(order) {
+  const body = document.getElementById('orderCompleteBody');
+  if (!body) {
+    // 모달이 없으면 alert로 표시
+    alert(`주문이 완료되었습니다!\n\n주문번호: ${order.id}\n총 결제금액: ₩${order.payment.total.toLocaleString()}\n\n입금 계좌: 신한은행 110-123-456789\n예금주: (주)듀센트\n\n24시간 이내 입금 부탁드립니다.`);
+    return;
+  }
+  
+  body.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--sage-bg),#f5ebe8);padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:.5rem;">✓</div>
+      <h3 style="color:var(--sage);font-size:1.2rem;margin-bottom:.5rem;">주문이 정상적으로 접수되었습니다</h3>
+      <p style="font-size:.9rem;color:var(--mid);">주문번호: <strong style="color:var(--sage);">${order.id}</strong></p>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">주문 상품</p>
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        ${order.items.map(item => `
+          <div style="display:flex;gap:1rem;padding:.75rem;background:var(--sage-bg);border-radius:8px;">
+            <div style="width:60px;height:60px;background:${item.imageUrl ? `url(${item.imageUrl})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage))'};background-size:cover;background-position:center;border-radius:8px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <p style="font-weight:500;margin-bottom:.25rem;">${item.name}</p>
+              <p style="font-size:.85rem;color:var(--light);">${item.size || ''} ${item.type || ''}</p>
+              <p style="font-size:.85rem;color:var(--mid);margin-top:.25rem;">수량: ${item.qty}개 · ₩${(item.price * item.qty).toLocaleString()}</p>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">배송 정보</p>
+      <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;">
+        <p style="margin-bottom:.5rem;"><strong>받으시는 분:</strong> ${order.customer.name}</p>
+        <p style="margin-bottom:.5rem;"><strong>연락처:</strong> ${order.customer.phone}</p>
+        <p><strong>주소:</strong> ${order.customer.address}</p>
+      </div>
+    </div>
+    
+    <div class="checkout-section" style="margin-bottom:1.5rem;">
+      <p class="checkout-section-title">결제 정보</p>
+      <div class="cart-row">
+        <span>상품 금액</span>
+        <span>₩${order.payment.subtotal.toLocaleString()}</span>
+      </div>
+      ${order.payment.discount > 0 ? `
+      <div class="cart-row">
+        <span>할인 금액</span>
+        <span style="color:var(--rose);">-₩${order.payment.discount.toLocaleString()}</span>
+      </div>
+      ${order.payment.coupon ? `<p style="font-size:.75rem;color:var(--light);margin-top:.25rem;">쿠폰: ${order.payment.coupon}</p>` : ''}
+      ` : ''}
+      <div class="cart-row">
+        <span>배송비</span>
+        <span>${order.payment.shipping === 0 ? '무료' : '₩' + order.payment.shipping.toLocaleString()}</span>
+      </div>
+      <div class="cart-row total">
+        <span>총 결제금액</span>
+        <span>₩${order.payment.total.toLocaleString()}</span>
+      </div>
+    </div>
+    
+    ${order.payment.method === 'bank' ? `
+    <div style="background:var(--rose-bg, #f5ebe8);padding:1rem;border-radius:8px;margin-bottom:1.5rem;border:1px solid var(--rose-lighter, #f8dde1);">
+      <p style="font-weight:600;color:var(--rose);margin-bottom:.5rem;">입금 계좌 안내</p>
+      <p style="font-size:.9rem;color:var(--mid);margin-bottom:.25rem;">신한은행 110-123-456789</p>
+      <p style="font-size:.9rem;color:var(--mid);margin-bottom:.5rem;">예금주: (주)듀센트</p>
+      <p style="font-size:.8rem;color:var(--light);">• 주문 후 24시간 이내 입금이 확인되지 않으면 자동 취소될 수 있습니다.</p>
+      <p style="font-size:.8rem;color:var(--light);">• 입금 확인 후 순차적으로 발송됩니다.</p>
+    </div>
+    ` : ''}
+    
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');openMypageTab('orders');">주문내역 보기</button>
+      <button class="form-btn primary" style="flex:1;" onclick="closeModal('orderCompleteModal');window.location.href='index.php';">쇼핑 계속하기</button>
+    </div>
+  `;
+  
+  openModal('orderCompleteModal');
 }
 
 // 결제 수단 선택
@@ -1318,6 +2208,7 @@ function submitReview() {
 
   saveReview(currentProduct.id, {
     user: userName,
+    userId: user.email, // 작성자 식별용
     rating,
     content,
   });
@@ -1759,6 +2650,7 @@ function renderMyPage() {
         ${tabButton("내 정보", "profile")}
         ${tabButton("주소/연락처", "addresses")}
         ${tabButton("결제수단", "payment")}
+        ${tabButton("쿠폰", "coupons")}
         ${tabButton("주문내역", "orders")}
       </div>
     `;
@@ -1879,6 +2771,192 @@ function renderMyPage() {
       `;
     }
 
+    if (mypageCurrentTab === "coupons") {
+      const allCoupons = API.getActiveCoupons() || [];
+      const userCoupons = getUserCoupons() || [];
+      
+      // 디버깅: 쿠폰 데이터 확인
+      console.log('=== 쿠폰 탭 디버깅 ===');
+      console.log('All coupons:', allCoupons);
+      console.log('User coupons:', userCoupons);
+      console.log('All coupons length:', allCoupons.length);
+      console.log('User coupons length:', userCoupons.length);
+      
+      // 사용 가능한 쿠폰 목록
+      const availableCoupons = allCoupons.filter(c => {
+        if (!c || !c.id) return false;
+        // 이미 받은 쿠폰은 제외
+        return !userCoupons.some(uc => uc && uc.couponId === c.id);
+      });
+      
+      console.log('Available coupons:', availableCoupons);
+      
+      // 내 쿠폰 목록 - ID 타입 변환 포함, 관리자가 삭제한 쿠폰은 제외
+      const myCoupons = userCoupons
+        .map((uc, index) => {
+          console.log(`Processing user coupon ${index}:`, uc);
+          if (!uc || uc.couponId === undefined || uc.couponId === null) {
+            console.log(`  - Invalid user coupon at index ${index}`);
+            return null;
+          }
+          // ID 타입 변환 (숫자/문자열 모두 처리)
+          const couponId = Number(uc.couponId);
+          const coupon = allCoupons.find(c => {
+            if (!c || !c.id) return false;
+            return Number(c.id) === couponId || c.id === uc.couponId;
+          });
+          console.log(`  - Looking for coupon ID: ${uc.couponId} (${typeof uc.couponId}), converted: ${couponId}`);
+          console.log(`  - All coupon IDs:`, allCoupons.map(c => ({ id: c.id, type: typeof c.id })));
+          console.log(`  - Found coupon:`, coupon);
+          // 관리자가 삭제한 쿠폰은 null 반환 (표시하지 않음)
+          if (!coupon) {
+            console.log(`  - Coupon not found (deleted by admin) for ID: ${uc.couponId}`);
+            return null;
+          }
+          const merged = { 
+            ...coupon, 
+            receivedAt: uc.receivedAt, 
+            used: uc.used || false 
+          };
+          console.log(`  - Merged coupon:`, merged);
+          return merged;
+        })
+        .filter(c => c !== null);
+      
+      console.log('My coupons (final):', myCoupons);
+      console.log('My coupons length:', myCoupons.length);
+      
+      content = `
+        <div style="margin-bottom:2rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+            <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">받을 수 있는 쿠폰</h3>
+            <span style="font-size:.75rem;color:var(--light);">${availableCoupons.length}개</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.5rem;">
+            ${availableCoupons.length > 0 ? availableCoupons.map(coupon => {
+              if (!coupon) return '';
+              const discountText = coupon.type === 'percent' ? `${coupon.value || 0}%` : `₩${(coupon.value || 0).toLocaleString()}`;
+              const couponName = coupon.name || '쿠폰';
+              return `
+                <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                    <div>
+                      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                        <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                      </div>
+                      <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                      <p style="font-size:.8rem;color:var(--light);line-height:1.5;">${coupon.minAmount > 0 ? `최소 ₩${coupon.minAmount.toLocaleString()}` : '제한없음'}${coupon.endDate ? ` · ~${coupon.endDate}` : ''}</p>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;flex-shrink:0;">
+                    <button class="form-btn primary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="receiveCoupon(${coupon.id})" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">받기</button>
+                  </div>
+                </div>
+              `;
+            }).join('') : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">받을 수 있는 쿠폰이 없습니다</p></div>'}
+          </div>
+        </div>
+        
+        <div>
+          ${(() => {
+            // 사용 가능한 쿠폰과 사용한 쿠폰 분리
+            const availableCoupons = myCoupons.filter(c => !c.used);
+            const usedCoupons = myCoupons.filter(c => c.used);
+            
+            return `
+              <div style="margin-bottom:2rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+                  <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용 가능한 쿠폰</h3>
+                  <span style="font-size:.75rem;color:var(--light);">${availableCoupons.length}개</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.5rem;">
+                  ${availableCoupons.length > 0 ? availableCoupons.map((coupon, idx) => {
+              console.log(`Rendering coupon ${idx}:`, coupon);
+              if (!coupon) {
+                console.log(`  - Coupon ${idx} is null/undefined`);
+                return '';
+              }
+              
+              const discountText = coupon.type === 'percent' ? `${coupon.value || 0}%` : `₩${(coupon.value || 0).toLocaleString()}`;
+              const couponName = coupon.name || '쿠폰';
+              const couponCode = coupon.code || '';
+              const isUsed = coupon.used || false;
+              
+              console.log(`  - Discount: ${discountText}, Name: ${couponName}, Code: ${couponCode}, Used: ${isUsed}`);
+              
+                    return `
+                      <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                        <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                            <div>
+                              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                                <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                              </div>
+                              <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                              ${couponCode ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>` : ''}
+                              ${coupon.endDate ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>` : ''}
+                              ${coupon.receivedAt ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>` : ''}
+                            </div>
+                          </div>
+                          <div style="display:flex;align-items:center;flex-shrink:0;">
+                            ${couponCode ? `
+                              <button class="form-btn secondary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="event.stopPropagation();copyCouponCode('${couponCode}')" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">복사</button>
+                            ` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).filter(html => html).join('') : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용 가능한 쿠폰이 없습니다</p></div>'}
+                </div>
+              </div>
+              
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+                  <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용한 쿠폰</h3>
+                  <span style="font-size:.75rem;color:var(--light);">${usedCoupons.length}개</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.5rem;">
+                  ${usedCoupons.length > 0 ? usedCoupons.map((coupon, idx) => {
+                    console.log(`Rendering used coupon ${idx}:`, coupon);
+                    if (!coupon) {
+                      console.log(`  - Coupon ${idx} is null/undefined`);
+                      return '';
+                    }
+                    
+                    const discountText = coupon.type === 'percent' ? `${coupon.value || 0}%` : `₩${(coupon.value || 0).toLocaleString()}`;
+                    const couponName = coupon.name || '쿠폰';
+                    const couponCode = coupon.code || '';
+                    
+                    return `
+                      <div style="padding:1.25rem;background:linear-gradient(135deg, var(--sage-bg) 0%, var(--cloud) 100%);border:1px solid var(--border);border-radius:12px;opacity:0.7;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                        <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                            <div>
+                              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                                <strong style="color:var(--light);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                                <span style="font-size:.7rem;color:var(--light);padding:.2rem .5rem;background:var(--border);border-radius:6px;white-space:nowrap;">사용완료</span>
+                              </div>
+                              <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                              ${couponCode ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>` : ''}
+                              ${coupon.endDate ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>` : ''}
+                              ${coupon.receivedAt ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>` : ''}
+                            </div>
+                          </div>
+                          <div style="display:flex;align-items:center;flex-shrink:0;">
+                            <span style="font-size:.8rem;color:var(--light);padding:.65rem 1.25rem;white-space:nowrap;">사용완료</span>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).filter(html => html).join('') : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용한 쿠폰이 없습니다</p></div>'}
+                </div>
+              </div>
+            `;
+          })()}
+        </div>
+      `;
+    }
+
     if (mypageCurrentTab === "orders") {
       const fromVal = mypageOrderFrom || "";
       const toVal = mypageOrderTo || "";
@@ -1912,16 +2990,16 @@ function renderMyPage() {
             const rows = groups[d]
               .map(
                 (o) => `
-              <tr>
-                <td style="padding:.6rem .8rem;border-top:1px solid var(--border)">${
+              <tr style="cursor:pointer;" onclick="showOrderDetail('${o.id}')">
+                <td style="padding:.6rem .8rem;border-top:1px solid var(--border);color:var(--sage);font-weight:500;">${
                   o.id
                 }</td>
                 <td style="padding:.6rem .8rem;border-top:1px solid var(--border)">₩${(
                   o.total || 0
                 ).toLocaleString()}</td>
-                <td style="padding:.6rem .8rem;border-top:1px solid var(--border)">${
+                <td style="padding:.6rem .8rem;border-top:1px solid var(--border)"><span class="status-badge ${o.status === '결제완료' || o.status === '배송완료' ? 'answered' : 'waiting'}">${
                   o.status || ""
-                }</td>
+                }</span></td>
               </tr>`
               )
               .join("");
@@ -1954,6 +3032,23 @@ function renderMyPage() {
     }
 
     body.innerHTML = `${tabs}${content}<button class="form-btn ivory" onclick="closeModal('mypageModal')">닫기</button>`;
+    
+    // 쿠폰 탭인 경우 렌더링 확인
+    if (mypageCurrentTab === "coupons") {
+      console.log('쿠폰 탭 렌더링 완료');
+      console.log('Content length:', content.length);
+      const couponSection = body.querySelector('[style*="내 쿠폰"]');
+      console.log('쿠폰 섹션 요소:', couponSection);
+    }
+  }).catch((error) => {
+    console.error('마이페이지 로드 오류:', error);
+    body.innerHTML = `
+      <div style="text-align:center;padding:2rem;">
+        <p style="color:var(--mid);margin-bottom:1rem;">정보를 불러오는 중 오류가 발생했습니다.</p>
+        <button class="form-btn primary" onclick="renderMyPage()">다시 시도</button>
+        <button class="form-btn secondary" onclick="closeModal('mypageModal')" style="margin-top:.5rem;">닫기</button>
+      </div>
+    `;
   });
 }
 
@@ -2415,4 +3510,213 @@ function showSitePopups() {
 // 페이지 로드 시 팝업 표시 (메인 페이지에서만, 인트로 후에)
 if (document.querySelector(".slider-section")) {
   setTimeout(showSitePopups, 4000); // 인트로(2.5초) + 여유시간 후 팝업 표시
+}
+
+// ============================================================
+// 쿠폰 관련 함수들
+// ============================================================
+const USER_COUPONS_KEY = 'dewscent_user_coupons';
+
+function getUserCoupons() {
+  try {
+    const stored = localStorage.getItem(USER_COUPONS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setUserCoupons(coupons) {
+  localStorage.setItem(USER_COUPONS_KEY, JSON.stringify(coupons));
+}
+
+function receiveCoupon(couponId) {
+  const userCoupons = getUserCoupons();
+  
+  // 이미 받은 쿠폰인지 확인
+  if (userCoupons.some(uc => uc.couponId === couponId)) {
+    alert('이미 받은 쿠폰입니다.');
+    return;
+  }
+  
+  // 쿠폰 정보 가져오기
+  const allCoupons = API.getActiveCoupons();
+  const coupon = allCoupons.find(c => c.id === couponId);
+  
+  if (!coupon) {
+    alert('유효하지 않은 쿠폰입니다.');
+    return;
+  }
+  
+  // 쿠폰 받기
+  userCoupons.push({
+    couponId: couponId,
+    receivedAt: new Date().toISOString().split('T')[0],
+    used: false
+  });
+  
+  setUserCoupons(userCoupons);
+  alert(`쿠폰을 받았습니다!\n\n${coupon.name}\n코드: ${coupon.code}`);
+  
+  // 마이페이지 다시 렌더링
+  openMypageTab('coupons');
+}
+
+function copyCouponCode(code) {
+  navigator.clipboard.writeText(code).then(() => {
+    alert(`쿠폰 코드가 복사되었습니다: ${code}\n\n결제 페이지에서 사용하실 수 있습니다.`);
+  }).catch(() => {
+    // 클립보드 복사 실패 시 대체 방법
+    const textarea = document.createElement('textarea');
+    textarea.value = code;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert(`쿠폰 코드가 복사되었습니다: ${code}\n\n결제 페이지에서 사용하실 수 있습니다.`);
+  });
+}
+
+// 결제 모달에서 내 쿠폰 목록 표시
+function loadMyCouponsForCheckout() {
+  const myCouponsList = document.getElementById('myCouponsList');
+  const availableCouponsList = document.getElementById('availableCouponsList');
+  
+  if (!myCouponsList || !availableCouponsList) {
+    console.log('쿠폰 리스트 요소를 찾을 수 없습니다');
+    return;
+  }
+  
+  try {
+    const userCoupons = getUserCoupons() || [];
+    const allCoupons = API.getActiveCoupons() || [];
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+    
+    console.log('사용자 쿠폰:', userCoupons);
+    console.log('활성 쿠폰:', allCoupons);
+    console.log('소계:', subtotal);
+    
+    // 사용 가능한 내 쿠폰만 필터링 - ID 타입 변환 포함, 현재 적용된 쿠폰 제외
+    const availableMyCoupons = userCoupons
+      .filter(uc => uc && !uc.used && (!appliedCoupon || uc.couponId !== appliedCoupon.id))
+      .map(uc => {
+        if (!uc || uc.couponId === undefined || uc.couponId === null) {
+          console.log('Invalid user coupon:', uc);
+          return null;
+        }
+        // ID 타입 변환 (숫자/문자열 모두 처리)
+        const couponId = Number(uc.couponId);
+        const coupon = allCoupons.find(c => {
+          if (!c || !c.id) return false;
+          return Number(c.id) === couponId || c.id === uc.couponId || String(c.id) === String(uc.couponId);
+        });
+        console.log(`Looking for coupon ID: ${uc.couponId} (${typeof uc.couponId}), found:`, coupon);
+        if (!coupon) {
+          console.log('Coupon not found for ID:', uc.couponId);
+          return null;
+        }
+        try {
+          const validation = API.validateCoupon(coupon.code, subtotal);
+          if (validation.valid) {
+            const merged = { ...coupon, receivedAt: uc.receivedAt };
+            console.log('Valid coupon found:', merged);
+            return merged;
+          } else {
+            console.log('Coupon validation failed:', validation.message);
+            return null;
+          }
+        } catch (e) {
+          console.error('쿠폰 검증 오류:', e);
+          return null;
+        }
+      })
+      .filter(c => c !== null);
+    
+    console.log('사용 가능한 쿠폰:', availableMyCoupons);
+    
+    // 항상 섹션 표시
+    myCouponsList.style.display = 'block';
+    
+    if (availableMyCoupons.length > 0) {
+      availableCouponsList.innerHTML = availableMyCoupons.map((coupon, idx) => {
+        if (!coupon) {
+          console.log(`Coupon ${idx} is null/undefined`);
+          return '';
+        }
+        try {
+          console.log(`Rendering coupon ${idx}:`, coupon);
+          const discount = API.applyCoupon(coupon, subtotal);
+          const discountText = coupon.type === 'percent' ? `${coupon.value || 0}%` : `₩${(coupon.value || 0).toLocaleString()}`;
+          const couponName = coupon.name || '쿠폰';
+          const couponCode = coupon.code || '';
+          
+          console.log(`  - Name: ${couponName}, Code: ${couponCode}, Discount: ${discountText}`);
+          
+          return `
+            <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;cursor:pointer;transition:all 0.3s;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);" onclick="applyMyCoupon(${coupon.id})" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                <div>
+                  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                    <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                  </div>
+                  <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                  ${couponCode ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>` : ''}
+                  <p style="font-size:.85rem;color:var(--light);margin-bottom:.2rem;line-height:1.5;">최대 <strong style="color:var(--sage);font-size:.9rem;">₩${discount.toLocaleString()}</strong> 할인</p>
+                  ${coupon.minAmount > 0 ? `<p style="font-size:.75rem;color:var(--light);line-height:1.5;">최소 주문금액: ₩${coupon.minAmount.toLocaleString()}</p>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;flex-shrink:0;">
+                <button class="form-btn secondary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">적용</button>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error('쿠폰 렌더링 오류:', e, coupon);
+          return '';
+        }
+      }).filter(html => html && html.trim()).join('');
+    } else {
+      availableCouponsList.innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용 가능한 쿠폰이 없습니다</p></div>';
+    }
+  } catch (e) {
+    console.error('loadMyCouponsForCheckout 오류:', e);
+    myCouponsList.style.display = 'block';
+    availableCouponsList.innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">쿠폰을 불러오는 중 오류가 발생했습니다</p></div>';
+  }
+}
+
+function applyMyCoupon(couponId) {
+  const allCoupons = API.getActiveCoupons();
+  const coupon = allCoupons.find(c => c.id === couponId);
+  
+  if (!coupon) {
+    alert('유효하지 않은 쿠폰입니다.');
+    return;
+  }
+  
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const result = API.validateCoupon(coupon.code, subtotal);
+  
+  if (!result.valid) {
+    alert(result.message);
+    return;
+  }
+  
+  appliedCoupon = result.coupon;
+  const discount = API.applyCoupon(result.coupon, subtotal);
+  
+  // 쿠폰 정보 표시
+  const couponInfo = document.getElementById('couponInfo');
+  const couponName = document.getElementById('couponName');
+  const couponCode = document.getElementById('couponCode');
+  
+  if (couponInfo && couponName) {
+    couponInfo.style.display = 'block';
+    couponName.textContent = `${result.coupon.name} (-₩${discount.toLocaleString()})`;
+  }
+  
+  if (couponCode) couponCode.value = coupon.code;
+  
+  updateCheckoutSummary();
+  loadMyCouponsForCheckout(); // 목록 새로고침
 }

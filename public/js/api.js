@@ -388,6 +388,24 @@
       order: 3,
       active: true,
     },
+    {
+      id: 4,
+      title: "시그니처 향기",
+      subtitle: "베스트셀러 모음",
+      link: "pages/products.php",
+      imageUrl: "",
+      order: 4,
+      active: true,
+    },
+    {
+      id: 5,
+      title: "신상품 출시",
+      subtitle: "한정판 특가",
+      link: "pages/products.php",
+      imageUrl: "",
+      order: 5,
+      active: true,
+    },
   ];
 
   function getBanners() {
@@ -463,6 +481,120 @@
   }
   function setMainProductIds(ids) {
     localStorage.setItem(MAIN_PRODUCTS_KEY, JSON.stringify(ids));
+  }
+
+  // ========== 쿠폰 관리 ==========
+  const COUPONS_KEY = "dewscent_coupons";
+  const defaultCoupons = [
+    {
+      id: 1,
+      code: "WELCOME10",
+      name: "신규 회원 10% 할인",
+      type: "percent", // percent 또는 fixed
+      value: 10, // 할인율 또는 할인금액
+      minAmount: 0, // 최소 주문 금액
+      maxDiscount: 10000, // 최대 할인 금액 (percent 타입일 때)
+      startDate: "",
+      endDate: "",
+      active: true,
+      usageLimit: 0, // 0이면 무제한
+      usedCount: 0,
+      createdAt: new Date().toISOString().split("T")[0],
+    },
+  ];
+
+  function getCoupons() {
+    try {
+      const stored = localStorage.getItem(COUPONS_KEY);
+      if (stored) return JSON.parse(stored);
+      localStorage.setItem(COUPONS_KEY, JSON.stringify(defaultCoupons));
+      return defaultCoupons;
+    } catch {
+      return defaultCoupons;
+    }
+  }
+  function setCoupons(coupons) {
+    localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
+  }
+  function getActiveCoupons() {
+    const now = new Date().toISOString().split("T")[0];
+    return getCoupons()
+      .filter((c) => {
+        if (!c.active) return false;
+        if (c.startDate && c.startDate > now) return false;
+        if (c.endDate && c.endDate < now) return false;
+        if (c.usageLimit > 0 && c.usedCount >= c.usageLimit) return false;
+        return true;
+      });
+  }
+  function validateCoupon(code, amount) {
+    const coupons = getActiveCoupons();
+    const coupon = coupons.find((c) => c.code === code.toUpperCase());
+    if (!coupon) return { valid: false, message: "유효하지 않은 쿠폰입니다." };
+    if (amount < coupon.minAmount)
+      return {
+        valid: false,
+        message: `최소 주문 금액 ₩${coupon.minAmount.toLocaleString()} 이상이어야 합니다.`,
+      };
+    return { valid: true, coupon };
+  }
+  function applyCoupon(coupon, amount) {
+    let discount = 0;
+    if (coupon.type === "percent") {
+      discount = Math.floor((amount * coupon.value) / 100);
+      if (coupon.maxDiscount > 0 && discount > coupon.maxDiscount) {
+        discount = coupon.maxDiscount;
+      }
+    } else {
+      discount = coupon.value;
+    }
+    return Math.min(discount, amount); // 할인금액이 주문금액을 초과하지 않도록
+  }
+
+  // ========== 공지사항/이벤트 관리 ==========
+  const NOTICES_KEY = "dewscent_notices";
+  const defaultNotices = [
+    {
+      id: 1,
+      type: "notice", // notice 또는 event
+      title: "신규 회원 10% 할인 이벤트",
+      content: "첫 구매 시 10% 할인 쿠폰을 드려요!",
+      imageUrl: "",
+      link: "",
+      startDate: "",
+      endDate: "",
+      active: true,
+      createdAt: new Date().toISOString().split("T")[0],
+    },
+  ];
+
+  function getNotices() {
+    try {
+      const stored = localStorage.getItem(NOTICES_KEY);
+      if (stored) return JSON.parse(stored);
+      localStorage.setItem(NOTICES_KEY, JSON.stringify(defaultNotices));
+      return defaultNotices;
+    } catch {
+      return defaultNotices;
+    }
+  }
+  function setNotices(notices) {
+    localStorage.setItem(NOTICES_KEY, JSON.stringify(notices));
+  }
+  function getActiveNotices() {
+    const now = new Date().toISOString().split("T")[0];
+    return getNotices()
+      .filter((n) => {
+        if (!n.active) return false;
+        if (n.startDate && n.startDate > now) return false;
+        if (n.endDate && n.endDate < now) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        // 이벤트가 공지사항보다 먼저, 그 다음 날짜순
+        if (a.type !== b.type) return a.type === "event" ? -1 : 1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
   }
 
   // ========== 사이트 설정 ==========
@@ -572,6 +704,138 @@
     localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections));
   }
 
+  // ========== 감정별 추천 상품 관리 ==========
+  const EMOTION_RECOMMENDATIONS_KEY = "dewscent_emotion_recommendations";
+  
+  // 감정별 추천 상품 가져오기 (7일 주기)
+  async function getEmotionRecommendations(emotionKey) {
+    if (USE_MOCK_API) {
+      await delay(50);
+      
+      // 관리자가 설정한 추천 상품이 있으면 사용
+      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
+      if (stored) {
+        try {
+          const recommendations = JSON.parse(stored);
+          const emotionRecs = recommendations[emotionKey];
+          if (emotionRecs && emotionRecs.productIds && emotionRecs.productIds.length > 0) {
+            const products = getStoredProducts();
+            // 중복 제거: Set을 사용하여 고유한 ID만 유지
+            const uniqueIds = [...new Set(emotionRecs.productIds)];
+            const recommendedProducts = uniqueIds
+              .map(id => products.find(p => p.id === id))
+              .filter(p => p && p.status === '판매중')
+              .filter((p, index, self) => 
+                // id 기준으로 중복 제거
+                index === self.findIndex(prod => prod.id === p.id)
+              );
+            
+            if (recommendedProducts.length > 0) {
+              // 7일 주기로 다른 상품 추천
+              return getWeeklyRotatedProducts(recommendedProducts, emotionKey);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing recommendations:', e);
+        }
+      }
+      
+      // 관리자 설정이 없으면 자동 추천
+      return getAutoEmotionRecommendations(emotionKey);
+    }
+    return await getJSON(`/emotions/${emotionKey}/recommendations`);
+  }
+  
+  // 7일 주기로 상품 순환 (중복 제거)
+  function getWeeklyRotatedProducts(products, emotionKey) {
+    // 중복 제거: id 기준으로 고유한 상품만 유지
+    const uniqueProducts = products.filter((p, index, self) => 
+      index === self.findIndex(prod => prod.id === p.id)
+    );
+    
+    if (uniqueProducts.length <= 4) return uniqueProducts.slice(0, 4);
+    
+    const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    const weekCycle = Math.floor(daysSinceEpoch / 7);
+    const seed = weekCycle + emotionKey.charCodeAt(0);
+    
+    // 시드 기반 셔플
+    const shuffled = [...uniqueProducts].sort((a, b) => {
+      const hashA = (a.id * seed) % 1000;
+      const hashB = (b.id * seed) % 1000;
+      return hashA - hashB;
+    });
+    
+    // 중복 없이 4개 반환
+    const result = [];
+    const seenIds = new Set();
+    for (const product of shuffled) {
+      if (!seenIds.has(product.id)) {
+        result.push(product);
+        seenIds.add(product.id);
+        if (result.length >= 4) break;
+      }
+    }
+    
+    return result;
+  }
+  
+  // 자동 추천 (관리자 설정이 없을 때)
+  function getAutoEmotionRecommendations(emotionKey) {
+    const allProducts = getStoredProducts().filter(p => p.status === '판매중');
+    
+    // 중복 제거: id 기준으로 고유한 상품만 유지
+    const uniqueProducts = allProducts.filter((p, index, self) => 
+      index === self.findIndex(prod => prod.id === p.id)
+    );
+    
+    // 감정별 카테고리 매핑
+    const emotionCategoryMap = {
+      calm: ['향수', '디퓨저'],
+      warm: ['향수', '바디미스트'],
+      fresh: ['바디미스트', '섬유유연제'],
+      romantic: ['향수', '바디미스트'],
+      focus: ['향수', '디퓨저'],
+      refresh: ['바디미스트', '섬유유연제'],
+    };
+    
+    const categories = emotionCategoryMap[emotionKey] || ['향수'];
+    let filtered = uniqueProducts.filter(p => categories.includes(p.category));
+    
+    if (filtered.length === 0) {
+      filtered = uniqueProducts; // 카테고리 매칭 실패 시 전체 상품
+    }
+    
+    return getWeeklyRotatedProducts(filtered, emotionKey);
+  }
+  
+  // 감정별 추천 상품 설정 (관리자용)
+  function setEmotionRecommendations(emotionKey, productIds) {
+    try {
+      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
+      const recommendations = stored ? JSON.parse(stored) : {};
+      // 중복 제거: Set을 사용하여 고유한 ID만 저장
+      const uniqueIds = [...new Set(productIds)];
+      recommendations[emotionKey] = {
+        productIds: uniqueIds,
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(EMOTION_RECOMMENDATIONS_KEY, JSON.stringify(recommendations));
+    } catch (e) {
+      console.error('Error setting recommendations:', e);
+    }
+  }
+  
+  // 모든 감정별 추천 상품 가져오기 (관리자용)
+  function getAllEmotionRecommendations() {
+    try {
+      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  }
+
   w.API = {
     getProfile,
     getOrders,
@@ -605,6 +869,120 @@
     // 섹션 타이틀
     getSections,
     setSections,
+    // 감정별 추천 상품
+    getEmotionRecommendations,
+    setEmotionRecommendations,
+    getAllEmotionRecommendations,
+    // 쿠폰
+    getCoupons,
+    setCoupons,
+    getActiveCoupons,
+    validateCoupon,
+    applyCoupon,
+    // 공지사항/이벤트
+    getNotices,
+    setNotices,
+    getActiveNotices,
+    // 배송 추적 시뮬레이션
+    simulateShipping: function(orderId) {
+      const ORDER_DETAILS_KEY = 'dewscent_order_details';
+      let orderDetails = {};
+      try {
+        const stored = localStorage.getItem(ORDER_DETAILS_KEY);
+        if (stored) orderDetails = JSON.parse(stored);
+      } catch {}
+      
+      const order = orderDetails[orderId];
+      if (!order || !order.tracking) return order;
+      
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      // 주문일로부터 경과 시간 계산 (시뮬레이션)
+      const orderDate = new Date(order.orderedAt);
+      const daysDiff = Math.floor((now - orderDate) / (1000 * 60 * 60 * 24));
+      
+      // 배송 상태 업데이트 (시뮬레이션)
+      if (order.status === '결제대기') {
+        // 결제 완료 시뮬레이션 (1일 후)
+        if (daysDiff >= 1) {
+          order.status = '결제완료';
+          order.tracking.history.push({
+            status: '결제완료',
+            date: today,
+            time: time,
+            message: '결제가 완료되었습니다.'
+          });
+        }
+      } else if (order.status === '결제완료') {
+        // 배송 준비 시뮬레이션 (2일 후)
+        if (daysDiff >= 2) {
+          order.status = '배송준비중';
+          order.tracking.history.push({
+            status: '배송준비중',
+            date: today,
+            time: time,
+            message: '상품을 포장하고 있습니다.'
+          });
+        }
+      } else if (order.status === '배송준비중') {
+        // 배송 시작 시뮬레이션 (3일 후)
+        if (daysDiff >= 3 && !order.tracking.number) {
+          order.status = '배송중';
+          // 운송장 번호 생성 (시뮬레이션)
+          order.tracking.number = `1234567890${String(order.id).slice(-4)}`;
+          order.tracking.history.push({
+            status: '배송중',
+            date: today,
+            time: time,
+            message: '배송이 시작되었습니다.'
+          });
+        }
+      } else if (order.status === '배송중') {
+        // 배송 완료 시뮬레이션 (5일 후)
+        if (daysDiff >= 5) {
+          order.status = '배송완료';
+          order.tracking.history.push({
+            status: '배송완료',
+            date: today,
+            time: time,
+            message: '배송이 완료되었습니다.'
+          });
+        } else if (daysDiff >= 4) {
+          // 배송 중간 업데이트
+          const lastUpdate = order.tracking.history[order.tracking.history.length - 1];
+          if (lastUpdate && lastUpdate.status === '배송중' && lastUpdate.date !== today) {
+            order.tracking.history.push({
+              status: '배송중',
+              date: today,
+              time: time,
+              message: '배송 중입니다.'
+            });
+          }
+        }
+      }
+      
+      // 주문 상세 정보 업데이트
+      orderDetails[orderId] = order;
+      localStorage.setItem(ORDER_DETAILS_KEY, JSON.stringify(orderDetails));
+      
+      // 주문 목록도 업데이트
+      const ORDER_ADDS_KEY = 'dewscent_order_adds';
+      let adds = [];
+      try {
+        const stored = localStorage.getItem(ORDER_ADDS_KEY);
+        if (stored) adds = JSON.parse(stored);
+      } catch {}
+      
+      const orderInList = adds.find(o => o.id === orderId);
+      if (orderInList) {
+        orderInList.status = order.status;
+        localStorage.setItem(ORDER_ADDS_KEY, JSON.stringify(adds));
+      }
+      
+      return order;
+    },
     // 유틸
     __MOCK__: mock,
     __getStoredProducts: getStoredProducts,

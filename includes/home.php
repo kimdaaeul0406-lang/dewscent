@@ -1,3 +1,10 @@
+<!-- 공지사항/이벤트 배너 -->
+<section class="notice-section" id="noticeSection" style="display:none;padding:1rem 3rem;background:var(--sage-bg);">
+    <div id="noticeBanner" style="max-width:1200px;margin:0 auto;">
+        <!-- JS로 공지/이벤트가 동적으로 로드됩니다 -->
+    </div>
+</section>
+
 <section class="slider-section">
     <div class="slider-container">
         <div class="slider-track" id="sliderTrack">
@@ -41,4 +48,13 @@
         <p class="best-quote" id="bestQuote">— 향기는 기억을 여는 열쇠 —</p>
         <a href="pages/products.php" class="best-more">MORE SCENTS →</a>
     </div>
+</section>
+
+<section class="best-section" id="recentProductsSection" style="display:none;">
+    <div class="best-header">
+        <p class="best-label">RECENTLY VIEWED</p>
+        <h2 class="section-title">최근 본 상품</h2>
+        <p class="best-desc">방금 전 본 상품을 다시 확인해보세요</p>
+    </div>
+    <div class="products-grid" id="recentProducts"></div>
 </section>

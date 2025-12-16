@@ -18,8 +18,8 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		/* 관리 영역 간단 레이아웃 */
 		.admin-wrap { max-width: 1100px; margin: 0 auto; }
 		.admin-top { display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; }
-		.admin-tabs { display:flex; gap:.5rem; flex-wrap: wrap; }
-		.admin-tab { padding:.5rem 1rem; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; font-size:.9rem; }
+		.admin-tabs { display:flex; gap:.5rem; flex-wrap: wrap; justify-content: flex-start; align-items: center; }
+		.admin-tab { padding:.5rem 1rem; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; font-size:.85rem; white-space: nowrap; }
 		.admin-tab.active { border-color: var(--sage); color: var(--sage); background: var(--sage-bg); }
 		.admin-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:1rem; }
 		.table { width:100%; border-collapse: collapse; }
@@ -88,8 +88,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<button class="admin-tab" data-tab="reviews">리뷰</button>
 						<button class="admin-tab" data-tab="inquiries">문의</button>
 						<button class="admin-tab" data-tab="users">회원</button>
-						<button class="admin-tab" data-tab="orders">주문</button>
-						<button class="admin-tab" data-tab="settings">설정</button>
+					<button class="admin-tab" data-tab="orders">주문</button>
+					<button class="admin-tab" data-tab="coupons">쿠폰</button>
+					<button class="admin-tab" data-tab="notices">공지/이벤트</button>
+					<button class="admin-tab" data-tab="settings">설정</button>
 					</div>
 				</div>
 
@@ -279,8 +281,14 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-left:auto;" onclick="previewBannerSlider()">미리보기</button>
 					</div>
 					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-						<h3 style="font-size:1rem;">배너/캐러셀 관리</h3>
-						<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="openBannerForm()">+ 새 배너</button>
+						<div>
+							<h3 style="font-size:1rem;margin-bottom:.25rem;">배너/캐러셀 관리 <span id="bannerCountText" style="font-size:.85rem;color:var(--light);font-weight:normal;"></span></h3>
+							<p style="font-size:.8rem;color:var(--light);">* 최대 5개까지 등록 가능합니다. 메인 페이지 슬라이더에 표시됩니다.</p>
+						</div>
+						<div style="display:flex;gap:.5rem;">
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="openBannerForm()">+ 새 배너</button>
+							<button class="badge" style="cursor:pointer;background:var(--ivory);color:#fff;border:none;padding:.5rem 1rem;" onclick="resetDefaultBanners()" title="기본 배너 5개로 초기화">기본 배너 초기화</button>
+						</div>
 					</div>
 					<div id="bannerFormWrap" style="display:none;background:var(--sage-bg);padding:1rem;border-radius:10px;margin-bottom:1rem;">
 						<h4 id="bannerFormTitle" style="margin-bottom:1rem;font-size:.95rem;">새 배너 등록</h4>
@@ -288,7 +296,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
 							<div><label style="font-size:.8rem;color:var(--light);">제목 *</label><input type="text" id="bannerTitle" class="form-input" placeholder="배너 제목"></div>
 							<div><label style="font-size:.8rem;color:var(--light);">부제목</label><input type="text" id="bannerSubtitle" class="form-input" placeholder="부제목"></div>
-							<div><label style="font-size:.8rem;color:var(--light);">링크</label><input type="text" id="bannerLink" class="form-input" placeholder="pages/products.php"></div>
+							<div><label style="font-size:.8rem;color:var(--light);">링크</label><input type="text" id="bannerLink" class="form-input" placeholder="pages/products.php (클릭 시 이동할 페이지)"></div>
 							<div><label style="font-size:.8rem;color:var(--light);">순서</label><input type="number" id="bannerOrder" class="form-input" value="1" min="1"></div>
 							<div style="grid-column:1/-1;">
 								<label style="font-size:.8rem;color:var(--light);">이미지</label>
@@ -399,6 +407,21 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						</div>
 					</div>
 					<div id="emotionsTableWrap"><table class="table"><thead><tr><th>순서</th><th>키</th><th>제목</th><th>설명</th><th>상태</th><th>관리</th></tr></thead><tbody id="emotionsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--light)">불러오는 중...</td></tr></tbody></table></div>
+					
+					<!-- 감정별 추천 상품 설정 모달 -->
+					<div id="emotionRecommendationModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
+						<div style="background:#fff;border-radius:16px;padding:2rem;max-width:800px;max-height:90vh;overflow-y:auto;position:relative;">
+							<button onclick="closeEmotionRecommendationModal()" style="position:absolute;top:10px;right:10px;background:#fff;border:none;width:32px;height:32px;border-radius:50%;font-size:1.2rem;cursor:pointer;">×</button>
+							<h3 id="emotionRecommendationTitle" style="margin-bottom:1rem;font-size:1.2rem;">추천 상품 설정</h3>
+							<p style="font-size:.85rem;color:var(--light);margin-bottom:1.5rem;">이 감정 카드 클릭 시 추천될 상품을 선택하세요. (최대 10개 선택, 7일마다 4개씩 랜덤 표시)</p>
+							<input type="hidden" id="emotionRecommendationKey">
+							<div id="emotionRecommendationProducts" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem;"></div>
+							<div style="display:flex;gap:.5rem;justify-content:flex-end;">
+								<button class="badge" style="cursor:pointer;border:none;padding:.5rem 1rem;" onclick="closeEmotionRecommendationModal()">취소</button>
+								<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveEmotionRecommendation()">저장</button>
+							</div>
+						</div>
+					</div>
 				</div>
 
 				<!-- 섹션 타이틀 관리 -->
@@ -461,6 +484,157 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				</div>
 
 				<!-- 사이트 설정 -->
+				<!-- 쿠폰 관리 -->
+				<div class="admin-card" id="tab-coupons" style="display:none">
+					<h3 style="margin-bottom:1rem;font-size:1rem;">쿠폰 관리</h3>
+					<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-bottom:1rem;" onclick="openCouponForm()">쿠폰 추가</button>
+					
+					<!-- 쿠폰 폼 -->
+					<div id="couponForm" style="display:none;background:var(--sage-bg);padding:1.5rem;border-radius:12px;margin-bottom:1rem;">
+						<input type="hidden" id="couponEditId" value="">
+						<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;">
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">쿠폰 코드</label>
+								<input type="text" id="couponCode" class="form-input" placeholder="예: WELCOME10">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">쿠폰명</label>
+								<input type="text" id="couponName" class="form-input" placeholder="예: 신규 회원 10% 할인">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">할인 타입</label>
+								<select id="couponType" class="form-input">
+									<option value="percent">퍼센트 할인</option>
+									<option value="fixed">고정 금액 할인</option>
+								</select>
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">할인 값</label>
+								<input type="number" id="couponValue" class="form-input" placeholder="10 (퍼센트) 또는 5000 (고정)">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">최소 주문 금액</label>
+								<input type="number" id="couponMinAmount" class="form-input" placeholder="0" value="0">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">최대 할인 금액 (퍼센트만)</label>
+								<input type="number" id="couponMaxDiscount" class="form-input" placeholder="0 (무제한)" value="0">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">시작일</label>
+								<input type="date" id="couponStartDate" class="form-input">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">종료일</label>
+								<input type="date" id="couponEndDate" class="form-input">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">사용 횟수 제한</label>
+								<input type="number" id="couponUsageLimit" class="form-input" placeholder="0 (무제한)" value="0">
+							</div>
+							<div style="display:flex;align-items:center;gap:.5rem;margin-top:1.5rem;">
+								<input type="checkbox" id="couponActive" checked>
+								<label style="font-size:.8rem;color:var(--light);">활성화</label>
+							</div>
+						</div>
+						<div style="display:flex;gap:.5rem;margin-top:1rem;">
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveCoupon()">저장</button>
+							<button class="badge" style="cursor:pointer;border:none;padding:.5rem 1rem;" onclick="closeCouponForm()">취소</button>
+						</div>
+					</div>
+					
+					<!-- 쿠폰 목록 -->
+					<table class="table">
+						<thead>
+							<tr>
+								<th>코드</th>
+								<th>쿠폰명</th>
+								<th>할인</th>
+								<th>기간</th>
+								<th>사용/제한</th>
+								<th>상태</th>
+								<th>관리</th>
+							</tr>
+						</thead>
+						<tbody id="couponsTableBody">
+							<tr><td colspan="7" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>
+						</tbody>
+					</table>
+				</div>
+
+				<!-- 공지사항/이벤트 관리 -->
+				<div class="admin-card" id="tab-notices" style="display:none">
+					<h3 style="margin-bottom:1rem;font-size:1rem;">공지사항/이벤트 관리</h3>
+					<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;margin-bottom:1rem;" onclick="openNoticeForm()">공지/이벤트 추가</button>
+					
+					<!-- 공지/이벤트 폼 -->
+					<div id="noticeForm" style="display:none;background:var(--sage-bg);padding:1.5rem;border-radius:12px;margin-bottom:1rem;">
+						<input type="hidden" id="noticeEditId" value="">
+						<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">유형</label>
+								<select id="noticeType" class="form-input">
+									<option value="notice">공지사항</option>
+									<option value="event">이벤트</option>
+								</select>
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">제목</label>
+								<input type="text" id="noticeTitle" class="form-input" placeholder="제목을 입력하세요">
+							</div>
+							<div style="grid-column:1/-1;">
+								<label style="font-size:.8rem;color:var(--light);">내용</label>
+								<textarea id="noticeContent" class="form-input" rows="4" placeholder="내용을 입력하세요" style="resize:none;"></textarea>
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">시작일</label>
+								<input type="date" id="noticeStartDate" class="form-input">
+							</div>
+							<div>
+								<label style="font-size:.8rem;color:var(--light);">종료일</label>
+								<input type="date" id="noticeEndDate" class="form-input">
+							</div>
+							<div style="grid-column:1/-1;">
+								<label style="font-size:.8rem;color:var(--light);">링크 (선택)</label>
+								<input type="text" id="noticeLink" class="form-input" placeholder="클릭 시 이동할 링크 (선택사항)">
+							</div>
+							<div style="grid-column:1/-1;">
+								<label style="font-size:.8rem;color:var(--light);">이미지</label>
+								<div class="image-upload-wrap">
+									<input type="text" id="noticeImageUrl" class="form-input" placeholder="URL 입력 또는 파일 업로드">
+									<input type="file" id="noticeImageFile" class="image-upload-input" accept="image/*" onchange="uploadNoticeImage(this)">
+									<button type="button" class="image-upload-btn" onclick="document.getElementById('noticeImageFile').click()">파일 선택</button>
+								</div>
+								<img id="noticeImagePreview" class="image-preview" style="display:none;">
+							</div>
+							<div style="display:flex;align-items:center;gap:.5rem;">
+								<input type="checkbox" id="noticeActive" checked>
+								<label style="font-size:.8rem;color:var(--light);">활성화</label>
+							</div>
+						</div>
+						<div style="display:flex;gap:.5rem;margin-top:1rem;">
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveNotice()">저장</button>
+							<button class="badge" style="cursor:pointer;border:none;padding:.5rem 1rem;" onclick="closeNoticeForm()">취소</button>
+						</div>
+					</div>
+					
+					<!-- 공지/이벤트 목록 -->
+					<table class="table">
+						<thead>
+							<tr>
+								<th>유형</th>
+								<th>제목</th>
+								<th>기간</th>
+								<th>상태</th>
+								<th>관리</th>
+							</tr>
+						</thead>
+						<tbody id="noticesTableBody">
+							<tr><td colspan="5" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>
+						</tbody>
+					</table>
+				</div>
+
 				<div class="admin-card" id="tab-settings" style="display:none">
 					<h3 style="margin-bottom:1rem;font-size:1rem;">사이트 설정</h3>
 					<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
@@ -482,7 +656,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 
 	<script>
 		// 간단한 탭 전환 + 데이터 로딩
-		const loaded = { overview: true, users: false, orders: false, products: false, inquiries: false, settings: true };
+		const loaded = { overview: true, users: false, orders: false, products: false, inquiries: false, settings: true, coupons: false, notices: false };
 
 		// 문의 관리 관련
 		const INQUIRY_KEY = "dewscent_inquiries";
@@ -820,9 +994,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			const banners = API.getBanners();
 			if (!banners.length) {
 				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 배너가 없습니다.</td></tr>`;
+				// 개수 표시 업데이트
+				const countText = document.getElementById('bannerCountText');
+				if (countText) countText.textContent = '(0/5개)';
 				return;
 			}
-			tbody.innerHTML = banners.sort((a,b) => a.order - b.order).map(b => `
+			const sortedBanners = banners.sort((a,b) => a.order - b.order);
+			tbody.innerHTML = sortedBanners.map(b => `
 				<tr>
 					<td>${b.order}</td>
 					<td style="font-weight:500;">${b.title}<br><span style="font-size:.8rem;color:var(--light)">${b.subtitle || ''}</span></td>
@@ -834,15 +1012,30 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					</td>
 				</tr>
 			`).join('');
+			
+			// 배너 개수 표시 업데이트
+			const bannerCount = sortedBanners.length;
+			const activeCount = sortedBanners.filter(b => b.active).length;
+			const countText = document.getElementById('bannerCountText');
+			if (countText) {
+				countText.textContent = `(${bannerCount}/5개, 활성: ${activeCount}개)`;
+				countText.style.color = bannerCount >= 5 ? 'var(--rose)' : 'var(--light)';
+			}
 		}
 		function openBannerForm() {
+			const banners = API.getBanners();
+			if (banners.length >= 5) {
+				alert('배너는 최대 5개까지 등록할 수 있습니다. 기존 배너를 삭제하거나 수정해주세요.');
+				return;
+			}
 			document.getElementById('bannerFormWrap').style.display = 'block';
 			document.getElementById('bannerFormTitle').textContent = '새 배너 등록';
 			document.getElementById('bannerEditId').value = '';
 			document.getElementById('bannerTitle').value = '';
 			document.getElementById('bannerSubtitle').value = '';
 			document.getElementById('bannerLink').value = 'pages/products.php';
-			document.getElementById('bannerOrder').value = '1';
+			document.getElementById('bannerLink').placeholder = 'pages/products.php (기본값)';
+			document.getElementById('bannerOrder').value = String(banners.length + 1);
 			document.getElementById('bannerImageUrl').value = '';
 			document.getElementById('bannerActive').checked = true;
 			document.getElementById('bannerImagePreview').style.display = 'none';
@@ -872,8 +1065,105 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				preview.src = '';
 			}
 		}
-		function saveBanner() { const editId = document.getElementById('bannerEditId').value; const title = document.getElementById('bannerTitle').value.trim(); if (!title) { alert('제목을 입력해주세요.'); return; } const data = { title, subtitle: document.getElementById('bannerSubtitle').value.trim(), link: document.getElementById('bannerLink').value.trim(), order: parseInt(document.getElementById('bannerOrder').value) || 1, imageUrl: document.getElementById('bannerImageUrl').value.trim(), active: document.getElementById('bannerActive').checked }; let banners = API.getBanners(); if (editId) { const idx = banners.findIndex(b => b.id === parseInt(editId)); if (idx !== -1) banners[idx] = { ...banners[idx], ...data }; } else { data.id = Date.now(); banners.push(data); } API.setBanners(banners); closeBannerForm(); renderBanners(); alert('저장되었습니다.'); }
-		function deleteBanner(id) { if (!confirm('정말 삭제하시겠습니까?')) return; let banners = API.getBanners().filter(b => b.id !== id); API.setBanners(banners); renderBanners(); }
+		function saveBanner() {
+			const editId = document.getElementById('bannerEditId').value;
+			const title = document.getElementById('bannerTitle').value.trim();
+			if (!title) {
+				alert('제목을 입력해주세요.');
+				return;
+			}
+			const linkValue = document.getElementById('bannerLink').value.trim();
+			const data = {
+				title,
+				subtitle: document.getElementById('bannerSubtitle').value.trim(),
+				link: linkValue || 'pages/products.php', // 링크가 비어있으면 기본값 사용
+				order: parseInt(document.getElementById('bannerOrder').value) || 1,
+				imageUrl: document.getElementById('bannerImageUrl').value.trim(),
+				active: document.getElementById('bannerActive').checked
+			};
+			let banners = API.getBanners();
+			
+			// 새로 등록하는 경우 최대 5개 제한 확인
+			if (!editId) {
+				if (banners.length >= 5) {
+					alert('배너는 최대 5개까지 등록할 수 있습니다.');
+					return;
+				}
+				data.id = Date.now();
+				banners.push(data);
+			} else {
+				const idx = banners.findIndex(b => b.id === parseInt(editId));
+				if (idx !== -1) {
+					banners[idx] = { ...banners[idx], ...data };
+				}
+			}
+			
+			API.setBanners(banners);
+			closeBannerForm();
+			renderBanners();
+			alert('저장되었습니다.');
+		}
+		function deleteBanner(id) {
+			if (!confirm('정말 삭제하시겠습니까?')) return;
+			let banners = API.getBanners().filter(b => b.id !== id);
+			API.setBanners(banners);
+			renderBanners();
+		}
+		
+		// 기본 배너 5개로 초기화
+		function resetDefaultBanners() {
+			if (!confirm('기본 배너 5개로 초기화하시겠습니까?\n현재 등록된 배너가 모두 삭제됩니다.')) return;
+			const defaultBanners = [
+				{
+					id: 1,
+					title: "새로운 향기의 시작",
+					subtitle: "DewScent 2025 컬렉션",
+					link: "pages/products.php",
+					imageUrl: "",
+					order: 1,
+					active: true,
+				},
+				{
+					id: 2,
+					title: "봄의 향기를 담다",
+					subtitle: "벚꽃 에디션 출시",
+					link: "pages/products.php",
+					imageUrl: "",
+					order: 2,
+					active: true,
+				},
+				{
+					id: 3,
+					title: "특별한 선물",
+					subtitle: "기프트 세트 20% 할인",
+					link: "pages/products.php",
+					imageUrl: "",
+					order: 3,
+					active: true,
+				},
+				{
+					id: 4,
+					title: "시그니처 향기",
+					subtitle: "베스트셀러 모음",
+					link: "pages/products.php",
+					imageUrl: "",
+					order: 4,
+					active: true,
+				},
+				{
+					id: 5,
+					title: "신상품 출시",
+					subtitle: "한정판 특가",
+					link: "pages/products.php",
+					imageUrl: "",
+					order: 5,
+					active: true,
+				},
+			];
+			API.setBanners(defaultBanners);
+			renderBanners();
+			alert('기본 배너 5개로 초기화되었습니다.');
+		}
 
 		// ========== 팝업 관리 ==========
 		function renderPopups() {
@@ -950,7 +1240,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--light)">등록된 감정 카드가 없습니다.</td></tr>';
 				return;
 			}
-			tbody.innerHTML = emotions.sort((a,b) => a.order - b.order).map(e => `
+			tbody.innerHTML = emotions.sort((a,b) => a.order - b.order).map(e => {
+				const recommendations = API.getAllEmotionRecommendations();
+				const recCount = recommendations[e.key]?.productIds?.length || 0;
+				return `
 				<tr>
 					<td>${e.order || 1}</td>
 					<td style="font-family:monospace;">${e.key || ''}</td>
@@ -958,11 +1251,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					<td>${e.desc || ''}</td>
 					<td><span class="status-badge ${e.active ? 'answered' : 'waiting'}">${e.active ? '활성' : '비활성'}</span></td>
 					<td>
-						<button class="badge" style="cursor:pointer;" onclick="editEmotion(${e.id})">수정</button>
-						<button class="badge" style="cursor:pointer;color:#d88;" onclick="deleteEmotion(${e.id})">삭제</button>
+						<button class="badge" style="cursor:pointer;background:var(--ivory);color:#fff;border:none;font-size:.7rem;" onclick="openEmotionRecommendationModal('${e.key}', '${e.title}')">추천 설정 ${recCount > 0 ? `(${recCount})` : ''}</button>
+						<button class="badge" style="cursor:pointer;font-size:.7rem;" onclick="editEmotion(${e.id})">수정</button>
+						<button class="badge" style="cursor:pointer;font-size:.7rem;color:var(--rose);" onclick="deleteEmotion(${e.id})">삭제</button>
 					</td>
 				</tr>
-			`).join('');
+			`;
+			}).join('');
 		}
 		
 		function openEmotionForm() {
@@ -1022,27 +1317,163 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			API.setEmotions(emotions);
 			renderEmotions();
 		}
+		
+		// 감정별 추천 상품 설정 모달 열기
+		async function openEmotionRecommendationModal(emotionKey, emotionTitle) {
+			document.getElementById('emotionRecommendationKey').value = emotionKey;
+			document.getElementById('emotionRecommendationTitle').textContent = `"${emotionTitle}" 추천 상품 설정`;
+			document.getElementById('emotionRecommendationModal').style.display = 'flex';
+			
+			// 현재 설정된 추천 상품 가져오기 (중복 제거)
+			const recommendations = API.getAllEmotionRecommendations();
+			const currentIds = recommendations[emotionKey]?.productIds || [];
+			const uniqueCurrentIds = [...new Set(currentIds)]; // 중복 제거
+			
+			// 모든 상품 가져오기 (중복 제거)
+			const products = await API.getProducts();
+			const availableProducts = products
+				.filter(p => p.status === '판매중')
+				.filter((p, index, self) => index === self.findIndex(prod => prod.id === p.id)); // id 기준 중복 제거
+			
+			// 상품 선택 UI 생성
+			const container = document.getElementById('emotionRecommendationProducts');
+			container.innerHTML = availableProducts.map(p => {
+				const isSelected = uniqueCurrentIds.includes(p.id);
+				return `
+					<div style="border:2px solid ${isSelected ? 'var(--sage)' : 'var(--border)'};border-radius:12px;padding:1rem;cursor:pointer;background:${isSelected ? 'var(--sage-bg)' : '#fff'};transition:all 0.2s;" 
+						onclick="toggleEmotionProduct(${p.id})" 
+						data-product-id="${p.id}">
+						<div style="height:100px;background:${p.imageUrl ? `url(${p.imageUrl})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage))'};background-size:cover;background-position:center;border-radius:8px;margin-bottom:.5rem;"></div>
+						<p style="font-size:.85rem;font-weight:500;margin-bottom:.25rem;">${p.name}</p>
+						<p style="font-size:.75rem;color:var(--light);">₩${(p.price || 0).toLocaleString()}</p>
+						${isSelected ? '<div style="margin-top:.5rem;text-align:center;"><span style="background:var(--sage);color:#fff;padding:.2rem .5rem;border-radius:999px;font-size:.7rem;">선택됨</span></div>' : ''}
+					</div>
+				`;
+			}).join('');
+		}
+		
+		// 추천 상품 선택 토글
+		function toggleEmotionProduct(productId) {
+			const container = document.getElementById('emotionRecommendationProducts');
+			const productEl = container.querySelector(`[data-product-id="${productId}"]`);
+			if (!productEl) return;
+			
+			const isSelected = productEl.style.borderColor === 'var(--sage)';
+			const emotionKey = document.getElementById('emotionRecommendationKey').value;
+			const recommendations = API.getAllEmotionRecommendations();
+			const currentIds = recommendations[emotionKey]?.productIds || [];
+			
+			// 중복 제거: 현재 ID 목록에서 중복 제거
+			const uniqueCurrentIds = [...new Set(currentIds)];
+			
+			let newIds;
+			if (isSelected) {
+				// 선택 해제
+				newIds = uniqueCurrentIds.filter(id => id !== productId);
+			} else {
+				// 중복 체크: 이미 선택된 상품인지 확인
+				if (uniqueCurrentIds.includes(productId)) {
+					alert('이미 선택된 상품입니다.');
+					return;
+				}
+				if (uniqueCurrentIds.length >= 10) {
+					alert('최대 10개까지만 선택할 수 있습니다.');
+					return;
+				}
+				newIds = [...uniqueCurrentIds, productId];
+			}
+			
+			// 중복 제거 후 저장
+			const finalIds = [...new Set(newIds)];
+			
+			// UI 업데이트
+			API.setEmotionRecommendations(emotionKey, finalIds);
+			openEmotionRecommendationModal(emotionKey, document.getElementById('emotionRecommendationTitle').textContent.replace('"', '').split('"')[0]);
+		}
+		
+		// 추천 상품 저장
+		function saveEmotionRecommendation() {
+			const emotionKey = document.getElementById('emotionRecommendationKey').value;
+			const recommendations = API.getAllEmotionRecommendations();
+			const currentIds = recommendations[emotionKey]?.productIds || [];
+			
+			if (currentIds.length === 0) {
+				if (!confirm('추천 상품이 선택되지 않았습니다. 자동 추천을 사용하시겠습니까?')) {
+					return;
+				}
+			}
+			
+			alert('저장되었습니다. 7일마다 선택한 상품 중 4개가 랜덤으로 표시됩니다.');
+			closeEmotionRecommendationModal();
+			renderEmotions();
+		}
+		
+		// 추천 상품 모달 닫기
+		function closeEmotionRecommendationModal() {
+			document.getElementById('emotionRecommendationModal').style.display = 'none';
+		}
 
 		// ========== 미리보기 함수들 ==========
 		function previewBannerSlider() {
-			const banners = API.getActiveBanners();
+			let banners = API.getActiveBanners();
 			if (banners.length === 0) {
 				alert('활성화된 배너가 없습니다.');
 				return;
 			}
+			
+			// 최대 5개까지만 표시 (메인 페이지와 동일하게)
+			if (banners.length > 5) {
+				banners = banners.slice(0, 5);
+			}
+			
+			// 5개 미만이면 반복해서 채움 (메인 페이지와 동일한 로직)
+			const displayBanners = [];
+			while (displayBanners.length < 5) {
+				banners.forEach((b) => {
+					if (displayBanners.length < 5) displayBanners.push(b);
+				});
+			}
+			
+			const positions = ['pos-far-left', 'pos-left', 'pos-center', 'pos-right', 'pos-far-right'];
 			const previewHtml = `
-				<div style="background:#222;padding:2rem;border-radius:16px;max-width:600px;margin:auto;">
-					<h3 style="color:#fff;text-align:center;margin-bottom:1rem;">배너 슬라이더 미리보기</h3>
-					<div style="display:flex;gap:1rem;overflow-x:auto;padding:1rem 0;">
-						${banners.map((b, i) => `
-							<div style="min-width:200px;background:linear-gradient(135deg,${i%2===0?'#d6e2cf':'#f8dde1'},${i%2===0?'#5f7161':'#c96473'});padding:1.5rem;border-radius:12px;text-align:center;">
-								<div style="color:#fff;font-size:.8rem;opacity:.8;">이벤트 ${b.order || i+1}</div>
-								<div style="color:#fff;font-weight:600;margin-top:.5rem;">${b.title}</div>
-								<div style="color:#fff;font-size:.85rem;opacity:.9;margin-top:.25rem;">${b.subtitle || ''}</div>
-							</div>
+				<div style="background:#f5f5f5;padding:2rem;border-radius:16px;max-width:900px;margin:auto;">
+					<h3 style="color:var(--sage);text-align:center;margin-bottom:1.5rem;font-size:1.2rem;">배너 슬라이더 미리보기</h3>
+					<div style="position:relative;height:400px;overflow:hidden;border-radius:12px;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+						<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+							${displayBanners.map((b, i) => {
+								const pos = positions[i];
+								let style = '';
+								if (pos === 'pos-center') {
+									style = 'position:absolute;left:50%;transform:translateX(-50%);z-index:10;width:280px;height:320px;';
+								} else if (pos === 'pos-left') {
+									style = 'position:absolute;left:20%;transform:translateX(-50%) scale(0.85);z-index:5;width:240px;height:280px;opacity:0.8;';
+								} else if (pos === 'pos-right') {
+									style = 'position:absolute;right:20%;transform:translateX(50%) scale(0.85);z-index:5;width:240px;height:280px;opacity:0.8;';
+								} else if (pos === 'pos-far-left') {
+									style = 'position:absolute;left:5%;transform:translateX(-50%) scale(0.7);z-index:1;width:200px;height:240px;opacity:0.6;';
+								} else if (pos === 'pos-far-right') {
+									style = 'position:absolute;right:5%;transform:translateX(50%) scale(0.7);z-index:1;width:200px;height:240px;opacity:0.6;';
+								}
+								return `
+									<div style="${style}background:${b.imageUrl ? `url(${b.imageUrl});background-size:cover;background-position:center;` : 'linear-gradient(135deg,#d6e2cf,#5f7161)'};border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;justify-content:flex-end;padding:1.5rem;cursor:pointer;transition:all 0.3s;">
+										${!b.imageUrl ? `<div style="color:#fff;font-size:2rem;text-align:center;margin-bottom:auto;opacity:0.3;">이벤트 ${b.order || i+1}</div>` : ''}
+										<div style="background:rgba(0,0,0,0.4);padding:1rem;border-radius:8px;backdrop-filter:blur(4px);">
+											<div style="color:#fff;font-weight:600;font-size:1.1rem;margin-bottom:.25rem;">${b.title}</div>
+											<div style="color:#fff;font-size:.9rem;opacity:0.95;">${b.subtitle || ''}</div>
+										</div>
+									</div>
+								`;
+							}).join('')}
+						</div>
+					</div>
+					<div style="display:flex;justify-content:center;gap:.5rem;margin-top:1.5rem;">
+						${displayBanners.map((b, i) => `
+							<div style="width:8px;height:8px;border-radius:50%;background:${i === 2 ? 'var(--sage)' : '#ddd'};cursor:pointer;"></div>
 						`).join('')}
 					</div>
-					<p style="color:#aaa;text-align:center;font-size:.8rem;margin-top:1rem;">← 스크롤하여 모든 배너 확인 →</p>
+					<p style="color:var(--light);text-align:center;font-size:.85rem;margin-top:1rem;">
+						총 ${banners.length}개의 활성 배너가 있습니다. (최대 5개 표시)
+					</p>
 				</div>
 			`;
 			showPreviewModal(previewHtml);
@@ -1358,8 +1789,252 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('prodImagePreview').src = '';
 		};
 
+		// ========== 공지사항/이벤트 관리 ==========
+		function renderNotices() {
+			const tbody = document.getElementById('noticesTableBody');
+			if (!tbody) return;
+			const notices = API.getNotices();
+			if (notices.length === 0) {
+				tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 공지/이벤트가 없습니다.</td></tr>';
+				return;
+			}
+			tbody.innerHTML = notices.map(n => {
+				const period = (n.startDate || '') + (n.endDate ? ' ~ ' + n.endDate : '');
+				return `
+					<tr>
+						<td><span class="badge ${n.type === 'event' ? 'style="background:var(--rose);color:#fff;"' : ''}">${n.type === 'event' ? '이벤트' : '공지'}</span></td>
+						<td>${n.title}</td>
+						<td style="font-size:.85rem;color:var(--light);">${period || '제한없음'}</td>
+						<td><span class="badge ${n.active ? '' : 'style="background:var(--border);"'}">${n.active ? '활성' : '비활성'}</span></td>
+						<td>
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.3rem .6rem;font-size:.75rem;" onclick="editNotice(${n.id})">수정</button>
+							<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.3rem .6rem;font-size:.75rem;" onclick="deleteNotice(${n.id})">삭제</button>
+						</td>
+					</tr>
+				`;
+			}).join('');
+		}
+		function openNoticeForm() {
+			document.getElementById('noticeForm').style.display = 'block';
+			document.getElementById('noticeEditId').value = '';
+			document.getElementById('noticeType').value = 'notice';
+			document.getElementById('noticeTitle').value = '';
+			document.getElementById('noticeContent').value = '';
+			document.getElementById('noticeStartDate').value = '';
+			document.getElementById('noticeEndDate').value = '';
+			document.getElementById('noticeLink').value = '';
+			document.getElementById('noticeImageUrl').value = '';
+			document.getElementById('noticeActive').checked = true;
+			document.getElementById('noticeImagePreview').style.display = 'none';
+		}
+		function closeNoticeForm() {
+			document.getElementById('noticeForm').style.display = 'none';
+		}
+		function saveNotice() {
+			const editId = document.getElementById('noticeEditId').value;
+			const type = document.getElementById('noticeType').value;
+			const title = document.getElementById('noticeTitle').value.trim();
+			const content = document.getElementById('noticeContent').value.trim();
+			if (!title || !content) {
+				alert('제목과 내용을 입력해주세요.');
+				return;
+			}
+			const notices = API.getNotices();
+			if (editId) {
+				const idx = notices.findIndex(n => n.id === parseInt(editId));
+				if (idx !== -1) {
+					notices[idx] = {
+						...notices[idx],
+						type, title, content,
+						startDate: document.getElementById('noticeStartDate').value || '',
+						endDate: document.getElementById('noticeEndDate').value || '',
+						link: document.getElementById('noticeLink').value.trim() || '',
+						imageUrl: document.getElementById('noticeImageUrl').value.trim() || '',
+						active: document.getElementById('noticeActive').checked
+					};
+				}
+			} else {
+				notices.push({
+					id: Date.now(),
+					type, title, content,
+					startDate: document.getElementById('noticeStartDate').value || '',
+					endDate: document.getElementById('noticeEndDate').value || '',
+					link: document.getElementById('noticeLink').value.trim() || '',
+					imageUrl: document.getElementById('noticeImageUrl').value.trim() || '',
+					active: document.getElementById('noticeActive').checked,
+					createdAt: new Date().toISOString().split('T')[0]
+				});
+			}
+			API.setNotices(notices);
+			closeNoticeForm();
+			renderNotices();
+			alert('저장되었습니다. 메인 페이지 상단에 표시됩니다.');
+		}
+		function editNotice(id) {
+			const notices = API.getNotices();
+			const notice = notices.find(n => n.id === id);
+			if (!notice) return;
+			document.getElementById('noticeEditId').value = id;
+			document.getElementById('noticeType').value = notice.type;
+			document.getElementById('noticeTitle').value = notice.title;
+			document.getElementById('noticeContent').value = notice.content;
+			document.getElementById('noticeStartDate').value = notice.startDate || '';
+			document.getElementById('noticeEndDate').value = notice.endDate || '';
+			document.getElementById('noticeLink').value = notice.link || '';
+			document.getElementById('noticeImageUrl').value = notice.imageUrl || '';
+			document.getElementById('noticeActive').checked = notice.active !== false;
+			if (notice.imageUrl) {
+				const preview = document.getElementById('noticeImagePreview');
+				preview.src = notice.imageUrl;
+				preview.style.display = 'block';
+			}
+			document.getElementById('noticeForm').style.display = 'block';
+		}
+		function deleteNotice(id) {
+			if (!confirm('정말 삭제하시겠습니까?')) return;
+			const notices = API.getNotices().filter(n => n.id !== id);
+			API.setNotices(notices);
+			renderNotices();
+		}
+		function uploadNoticeImage(input) {
+			if (input.files && input.files[0]) {
+				const file = input.files[0];
+				if (file.size > 2 * 1024 * 1024) {
+					alert('이미지 크기는 2MB 이하로 제한됩니다.');
+					input.value = '';
+					return;
+				}
+				const reader = new FileReader();
+				reader.onload = function(e) {
+					document.getElementById('noticeImageUrl').value = e.target.result;
+					const preview = document.getElementById('noticeImagePreview');
+					preview.src = e.target.result;
+					preview.style.display = 'block';
+				};
+				reader.readAsDataURL(file);
+			}
+		}
+
+		// ========== 쿠폰 관리 ==========
+		function renderCoupons() {
+			const tbody = document.getElementById('couponsTableBody');
+			if (!tbody) return;
+			const coupons = API.getCoupons();
+			if (coupons.length === 0) {
+				tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--light)">등록된 쿠폰이 없습니다.</td></tr>';
+				return;
+			}
+			tbody.innerHTML = coupons.map(c => {
+				const discountText = c.type === 'percent' ? `${c.value}%` : `₩${c.value.toLocaleString()}`;
+				const period = (c.startDate || '') + (c.endDate ? ' ~ ' + c.endDate : '');
+				const usage = `${c.usedCount || 0}${c.usageLimit > 0 ? '/' + c.usageLimit : ''}`;
+				return `
+					<tr>
+						<td><strong style="color:var(--sage);">${c.code}</strong></td>
+						<td>${c.name}</td>
+						<td>${discountText}</td>
+						<td style="font-size:.85rem;color:var(--light);">${period || '제한없음'}</td>
+						<td>${usage}</td>
+						<td><span class="badge ${c.active ? '' : 'style="background:var(--border);"'}">${c.active ? '활성' : '비활성'}</span></td>
+						<td>
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.3rem .6rem;font-size:.75rem;" onclick="editCoupon(${c.id})">수정</button>
+							<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.3rem .6rem;font-size:.75rem;" onclick="deleteCoupon(${c.id})">삭제</button>
+						</td>
+					</tr>
+				`;
+			}).join('');
+		}
+		function openCouponForm() {
+			document.getElementById('couponForm').style.display = 'block';
+			document.getElementById('couponEditId').value = '';
+			document.getElementById('couponCode').value = '';
+			document.getElementById('couponName').value = '';
+			document.getElementById('couponType').value = 'percent';
+			document.getElementById('couponValue').value = '';
+			document.getElementById('couponMinAmount').value = '0';
+			document.getElementById('couponMaxDiscount').value = '0';
+			document.getElementById('couponStartDate').value = '';
+			document.getElementById('couponEndDate').value = '';
+			document.getElementById('couponUsageLimit').value = '0';
+			document.getElementById('couponActive').checked = true;
+		}
+		function closeCouponForm() {
+			document.getElementById('couponForm').style.display = 'none';
+		}
+		function saveCoupon() {
+			const editId = document.getElementById('couponEditId').value;
+			const code = document.getElementById('couponCode').value.trim().toUpperCase();
+			const name = document.getElementById('couponName').value.trim();
+			const type = document.getElementById('couponType').value;
+			const value = parseInt(document.getElementById('couponValue').value) || 0;
+			if (!code || !name || value <= 0) {
+				alert('필수 항목을 모두 입력해주세요. (쿠폰 코드, 쿠폰명, 할인 값)');
+				return;
+			}
+			const coupons = API.getCoupons();
+			if (editId) {
+				const idx = coupons.findIndex(c => c.id === parseInt(editId));
+				if (idx !== -1) {
+					coupons[idx] = {
+						...coupons[idx],
+						code, name, type, value,
+						minAmount: parseInt(document.getElementById('couponMinAmount').value) || 0,
+						maxDiscount: parseInt(document.getElementById('couponMaxDiscount').value) || 0,
+						startDate: document.getElementById('couponStartDate').value || '',
+						endDate: document.getElementById('couponEndDate').value || '',
+						usageLimit: parseInt(document.getElementById('couponUsageLimit').value) || 0,
+						active: document.getElementById('couponActive').checked
+					};
+				}
+			} else {
+				if (coupons.some(c => c.code === code)) {
+					alert('이미 존재하는 쿠폰 코드입니다.');
+					return;
+				}
+				coupons.push({
+					id: Date.now(),
+					code, name, type, value,
+					minAmount: parseInt(document.getElementById('couponMinAmount').value) || 0,
+					maxDiscount: parseInt(document.getElementById('couponMaxDiscount').value) || 0,
+					startDate: document.getElementById('couponStartDate').value || '',
+					endDate: document.getElementById('couponEndDate').value || '',
+					usageLimit: parseInt(document.getElementById('couponUsageLimit').value) || 0,
+					usedCount: 0,
+					active: document.getElementById('couponActive').checked,
+					createdAt: new Date().toISOString().split('T')[0]
+				});
+			}
+			API.setCoupons(coupons);
+			closeCouponForm();
+			renderCoupons();
+			alert('쿠폰이 저장되었습니다. 고객이 결제 시 사용할 수 있습니다.');
+		}
+		function editCoupon(id) {
+			const coupons = API.getCoupons();
+			const coupon = coupons.find(c => c.id === id);
+			if (!coupon) return;
+			document.getElementById('couponEditId').value = id;
+			document.getElementById('couponCode').value = coupon.code;
+			document.getElementById('couponName').value = coupon.name;
+			document.getElementById('couponType').value = coupon.type;
+			document.getElementById('couponValue').value = coupon.value;
+			document.getElementById('couponMinAmount').value = coupon.minAmount || 0;
+			document.getElementById('couponMaxDiscount').value = coupon.maxDiscount || 0;
+			document.getElementById('couponStartDate').value = coupon.startDate || '';
+			document.getElementById('couponEndDate').value = coupon.endDate || '';
+			document.getElementById('couponUsageLimit').value = coupon.usageLimit || 0;
+			document.getElementById('couponActive').checked = coupon.active !== false;
+			document.getElementById('couponForm').style.display = 'block';
+		}
+		function deleteCoupon(id) {
+			if (!confirm('정말 삭제하시겠습니까?')) return;
+			const coupons = API.getCoupons().filter(c => c.id !== id);
+			API.setCoupons(coupons);
+			renderCoupons();
+		}
+
 		// ========== 탭 전환 ==========
-		const allTabs = ['overview','banners','popups','emotions','sections','mainproducts','products','reviews','inquiries','users','orders','settings'];
+		const allTabs = ['overview','banners','popups','emotions','sections','mainproducts','products','reviews','inquiries','users','orders','coupons','notices','settings'];
 		document.querySelectorAll('.admin-tab').forEach((btn) => {
 			btn.addEventListener('click', () => {
 				document.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
@@ -1374,6 +2049,8 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				if (!loaded[tab]) {
 					if (tab === 'users') renderUsers();
 					if (tab === 'orders') renderAdminOrders();
+					if (tab === 'coupons') renderCoupons();
+					if (tab === 'notices') renderNotices();
 					if (tab === 'products') renderProducts();
 					if (tab === 'inquiries') renderAdminInquiries();
 					if (tab === 'banners') renderBanners();

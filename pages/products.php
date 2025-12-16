@@ -78,9 +78,50 @@ $pageTitle = "전체 상품 | DewScent";
 let currentView = 'grid';
 let currentSort = 'popular';
 
+// URL 파라미터에서 필터 읽기
+function getUrlFilter() {
+	const params = new URLSearchParams(window.location.search);
+	return params.get('filter') || null;
+}
+
+// URL 파라미터에서 검색어 읽기
+function getUrlSearch() {
+	const params = new URLSearchParams(window.location.search);
+	return params.get('search') || null;
+}
+
 // 상품 데이터 (main.js의 products 배열 사용)
 function getAllProducts() {
-	return typeof products !== 'undefined' ? products : [];
+	let allProds = typeof products !== 'undefined' ? products : [];
+	const filter = getUrlFilter();
+	const search = getUrlSearch();
+	
+	// 검색어 필터 적용
+	if (search) {
+		const searchLower = search.toLowerCase();
+		allProds = allProds.filter(p => {
+			return p.name.toLowerCase().includes(searchLower) ||
+			       (p.desc && p.desc.toLowerCase().includes(searchLower)) ||
+			       (p.category && p.category.toLowerCase().includes(searchLower));
+		});
+	}
+	
+	// 필터 적용
+	if (filter === 'best') {
+		// BEST 배지가 있거나 리뷰 수가 많은 상품 (인기 상품)
+		allProds = allProds.filter(p => {
+			return p.badge === 'BEST' || (p.reviews && p.reviews >= 50);
+		});
+		// 리뷰 수 기준으로 정렬 (인기순)
+		allProds.sort((a, b) => (b.reviews || 0) - (a.reviews || 0));
+	} else if (filter === 'new') {
+		// NEW 배지가 있는 상품
+		allProds = allProds.filter(p => p.badge === 'NEW');
+		// 최신순 정렬
+		allProds.sort((a, b) => (b.id || 0) - (a.id || 0));
+	}
+	
+	return allProds;
 }
 
 function sortProducts(list, sortBy) {
@@ -110,7 +151,29 @@ function renderAllProducts() {
 	if (!container) return;
 
 	const allProds = getAllProducts();
-	const sorted = sortProducts(allProds, currentSort);
+	
+	// 필터가 적용된 경우 정렬은 이미 getAllProducts에서 처리됨
+	const sorted = getUrlFilter() ? allProds : sortProducts(allProds, currentSort);
+	
+	// 페이지 제목 업데이트
+	const filter = getUrlFilter();
+	const search = getUrlSearch();
+	if (search) {
+		const titleEl = document.querySelector('.products-hero-title');
+		const subEl = document.querySelector('.products-hero-sub');
+		if (titleEl) titleEl.textContent = `"${search}" 검색 결과`;
+		if (subEl) subEl.textContent = `${sorted.length}개의 상품을 찾았습니다`;
+	} else if (filter === 'best') {
+		const titleEl = document.querySelector('.products-hero-title');
+		const subEl = document.querySelector('.products-hero-sub');
+		if (titleEl) titleEl.textContent = '많이 사랑받는 향기들';
+		if (subEl) subEl.textContent = '베스트셀러와 인기 상품을 만나보세요';
+	} else if (filter === 'new') {
+		const titleEl = document.querySelector('.products-hero-title');
+		const subEl = document.querySelector('.products-hero-sub');
+		if (titleEl) titleEl.textContent = '새로 피어난 향기';
+		if (subEl) subEl.textContent = '새롭게 출시된 향기를 만나보세요';
+	}
 
 	countEl.textContent = sorted.length;
 

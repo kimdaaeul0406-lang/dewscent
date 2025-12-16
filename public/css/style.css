@@ -326,6 +326,35 @@ main.visible {
   transition: all 0.3s;
   background: var(--cloud);
 }
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.search-suggestion-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.search-suggestion-item:last-child {
+  border-bottom: none;
+}
+.search-suggestion-item:hover {
+  background: var(--sage-bg);
+}
 .search-input:focus {
   border-color: var(--sage);
   box-shadow: 0 0 0 4px rgba(127, 143, 115, 0.12);
@@ -1199,8 +1228,21 @@ footer {
 .mypage-tabs {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
   margin-bottom: 1rem;
+  padding-right: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  width: 100%;
+  max-width: 100%;
+}
+.mypage-tabs::-webkit-scrollbar {
+  display: none;
 }
 .mypage-tab {
   padding: 0.5rem 1rem;
@@ -1209,6 +1251,8 @@ footer {
   background: #fff;
   cursor: pointer;
   font-size: 0.9rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .mypage-tab.active {
   border-color: var(--sage);
@@ -2466,4 +2510,161 @@ body.cart-page .best-section {
   background: var(--sage-bg);
   color: var(--sage);
   font-weight: 500;
+}
+
+/* ============================================================
+   공지사항/이벤트 배너
+============================================================ */
+.notice-section {
+  padding: 1rem 3rem;
+  background: linear-gradient(135deg, var(--sage-bg), var(--rose-lighter));
+  border-bottom: 1px solid var(--border);
+}
+
+.notice-section #noticeBanner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.notice-section #noticeBanner > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--white);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.notice-section #noticeBanner > div:hover {
+  box-shadow: 0 4px 16px rgba(95, 113, 97, 0.1);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .notice-section {
+    padding: 1rem;
+  }
+  
+  .notice-section #noticeBanner > div {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .notice-section #noticeBanner > div > div:first-child {
+    width: 100%;
+  }
+  
+  /* 쿠폰 입력 필드 모바일 최적화 */
+  #couponCode {
+    min-width: 100% !important;
+    margin-bottom: .5rem;
+  }
+  
+  .checkout-section > div:first-child > div:first-child {
+    flex-direction: column !important;
+  }
+  
+  .checkout-section > div:first-child > div:first-child > button {
+    width: 100%;
+  }
+  
+  /* 마이페이지 쿠폰 카드 모바일 최적화 */
+  #mypageBody .mypage-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 0.5rem;
+  }
+  
+  #mypageBody [style*="display:flex"][style*="justify-content:space-between"] {
+    flex-direction: column !important;
+    gap: .75rem !important;
+  }
+  
+  #mypageBody [style*="display:flex"][style*="justify-content:space-between"] > button {
+    width: 100% !important;
+    margin-top: .5rem;
+  }
+}
+
+/* 마이페이지 모달 크기 조정 */
+.mypage-modal {
+  max-width: 600px !important;
+  width: 90% !important;
+}
+
+/* 마이페이지 모달 가로 스크롤 - 모달 크기는 유지하고 내용만 스크롤 */
+.mypage-modal .modal-body {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.mypage-modal .modal-body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
+}
+
+.mypage-modal .modal-body::-webkit-scrollbar-track {
+  display: none;
+}
+
+.mypage-modal .modal-body::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+.mypage-modal .modal-body::-webkit-scrollbar-button {
+  display: none;
+}
+
+.mypage-modal .modal-body::-webkit-scrollbar-corner {
+  display: none;
+}
+
+/* 마이페이지 내용이 잘리지 않도록 */
+#mypageBody {
+  width: 100%;
+  min-width: max-content;
+}
+
+/* 주문내역 테이블 가로 스크롤 */
+.orders-group {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.orders-group table {
+  width: 100%;
+  min-width: 600px;
+}
+
+.orders-filters {
+  min-width: 600px;
+  overflow-x: auto;
+}
+
+/* ============================================================
+   상품 상세 페이지 반응형
+============================================================ */
+@media (max-width: 768px) {
+  #productDetailContainer > div {
+    flex-direction: column !important;
+  }
+  
+  #productDetailContainer > div > div:first-child {
+    width: 100% !important;
+    min-height: 300px !important;
+  }
+  
+  #productDetailContainer > div > div:last-child {
+    width: 100% !important;
+    padding: 1.5rem !important;
+  }
 }

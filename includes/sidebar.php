@@ -32,8 +32,8 @@ $sbPrefix = $sbInPages ? '' : 'pages/';
             <h3 class="menu-title">당신의 향기를 찾아서</h3>
             <div class="menu-links">
                 <a href="<?php echo $sbPrefix; ?>products.php" style="font-weight:600;color:var(--sage)">전체 보기</a>
-                <a href="#">많이 사랑받는 향기들</a>
-                <a href="#">새로 피어난 향기</a>
+                <a href="<?php echo $sbPrefix; ?>products.php?filter=best" onclick="toggleMenu();">많이 사랑받는 향기들</a>
+                <a href="<?php echo $sbPrefix; ?>products.php?filter=new" onclick="toggleMenu();">새로 피어난 향기</a>
             </div>
         </div>
 

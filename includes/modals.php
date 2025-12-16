@@ -136,7 +136,7 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
 
 <!-- 마이페이지 모달 -->
 <div class="modal-overlay" id="mypageModal">
-    <div class="modal">
+    <div class="modal mypage-modal">
         <div class="modal-header">
             <button class="modal-close" onclick="closeModal('mypageModal')">×</button>
             <p class="modal-logo">마이페이지</p>
@@ -203,7 +203,6 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
 
             <div class="product-review-actions">
                 <button class="review-view-btn" onclick="openReviewList()">리뷰 보기 <span id="reviewCountBadge"></span></button>
-                <button class="review-write-btn" onclick="openModal('reviewModal')">리뷰 쓰기</button>
             </div>
         </div>
     </div>
@@ -219,7 +218,6 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
         </div>
         <div class="modal-body">
             <div id="reviewListBody"></div>
-            <button class="form-btn primary" style="margin-top:1rem;" onclick="openModal('reviewModal')">리뷰 작성하기</button>
         </div>
     </div>
 </div>
@@ -336,10 +334,57 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
             </div>
 
             <div class="checkout-section">
+                <p class="checkout-section-title">쿠폰</p>
+                <div style="margin-bottom:1rem;">
+                    <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
+                        <input type="text" id="couponCode" class="form-input" placeholder="쿠폰 코드를 입력하세요" style="flex:1;min-width:200px;padding:.75rem;font-size:.95rem;">
+                        <button class="form-btn secondary" onclick="applyCouponCode()" style="padding:.75rem 1.5rem;white-space:nowrap;font-size:.9rem;min-width:80px;">적용</button>
+                    </div>
+                    <button class="form-btn ivory" onclick="openMypageTab('coupons');closeModal('checkoutModal');" style="width:100%;padding:.65rem;font-size:.9rem;margin-bottom:.5rem;">내 쿠폰 보기</button>
+                </div>
+                <div id="couponInfo" style="display:none;padding:1rem;background:linear-gradient(135deg,var(--sage-bg),var(--rose-lighter));border:1px solid var(--sage-lighter);border-radius:10px;margin-bottom:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="flex:1;">
+                            <p style="color:var(--sage);font-weight:600;font-size:.95rem;margin-bottom:.25rem;" id="couponName"></p>
+                            <p style="font-size:.8rem;color:var(--light);">쿠폰이 적용되었습니다</p>
+                        </div>
+                        <button onclick="removeCoupon()" style="background:var(--white);border:1px solid var(--border);border-radius:50%;color:var(--light);cursor:pointer;font-size:1.1rem;padding:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--rose)';this.style.color='var(--rose)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--light)'">×</button>
+                    </div>
+                </div>
+                <div id="myCouponsList" style="display:none;margin-top:.75rem;">
+                    <p style="font-size:.85rem;color:var(--mid);margin-bottom:.75rem;font-weight:500;">사용 가능한 내 쿠폰</p>
+                    <div id="availableCouponsList" style="display:flex;flex-direction:column;gap:.6rem;max-height:220px;overflow-y:auto;padding-right:.25rem;scrollbar-width:none;-ms-overflow-style:none;"></div>
+                    <style>
+                      #availableCouponsList::-webkit-scrollbar {
+                        display: none;
+                        width: 0;
+                        height: 0;
+                      }
+                      #availableCouponsList::-webkit-scrollbar-track {
+                        display: none;
+                      }
+                      #availableCouponsList::-webkit-scrollbar-thumb {
+                        display: none;
+                      }
+                      #availableCouponsList::-webkit-scrollbar-button {
+                        display: none;
+                      }
+                      #availableCouponsList::-webkit-scrollbar-corner {
+                        display: none;
+                      }
+                    </style>
+                </div>
+            </div>
+
+            <div class="checkout-section">
                 <p class="checkout-section-title">결제 금액</p>
                 <div class="cart-row">
                     <span>상품 금액</span>
                     <span id="checkoutSubtotal">₩0</span>
+                </div>
+                <div class="cart-row" id="couponDiscountRow" style="display:none;">
+                    <span>할인 금액</span>
+                    <span id="checkoutDiscount" style="color:var(--rose);">-₩0</span>
                 </div>
                 <div class="cart-row">
                     <span>배송비</span>
@@ -352,6 +397,34 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
             </div>
 
             <button class="form-btn primary" onclick="completeOrder()">주문 완료</button>
+        </div>
+    </div>
+</div>
+
+<!-- 주문 완료 모달 -->
+<div class="modal-overlay" id="orderCompleteModal">
+    <div class="modal" style="max-width:600px;">
+        <div class="modal-header">
+            <button class="modal-close" onclick="closeModal('orderCompleteModal')">×</button>
+            <p class="modal-logo" style="color:var(--sage);">주문이 완료되었습니다!</p>
+            <p class="modal-subtitle">주문 정보를 확인해주세요</p>
+        </div>
+        <div class="modal-body" id="orderCompleteBody">
+            <!-- JS로 주문 정보가 렌더링됩니다 -->
+        </div>
+    </div>
+</div>
+
+<!-- 주문 상세 보기 모달 -->
+<div class="modal-overlay" id="orderDetailModal">
+    <div class="modal" style="max-width:700px;">
+        <div class="modal-header">
+            <button class="modal-close" onclick="closeModal('orderDetailModal')">×</button>
+            <p class="modal-logo">주문 상세</p>
+            <p class="modal-subtitle" id="orderDetailSubtitle">주문번호: -</p>
+        </div>
+        <div class="modal-body" id="orderDetailBody">
+            <!-- JS로 주문 상세 정보가 렌더링됩니다 -->
         </div>
     </div>
 </div>
@@ -393,6 +466,20 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
                 <p>• 교환/환불은 수령 후 7일 이내 가능합니다.</p>
             </div>
             <button class="form-btn primary" onclick="submitInquiry()">문의 등록하기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 반품/교환 신청 모달 -->
+<div class="modal-overlay" id="returnExchangeModal">
+    <div class="modal" style="max-width:600px;">
+        <div class="modal-header">
+            <button class="modal-close" onclick="closeModal('returnExchangeModal')">×</button>
+            <p class="modal-logo">반품/교환 신청</p>
+            <p class="modal-subtitle" id="returnExchangeSubtitle">주문번호: -</p>
+        </div>
+        <div class="modal-body" id="returnExchangeBody">
+            <!-- JS로 반품/교환 신청 폼이 렌더링됩니다 -->
         </div>
     </div>
 </div>
