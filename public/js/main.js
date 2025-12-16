@@ -695,72 +695,104 @@ loadSectionTitles();
 // ───────────────────────────
 // 4. 상품 그리드 렌더링
 // ───────────────────────────
-function renderProducts() {
-  const grid = document.getElementById("productsGrid");
+
+// 상품 카드 HTML 생성 함수
+function createProductCardHTML(product, index) {
+  return `
+    <div class="product-card" onclick="openProductModal(${index})">
+      <div class="product-image" style="position:relative;">
+        ${
+          product.badge
+            ? `<span class="product-badge">${product.badge}</span>`
+            : ""
+        }
+        ${(product.stock !== undefined && product.stock <= 0) || product.status === '품절'
+          ? `<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:12px;z-index:1;">
+               <span style="background:var(--rose);color:#fff;padding:.5rem 1rem;border-radius:8px;font-weight:600;font-size:.9rem;">품절</span>
+             </div>`
+          : ''}
+        <button class="product-wishlist" data-id="${
+          product.id
+        }" onclick="event.stopPropagation();toggleWishlist(this)">${
+    inWishlist(product.id) ? "♥" : "♡"
+  }</button>
+      </div>
+      <div class="product-info">
+        <p class="product-brand">DewScent</p>
+        <p class="product-name">${product.name}</p>
+        <div class="product-rating">
+          <span class="stars">${"★".repeat(
+            Math.round(product.rating)
+          )}</span>
+          <span class="rating-count">(${product.reviews})</span>
+        </div>
+        <p class="product-price">
+          ₩${product.price.toLocaleString()}
+          ${
+            product.originalPrice
+              ? `<span class="original">₩${product.originalPrice.toLocaleString()}</span>`
+              : ""
+          }
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+// BEST 상품 렌더링 (가장 사랑받는 향기)
+function renderBestProducts() {
+  const grid = document.getElementById("bestProductsGrid");
   if (!grid) return;
 
-  // 관리자가 선택한 상품이 있으면 그것만, 없으면 상위 4개
-  let displayProducts = products.slice(0, 4);
+  // BEST badge 상품만 필터링
+  let bestProducts = products.filter(p => p.badge === "BEST");
 
-  if (typeof API !== "undefined" && API.getMainProductIds) {
-    const selectedIds = API.getMainProductIds();
-    if (selectedIds && selectedIds.length > 0) {
-      // 선택된 ID에 해당하는 상품 찾기
-      const filtered = products.filter((p) => selectedIds.includes(p.id));
-      if (filtered.length > 0) {
-        displayProducts = filtered;
-      }
-    }
+  // BEST 상품이 없으면 섹션 숨기기
+  if (bestProducts.length === 0) {
+    grid.closest('.best-section').style.display = 'none';
+    return;
   }
-  
+
   // 최대 4개만 표시
-  if (displayProducts.length > 4) {
-    displayProducts = displayProducts.slice(0, 4);
+  bestProducts = bestProducts.slice(0, 4);
+
+  grid.innerHTML = bestProducts
+    .map((product) => {
+      const index = products.findIndex(p => p.id === product.id);
+      return createProductCardHTML(product, index);
+    })
+    .join("");
+}
+
+// NEW 상품 렌더링 (새로운 향기)
+function renderNewProducts() {
+  const grid = document.getElementById("newProductsGrid");
+  if (!grid) return;
+
+  // NEW badge 상품만 필터링
+  let newProducts = products.filter(p => p.badge === "NEW");
+
+  // NEW 상품이 없으면 섹션 숨기기
+  if (newProducts.length === 0) {
+    grid.closest('.best-section').style.display = 'none';
+    return;
   }
 
-  grid.innerHTML = displayProducts
-    .map(
-      (product, index) => `
-        <div class="product-card" onclick="openProductModal(${index})">
-          <div class="product-image" style="position:relative;">
-            ${
-              product.badge
-                ? `<span class="product-badge">${product.badge}</span>`
-                : ""
-            }
-            ${(product.stock !== undefined && product.stock <= 0) || product.status === '품절' 
-              ? `<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:12px;z-index:1;">
-                   <span style="background:var(--rose);color:#fff;padding:.5rem 1rem;border-radius:8px;font-weight:600;font-size:.9rem;">품절</span>
-                 </div>`
-              : ''}
-            <button class="product-wishlist" data-id="${
-              product.id
-            }" onclick="event.stopPropagation();toggleWishlist(this)">${
-        inWishlist(product.id) ? "♥" : "♡"
-      }</button>
-          </div>
-          <div class="product-info">
-            <p class="product-brand">DewScent</p>
-            <p class="product-name">${product.name}</p>
-            <div class="product-rating">
-              <span class="stars">${"★".repeat(
-                Math.round(product.rating)
-              )}</span>
-              <span class="rating-count">(${product.reviews})</span>
-            </div>
-            <p class="product-price">
-              ₩${product.price.toLocaleString()}
-              ${
-                product.originalPrice
-                  ? `<span class="original">₩${product.originalPrice.toLocaleString()}</span>`
-                  : ""
-              }
-            </p>
-          </div>
-        </div>
-      `
-    )
+  // 최대 4개만 표시
+  newProducts = newProducts.slice(0, 4);
+
+  grid.innerHTML = newProducts
+    .map((product) => {
+      const index = products.findIndex(p => p.id === product.id);
+      return createProductCardHTML(product, index);
+    })
     .join("");
+}
+
+// 전체 상품 렌더링 (기존 호환용)
+function renderProducts() {
+  renderBestProducts();
+  renderNewProducts();
 }
 
 // 공지사항/이벤트 로드
