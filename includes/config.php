@@ -4,11 +4,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-/*
- * 나중에 MySQL 붙일 때 여기다 정보 넣을 거야
- * 예시)
- * define('DB_HOST', 'localhost');
- * define('DB_USER', 'root');
- * define('DB_PASS', '');
- * define('DB_NAME', 'dewscent');
- */
+// MySQL 데이터베이스 설정
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');
+define('DB_PASS', '');  // 비밀번호 있으면 여기에 입력
+define('DB_NAME', 'dewscent');
+define('DB_CHARSET', 'utf8mb4');

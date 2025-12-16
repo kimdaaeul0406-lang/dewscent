@@ -1,106 +1,87 @@
 <?php
 // data/products.php
-// DewScent 상품 리스트 (지금은 PHP 배열, 나중에 DB로 바꿔도 됨)
+// DewScent 상품 데이터 (DB 연결 시 DB에서 가져옴)
 
-$products = [
-    [
-        'id' => 1,
-        'name' => 'Morning Dew',
-        'type' => '향수',
-        'price' => 89000,
-        'originalPrice' => 110000,
-        'rating' => 4.8,
-        'reviews' => 128,
-        'badge' => 'BEST',
-        'desc' => '아침 이슬처럼 맑고 청량한 향기입니다.',
-    ],
-    [
-        'id' => 2,
-        'name' => 'Rose Garden',
-        'type' => '바디미스트',
-        'price' => 65000,
-        'originalPrice' => null,
-        'rating' => 4.9,
-        'reviews' => 89,
-        'badge' => 'NEW',
-        'desc' => '로맨틱한 장미 정원을 거니는 듯한 우아한 향기입니다.',
-    ],
-    [
-        'id' => 3,
-        'name' => 'Golden Hour',
-        'type' => '향수',
-        'price' => 105000,
-        'originalPrice' => null,
-        'rating' => 4.7,
-        'reviews' => 156,
-        'badge' => null,
-        'desc' => '황금빛 노을처럼 따스하고 포근한 향기입니다.',
-    ],
-    [
-        'id' => 4,
-        'name' => 'Forest Mist',
-        'type' => '디퓨저',
-        'price' => 78000,
-        'originalPrice' => 98000,
-        'rating' => 4.6,
-        'reviews' => 72,
-        'badge' => 'SALE',
-        'desc' => '숲속의 신선한 공기를 담은 청량한 향기입니다.',
-    ],
-    [
-        'id' => 5,
-        'name' => 'Ocean Breeze',
-        'type' => '섬유유연제',
-        'price' => 32000,
-        'originalPrice' => null,
-        'rating' => 4.5,
-        'reviews' => 203,
-        'badge' => null,
-        'desc' => '바다 바람처럼 시원하고 깨끗한 향기입니다.',
-    ],
-    [
-        'id' => 6,
-        'name' => 'Velvet Night',
-        'type' => '향수',
-        'price' => 125000,
-        'originalPrice' => null,
-        'rating' => 4.9,
-        'reviews' => 67,
-        'badge' => 'NEW',
-        'desc' => '밤의 신비로움을 담은 관능적인 향기입니다.',
-    ],
-    [
-        'id' => 7,
-        'name' => 'Citrus Burst',
-        'type' => '바디미스트',
-        'price' => 55000,
-        'originalPrice' => 68000,
-        'rating' => 4.4,
-        'reviews' => 145,
-        'badge' => 'SALE',
-        'desc' => '상큼한 시트러스가 톡톡 터지는 활기찬 향기입니다.',
-    ],
-    [
-        'id' => 8,
-        'name' => 'Soft Cotton',
-        'type' => '섬유유연제',
-        'price' => 28000,
-        'originalPrice' => null,
-        'rating' => 4.7,
-        'reviews' => 312,
-        'badge' => 'BEST',
-        'desc' => '갓 세탁한 면처럼 포근하고 깨끗한 향기입니다.',
-    ],
-];
+require_once __DIR__ . '/../includes/db.php';
 
-// id로 상품 하나 찾는 헬퍼 함수
+// DB에서 모든 상품 가져오기
+function get_all_products()
+{
+    try {
+        $sql = "SELECT * FROM products ORDER BY id ASC";
+        return db()->fetchAll($sql);
+    } catch (Exception $e) {
+        // DB 오류 시 빈 배열 반환
+        return [];
+    }
+}
+
+// id로 상품 하나 찾기
 function find_product_by_id($id)
 {
-    global $products;
-    foreach ($products as $p) {
-        if ((int)$p['id'] === (int)$id) {
-            return $p;
-        }
+    try {
+        $sql = "SELECT * FROM products WHERE id = ?";
+        return db()->fetchOne($sql, [(int)$id]);
+    } catch (Exception $e) {
+        return null;
     }
-    return null;
 }
+
+// 카테고리(type)로 상품 필터링
+function get_products_by_type($type)
+{
+    try {
+        $sql = "SELECT * FROM products WHERE type = ? ORDER BY id ASC";
+        return db()->fetchAll($sql, [$type]);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+// 상품 검색
+function search_products($keyword)
+{
+    try {
+        $sql = "SELECT * FROM products WHERE name LIKE ? OR `desc` LIKE ? ORDER BY id ASC";
+        $param = "%{$keyword}%";
+        return db()->fetchAll($sql, [$param, $param]);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+// 베스트 상품 가져오기
+function get_best_products()
+{
+    try {
+        $sql = "SELECT * FROM products WHERE badge = 'BEST' ORDER BY rating DESC";
+        return db()->fetchAll($sql);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+// 신상품 가져오기
+function get_new_products()
+{
+    try {
+        $sql = "SELECT * FROM products WHERE badge = 'NEW' ORDER BY id DESC";
+        return db()->fetchAll($sql);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+// 세일 상품 가져오기
+function get_sale_products()
+{
+    try {
+        $sql = "SELECT * FROM products WHERE badge = 'SALE' OR originalPrice IS NOT NULL ORDER BY id ASC";
+        return db()->fetchAll($sql);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+// 기존 코드 호환성을 위해 $products 변수도 유지
+$products = get_all_products();
