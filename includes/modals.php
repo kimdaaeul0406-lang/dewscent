@@ -1,7 +1,7 @@
 <?php
-// 현재 경로가 /pages/ 하위인지에 따라 admin 경로 결정
 $inPages = strpos($_SERVER['PHP_SELF'], '/pages/') !== false;
-$adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
+$adminPath  = $inPages ? '../admin/index.php' : 'admin/index.php';
+$signupPath = $inPages ? '../api/signup.php'  : 'api/signup.php';
 ?>
 <!-- 웰컴 팝업 (향기 테스트) -->
 <div class="popup-overlay" id="welcomePopup">
@@ -105,33 +105,40 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
 
 <!-- 회원가입 모달 -->
 <div class="modal-overlay" id="signupModal">
-    <div class="modal">
-        <div class="modal-header">
-            <button class="modal-close" onclick="closeModal('signupModal')">×</button>
-            <p class="modal-logo">DewScent</p>
-            <p class="modal-subtitle">당신의 향기 여정을 시작해요</p>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">이름</label>
-                <input type="text" id="signupName" class="form-input" placeholder="이름을 입력하세요">
-            </div>
-            <div class="form-group">
-                <label class="form-label">이메일</label>
-                <input type="email" id="signupEmail" class="form-input" placeholder="you@example.com">
-            </div>
-            <div class="form-group">
-                <label class="form-label">비밀번호</label>
-                <input type="password" id="signupPassword" class="form-input" placeholder="8자 이상 입력">
-            </div>
-            <button class="form-btn primary" onclick="signup()">회원가입</button>
-
-            <div class="form-footer">
-                <span>이미 계정이 있으신가요? </span>
-                <a href="#" onclick="closeModal('signupModal');openModal('loginModal')">로그인 하기</a>
-            </div>
-        </div>
+  <div class="modal">
+    <div class="modal-header">
+      <button class="modal-close" onclick="closeModal('signupModal')">×</button>
+      <p class="modal-logo">DewScent</p>
+      <p class="modal-subtitle">당신의 향기 여정을 시작해요</p>
     </div>
+
+    <div class="modal-body">
+      <form method="post" action="<?php echo $signupPath; ?>">
+        <div class="form-group">
+          <label class="form-label">이름</label>
+          <input type="text" name="username" class="form-input" placeholder="이름을 입력하세요" required>
+
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">이메일</label>
+          <input type="email" name="email" class="form-input" placeholder="you@example.com" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">비밀번호</label>
+          <input type="password" name="password" class="form-input" placeholder="8자 이상 입력" required>
+        </div>
+
+        <button type="submit" class="form-btn primary">회원가입</button>
+
+        <div class="form-footer">
+          <span>이미 계정이 있으신가요? </span>
+          <a href="#" onclick="closeModal('signupModal');openModal('loginModal')">로그인 하기</a>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- 마이페이지 모달 -->
