@@ -20,17 +20,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // DB 연동 로그인 검증
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	$email = trim($_POST['email'] ?? '');
+	$username = trim($_POST['username'] ?? '');
 	$password = trim($_POST['password'] ?? '');
 
-	if ($email === '' || $password === '') {
-		$error = '이메일과 비밀번호를 입력해주세요.';
+	if ($username === '' || $password === '') {
+		$error = '아이디와 비밀번호를 입력해주세요.';
 	} else {
 		try {
 			// DB에서 관리자 계정 조회 (role = 'admin')
 			$user = db()->fetchOne(
-				"SELECT * FROM users WHERE email = ? AND role = 'admin'",
-				[$email]
+				"SELECT * FROM users WHERE username = ? AND role = 'admin'",
+				[$username]
 			);
 
 			// 비밀번호 확인 (해시 또는 평문 둘 다 지원)
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				header('Location: dashboard.php');
 				exit;
 			} else {
-				$error = '이메일 또는 비밀번호가 올바르지 않습니다.';
+				$error = '아이디 또는 비밀번호가 올바르지 않습니다.';
 			}
 		} catch (Exception $e) {
 			$error = 'DB 연결 오류가 발생했습니다.';
@@ -95,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				<?php endif; ?>
 				<form method="post" action="index.php">
 					<div class="form-group">
-						<label class="form-label">이메일</label>
-						<input type="email" name="email" class="form-input" placeholder="admin@example.com" required>
+						<label class="form-label">아이디</label>
+						<input type="text" name="username" class="form-input" placeholder="admin" required>
 					</div>
 					<div class="form-group">
 						<label class="form-label">비밀번호</label>

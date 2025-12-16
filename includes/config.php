@@ -15,18 +15,17 @@ if (APP_DEBUG) {
     ini_set('log_errors', '1');
 }
 
-// 세션 보안 설정
-ini_set('session.cookie_httponly', '1');
-ini_set('session.use_strict_mode', '1');
-ini_set('session.cookie_samesite', 'Lax');
-
-// HTTPS 환경에서만 Secure 쿠키 사용
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', '1');
-}
-
-// 세션 시작
+// 세션 보안 설정 (세션 시작 전에만 설정 가능)
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+
+    // HTTPS 환경에서만 Secure 쿠키 사용
+    if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+        ini_set('session.cookie_secure', '1');
+    }
+
     session_start();
 }
 
