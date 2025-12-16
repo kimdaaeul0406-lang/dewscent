@@ -8,7 +8,7 @@ if (isset($_SESSION['user_id'])) {
         'id'    => (int) $_SESSION['user_id'],
         'name'  => $_SESSION['username'] ?? '',
         'email' => $_SESSION['email'] ?? '',
-        'role'  => $_SESSION['role'] ?? 'user',
+
     ];
 }
 ?>
@@ -26,12 +26,5 @@ if (isset($_SESSION['user_id'])) {
   <?php unset($_SESSION['signup_success']); ?>
   <?php endif; ?>
 
-  <?php if (!empty($_SESSION['signup_error'])): ?>
-  alert("<?php echo addslashes($_SESSION['signup_error']); ?>");
-  <?php unset($_SESSION['signup_error']); ?>
-  if (typeof openModal === "function") {
-    openModal("signupModal");
-  }
-  <?php endif; ?>
 })();
 </script>

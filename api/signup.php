@@ -45,6 +45,8 @@ $_SESSION['email'] = $email;
 $_SESSION['role'] = 'user';
 $_SESSION['signup_success'] = true;
 
+
 // 메인으로 이동 (서브 디렉토리 배포 환경에서도 동작하도록 SITE_URL 사용)
+$baseUrl = rtrim(SITE_URL, '/');
 header("Location: {$baseUrl}/index.php");
 exit;
