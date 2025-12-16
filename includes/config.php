@@ -20,6 +20,8 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', '1');
     ini_set('session.use_strict_mode', '1');
     ini_set('session.cookie_samesite', 'Lax');
+    // 세션 쿠키 경로를 루트로 설정하여 모든 하위 경로에서 사용 가능하도록
+    ini_set('session.cookie_path', '/');
 
     // HTTPS 환경에서만 Secure 쿠키 사용
     if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {

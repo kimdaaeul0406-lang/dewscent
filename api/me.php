@@ -1,8 +1,13 @@
 <?php
 session_start();
+require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/db_setup.php';
 
 header('Content-Type: application/json; charset=utf-8');
+
+// 테이블 자동 생성
+ensure_tables_exist();
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);

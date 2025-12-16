@@ -8,7 +8,7 @@ if (isset($_SESSION['user_id'])) {
         'id'    => (int) $_SESSION['user_id'],
         'name'  => $_SESSION['username'] ?? '',
         'email' => $_SESSION['email'] ?? '',
-
+        'role'  => $_SESSION['role'] ?? 'user',
     ];
 }
 ?>
@@ -24,6 +24,22 @@ if (isset($_SESSION['user_id'])) {
   <?php if (!empty($_SESSION['signup_success'])): ?>
   alert("회원가입이 완료되었습니다!\n자동으로 로그인되었습니다.");
   <?php unset($_SESSION['signup_success']); ?>
+  <?php endif; ?>
+
+  <?php if (!empty($_SESSION['signup_error'])): ?>
+  // 회원가입 모달 열기 및 에러 표시
+  setTimeout(() => {
+    const modal = document.getElementById('signupModal');
+    if (modal) {
+      openModal('signupModal');
+      const errorEl = document.getElementById('signupError');
+      if (errorEl) {
+        errorEl.textContent = <?php echo json_encode($_SESSION['signup_error'], JSON_UNESCAPED_UNICODE); ?>;
+        errorEl.style.display = 'block';
+      }
+    }
+  }, 100);
+  <?php unset($_SESSION['signup_error']); ?>
   <?php endif; ?>
 
 })();

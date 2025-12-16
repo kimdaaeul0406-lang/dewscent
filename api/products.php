@@ -25,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/db_setup.php';
+
+// 테이블 자동 생성
+ensure_tables_exist();
 require_once __DIR__ . '/../admin/guard.php';
 
 $method = $_SERVER['REQUEST_METHOD'];

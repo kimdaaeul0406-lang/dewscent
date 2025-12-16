@@ -1,8 +1,13 @@
 <?php
 session_start();
+require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/db_setup.php';
 
 header('Content-Type: application/json; charset=utf-8');
+
+// 테이블 자동 생성
+ensure_tables_exist();
 
 $email    = trim($_POST['email'] ?? '');
 $password = trim($_POST['password'] ?? '');
@@ -43,6 +48,14 @@ $_SESSION['user_id'] = (int) $user['id'];
 $_SESSION['username'] = $user['name'] ?? '';
 $_SESSION['email'] = $user['email'] ?? '';
 $_SESSION['role'] = !empty($user['is_admin']) ? 'admin' : 'user';
+
+// 관리자인 경우 admin_logged_in도 설정 (관리자 대시보드 호환성)
+if (!empty($user['is_admin'])) {
+    $_SESSION['admin_logged_in'] = true;
+    $_SESSION['admin_email'] = $user['email'] ?? '';
+    $_SESSION['admin_name'] = $user['name'] ?? 'Admin';
+    $_SESSION['admin_id'] = (int) $user['id'];
+}
 
 $responseUser = [
     'id'    => (int) $user['id'],

@@ -210,12 +210,153 @@
   };
 
   async function getJSON(path, opts = {}) {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    // BASE_URL이 이미 /api를 포함하므로, path에서 /api 제거
+    // 하지만 path가 /api/로 시작하면 제거, 아니면 그대로 사용
+    if (path.startsWith("/api/")) {
+      path = path.substring(5); // '/api/' 제거 (인덱스 5부터)
+    } else if (path.startsWith("/api")) {
+      path = path.substring(4); // '/api' 제거 (인덱스 4부터)
+    }
+    // path가 /로 시작하지 않으면 / 추가
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+    // BASE_URL과 path를 합쳐서 최종 URL 생성
+    const finalUrl = `${BASE_URL}${path}`;
+    console.log("[API] Request:", finalUrl, opts); // 디버깅용
+    const res = await fetch(finalUrl, {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       ...opts,
     });
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    if (!res.ok) {
+      let errorMessage = `API Error: ${res.status}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // JSON 파싱 실패 시 기본 메시지 사용
+      }
+      const error = new Error(errorMessage);
+      error.status = res.status;
+      throw error;
+    }
+    return await res.json();
+  }
+
+  async function postJSON(path, data, opts = {}) {
+    // BASE_URL이 이미 /api를 포함하므로, path에서 /api 제거
+    if (path.startsWith("/api/")) {
+      path = path.substring(5);
+    } else if (path.startsWith("/api")) {
+      path = path.substring(4);
+    }
+    // path가 /로 시작하지 않으면 / 추가
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+    // BASE_URL과 path를 합쳐서 최종 URL 생성
+    const finalUrl = `${BASE_URL}${path}`;
+    console.log("[API] POST Request:", finalUrl, data); // 디버깅용
+    const res = await fetch(finalUrl, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      ...opts,
+    });
+    if (!res.ok) {
+      let errorMessage = `API Error: ${res.status}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // JSON 파싱 실패 시 기본 메시지 사용
+      }
+      const error = new Error(errorMessage);
+      error.status = res.status;
+      throw error;
+    }
+    return await res.json();
+  }
+
+  async function putJSON(path, data, opts = {}) {
+    // BASE_URL이 이미 /api를 포함하므로, path에서 /api 제거
+    if (path.startsWith("/api/")) {
+      path = path.substring(5);
+    } else if (path.startsWith("/api")) {
+      path = path.substring(4);
+    }
+    // path가 /로 시작하지 않으면 / 추가
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+    // BASE_URL과 path를 합쳐서 최종 URL 생성
+    const finalUrl = `${BASE_URL}${path}`;
+    console.log("[API] PUT Request:", finalUrl, data); // 디버깅용
+    const res = await fetch(finalUrl, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      ...opts,
+    });
+    if (!res.ok) {
+      let errorMessage = `API Error: ${res.status}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // JSON 파싱 실패 시 기본 메시지 사용
+      }
+      const error = new Error(errorMessage);
+      error.status = res.status;
+      throw error;
+    }
+    return await res.json();
+  }
+
+  async function patchJSON(path, data, opts = {}) {
+    // BASE_URL이 이미 /api를 포함하므로, path에서 /api 제거
+    if (path.startsWith("/api/")) {
+      path = path.substring(5);
+    } else if (path.startsWith("/api")) {
+      path = path.substring(4);
+    }
+    // path가 /로 시작하지 않으면 / 추가
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+    // BASE_URL과 path를 합쳐서 최종 URL 생성
+    const finalUrl = `${BASE_URL}${path}`;
+    console.log("[API] PATCH Request:", finalUrl, data); // 디버깅용
+    const res = await fetch(finalUrl, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      ...opts,
+    });
+    if (!res.ok) {
+      let errorMessage = `API Error: ${res.status}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // JSON 파싱 실패 시 기본 메시지 사용
+      }
+      const error = new Error(errorMessage);
+      error.status = res.status;
+      throw error;
+    }
     return await res.json();
   }
 
@@ -249,7 +390,7 @@
     if (opts?.from) params.set("from", opts.from);
     if (opts?.to) params.set("to", opts.to);
     const qs = params.toString();
-    return await getJSON(`/orders${qs ? "?" + qs : ""}`);
+    return await getJSON(`/orders.php${qs ? "?" + qs : ""}`);
   }
 
   async function getUsers() {
@@ -257,7 +398,88 @@
       await delay(200);
       return mock.users;
     }
-    return await getJSON("/admin/users");
+    return await getJSON("/admin/users.php");
+  }
+
+  // ========== 문의 API ==========
+  async function getInquiries() {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return mock.inquiries || [];
+    }
+    return await getJSON("/inquiries.php");
+  }
+
+  async function createInquiry(data) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      const newInquiry = {
+        id: Date.now(),
+        ...data,
+        status: "waiting",
+        createdAt: new Date().toISOString().split("T")[0],
+      };
+      return { ok: true, inquiry: newInquiry };
+    }
+    return await getJSON("/inquiries.php", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async function updateInquiryAnswer(id, answer) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true };
+    }
+    return await getJSON("/inquiries.php", {
+      method: "PUT",
+      body: JSON.stringify({ id, answer }),
+    });
+  }
+
+  // ========== 리뷰 API ==========
+  async function getReviews(productId) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return mock.reviews?.[productId] || [];
+    }
+    // productId가 null이면 모든 리뷰 조회 (관리자용)
+    const url = productId
+      ? `/reviews.php?product_id=${productId}`
+      : `/reviews.php`;
+    return await getJSON(url);
+  }
+
+  async function createReview(productId, data) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      const newReview = {
+        id: Date.now(),
+        productId,
+        ...data,
+        date: new Date().toISOString().split("T")[0],
+      };
+      return { ok: true, review: newReview };
+    }
+    return await getJSON(`/reviews.php?product_id=${productId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async function deleteReview(productId, reviewId = null) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true };
+    }
+    // reviewId가 있으면 특정 리뷰 삭제, 없으면 해당 상품의 모든 리뷰 삭제
+    const url = reviewId
+      ? `/reviews.php?product_id=${productId}&review_id=${reviewId}`
+      : `/reviews.php?product_id=${productId}`;
+    return await getJSON(url, {
+      method: "DELETE",
+    });
   }
 
   async function getAdminOrders() {
@@ -265,7 +487,59 @@
       await delay(200);
       return mock.adminOrders;
     }
-    return await getJSON("/admin/orders");
+    return await getJSON("/orders.php");
+  }
+
+  async function createOrder(orderData) {
+    if (USE_MOCK_API) {
+      await delay(300);
+      return {
+        ok: true,
+        orderId: Date.now(),
+        orderNumber: orderData.id || orderData.orderNumber,
+      };
+    }
+    return await postJSON("/orders.php", orderData);
+  }
+
+  async function updateOrderStatus(orderNumber, status) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true, message: '주문 상태가 변경되었습니다.' };
+    }
+    return await putJSON("/orders.php", { orderNumber, status });
+  }
+
+  async function requestOrderCancel(orderNumber, reason = '') {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true, message: '취소 요청이 접수되었습니다.' };
+    }
+    return await patchJSON("/orders.php", { orderNumber, action: 'cancel_request', reason });
+  }
+
+  async function confirmPayment(orderNumber) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true, message: '결제가 확인되었습니다.' };
+    }
+    return await patchJSON("/orders.php", { orderNumber, action: 'confirm_payment' });
+  }
+
+  async function approveCancel(orderNumber) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true, message: '주문 취소가 승인되었습니다.' };
+    }
+    return await patchJSON("/orders.php", { orderNumber, action: 'approve_cancel' });
+  }
+
+  async function rejectCancel(orderNumber) {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return { ok: true, message: '취소 요청이 거부되었습니다.' };
+    }
+    return await patchJSON("/orders.php", { orderNumber, action: 'reject_cancel' });
   }
 
   // ========== 상품 CRUD ==========
@@ -521,14 +795,13 @@
   }
   function getActiveCoupons() {
     const now = new Date().toISOString().split("T")[0];
-    return getCoupons()
-      .filter((c) => {
-        if (!c.active) return false;
-        if (c.startDate && c.startDate > now) return false;
-        if (c.endDate && c.endDate < now) return false;
-        if (c.usageLimit > 0 && c.usedCount >= c.usageLimit) return false;
-        return true;
-      });
+    return getCoupons().filter((c) => {
+      if (!c.active) return false;
+      if (c.startDate && c.startDate > now) return false;
+      if (c.endDate && c.endDate < now) return false;
+      if (c.usageLimit > 0 && c.usedCount >= c.usageLimit) return false;
+      return true;
+    });
   }
   function validateCoupon(code, amount) {
     const coupons = getActiveCoupons();
@@ -709,66 +982,71 @@
 
   // ========== 감정별 추천 상품 관리 ==========
   const EMOTION_RECOMMENDATIONS_KEY = "dewscent_emotion_recommendations";
-  
+
   // 감정별 추천 상품 가져오기 (7일 주기)
   async function getEmotionRecommendations(emotionKey) {
     if (USE_MOCK_API) {
       await delay(50);
-      
+
       // 관리자가 설정한 추천 상품이 있으면 사용
       const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
       if (stored) {
         try {
           const recommendations = JSON.parse(stored);
           const emotionRecs = recommendations[emotionKey];
-          if (emotionRecs && emotionRecs.productIds && emotionRecs.productIds.length > 0) {
+          if (
+            emotionRecs &&
+            emotionRecs.productIds &&
+            emotionRecs.productIds.length > 0
+          ) {
             const products = getStoredProducts();
             // 중복 제거: Set을 사용하여 고유한 ID만 유지
             const uniqueIds = [...new Set(emotionRecs.productIds)];
             const recommendedProducts = uniqueIds
-              .map(id => products.find(p => p.id === id))
-              .filter(p => p && p.status === '판매중')
-              .filter((p, index, self) => 
-                // id 기준으로 중복 제거
-                index === self.findIndex(prod => prod.id === p.id)
+              .map((id) => products.find((p) => p.id === id))
+              .filter((p) => p && p.status === "판매중")
+              .filter(
+                (p, index, self) =>
+                  // id 기준으로 중복 제거
+                  index === self.findIndex((prod) => prod.id === p.id)
               );
-            
+
             if (recommendedProducts.length > 0) {
               // 7일 주기로 다른 상품 추천
               return getWeeklyRotatedProducts(recommendedProducts, emotionKey);
             }
           }
         } catch (e) {
-          console.error('Error parsing recommendations:', e);
+          console.error("Error parsing recommendations:", e);
         }
       }
-      
+
       // 관리자 설정이 없으면 자동 추천
       return getAutoEmotionRecommendations(emotionKey);
     }
     return await getJSON(`/emotions/${emotionKey}/recommendations`);
   }
-  
+
   // 7일 주기로 상품 순환 (중복 제거)
   function getWeeklyRotatedProducts(products, emotionKey) {
     // 중복 제거: id 기준으로 고유한 상품만 유지
-    const uniqueProducts = products.filter((p, index, self) => 
-      index === self.findIndex(prod => prod.id === p.id)
+    const uniqueProducts = products.filter(
+      (p, index, self) => index === self.findIndex((prod) => prod.id === p.id)
     );
-    
+
     if (uniqueProducts.length <= 4) return uniqueProducts.slice(0, 4);
-    
+
     const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     const weekCycle = Math.floor(daysSinceEpoch / 7);
     const seed = weekCycle + emotionKey.charCodeAt(0);
-    
+
     // 시드 기반 셔플
     const shuffled = [...uniqueProducts].sort((a, b) => {
       const hashA = (a.id * seed) % 1000;
       const hashB = (b.id * seed) % 1000;
       return hashA - hashB;
     });
-    
+
     // 중복 없이 4개 반환
     const result = [];
     const seenIds = new Set();
@@ -779,39 +1057,43 @@
         if (result.length >= 4) break;
       }
     }
-    
+
     return result;
   }
-  
+
   // 자동 추천 (관리자 설정이 없을 때)
   function getAutoEmotionRecommendations(emotionKey) {
-    const allProducts = getStoredProducts().filter(p => p.status === '판매중');
-    
-    // 중복 제거: id 기준으로 고유한 상품만 유지
-    const uniqueProducts = allProducts.filter((p, index, self) => 
-      index === self.findIndex(prod => prod.id === p.id)
+    const allProducts = getStoredProducts().filter(
+      (p) => p.status === "판매중"
     );
-    
+
+    // 중복 제거: id 기준으로 고유한 상품만 유지
+    const uniqueProducts = allProducts.filter(
+      (p, index, self) => index === self.findIndex((prod) => prod.id === p.id)
+    );
+
     // 감정별 카테고리 매핑
     const emotionCategoryMap = {
-      calm: ['향수', '디퓨저'],
-      warm: ['향수', '바디미스트'],
-      fresh: ['바디미스트', '섬유유연제'],
-      romantic: ['향수', '바디미스트'],
-      focus: ['향수', '디퓨저'],
-      refresh: ['바디미스트', '섬유유연제'],
+      calm: ["향수", "디퓨저"],
+      warm: ["향수", "바디미스트"],
+      fresh: ["바디미스트", "섬유유연제"],
+      romantic: ["향수", "바디미스트"],
+      focus: ["향수", "디퓨저"],
+      refresh: ["바디미스트", "섬유유연제"],
     };
-    
-    const categories = emotionCategoryMap[emotionKey] || ['향수'];
-    let filtered = uniqueProducts.filter(p => categories.includes(p.category));
-    
+
+    const categories = emotionCategoryMap[emotionKey] || ["향수"];
+    let filtered = uniqueProducts.filter((p) =>
+      categories.includes(p.category)
+    );
+
     if (filtered.length === 0) {
       filtered = uniqueProducts; // 카테고리 매칭 실패 시 전체 상품
     }
-    
+
     return getWeeklyRotatedProducts(filtered, emotionKey);
   }
-  
+
   // 감정별 추천 상품 설정 (관리자용)
   function setEmotionRecommendations(emotionKey, productIds) {
     try {
@@ -823,12 +1105,15 @@
         productIds: uniqueIds,
         updatedAt: new Date().toISOString(),
       };
-      localStorage.setItem(EMOTION_RECOMMENDATIONS_KEY, JSON.stringify(recommendations));
+      localStorage.setItem(
+        EMOTION_RECOMMENDATIONS_KEY,
+        JSON.stringify(recommendations)
+      );
     } catch (e) {
-      console.error('Error setting recommendations:', e);
+      console.error("Error setting recommendations:", e);
     }
   }
-  
+
   // 모든 감정별 추천 상품 가져오기 (관리자용)
   function getAllEmotionRecommendations() {
     try {
@@ -844,6 +1129,20 @@
     getOrders,
     getUsers,
     getAdminOrders,
+    createOrder,
+    updateOrderStatus,
+    requestOrderCancel,
+    confirmPayment,
+    approveCancel,
+    rejectCancel,
+    // 문의 관련
+    getInquiries,
+    createInquiry,
+    updateInquiryAnswer,
+    // 리뷰 관련
+    getReviews,
+    createReview,
+    deleteReview,
     // 상품 관련
     getProducts,
     getProduct,
@@ -887,103 +1186,110 @@
     setNotices,
     getActiveNotices,
     // 배송 추적 시뮬레이션
-    simulateShipping: function(orderId) {
-      const ORDER_DETAILS_KEY = 'dewscent_order_details';
+    simulateShipping: function (orderId) {
+      const ORDER_DETAILS_KEY = "dewscent_order_details";
       let orderDetails = {};
       try {
         const stored = localStorage.getItem(ORDER_DETAILS_KEY);
         if (stored) orderDetails = JSON.parse(stored);
       } catch {}
-      
+
       const order = orderDetails[orderId];
       if (!order || !order.tracking) return order;
-      
+
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
+      const today = now.toISOString().split("T")[0];
+      const time = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}`;
+
       // 주문일로부터 경과 시간 계산 (시뮬레이션)
       const orderDate = new Date(order.orderedAt);
       const daysDiff = Math.floor((now - orderDate) / (1000 * 60 * 60 * 24));
-      
+
       // 배송 상태 업데이트 (시뮬레이션)
-      if (order.status === '결제대기') {
+      if (order.status === "결제대기") {
         // 결제 완료 시뮬레이션 (1일 후)
         if (daysDiff >= 1) {
-          order.status = '결제완료';
+          order.status = "결제완료";
           order.tracking.history.push({
-            status: '결제완료',
+            status: "결제완료",
             date: today,
             time: time,
-            message: '결제가 완료되었습니다.'
+            message: "결제가 완료되었습니다.",
           });
         }
-      } else if (order.status === '결제완료') {
+      } else if (order.status === "결제완료") {
         // 배송 준비 시뮬레이션 (2일 후)
         if (daysDiff >= 2) {
-          order.status = '배송준비중';
+          order.status = "배송준비중";
           order.tracking.history.push({
-            status: '배송준비중',
+            status: "배송준비중",
             date: today,
             time: time,
-            message: '상품을 포장하고 있습니다.'
+            message: "상품을 포장하고 있습니다.",
           });
         }
-      } else if (order.status === '배송준비중') {
+      } else if (order.status === "배송준비중") {
         // 배송 시작 시뮬레이션 (3일 후)
         if (daysDiff >= 3 && !order.tracking.number) {
-          order.status = '배송중';
+          order.status = "배송중";
           // 운송장 번호 생성 (시뮬레이션)
           order.tracking.number = `1234567890${String(order.id).slice(-4)}`;
           order.tracking.history.push({
-            status: '배송중',
+            status: "배송중",
             date: today,
             time: time,
-            message: '배송이 시작되었습니다.'
+            message: "배송이 시작되었습니다.",
           });
         }
-      } else if (order.status === '배송중') {
+      } else if (order.status === "배송중") {
         // 배송 완료 시뮬레이션 (5일 후)
         if (daysDiff >= 5) {
-          order.status = '배송완료';
+          order.status = "배송완료";
           order.tracking.history.push({
-            status: '배송완료',
+            status: "배송완료",
             date: today,
             time: time,
-            message: '배송이 완료되었습니다.'
+            message: "배송이 완료되었습니다.",
           });
         } else if (daysDiff >= 4) {
           // 배송 중간 업데이트
-          const lastUpdate = order.tracking.history[order.tracking.history.length - 1];
-          if (lastUpdate && lastUpdate.status === '배송중' && lastUpdate.date !== today) {
+          const lastUpdate =
+            order.tracking.history[order.tracking.history.length - 1];
+          if (
+            lastUpdate &&
+            lastUpdate.status === "배송중" &&
+            lastUpdate.date !== today
+          ) {
             order.tracking.history.push({
-              status: '배송중',
+              status: "배송중",
               date: today,
               time: time,
-              message: '배송 중입니다.'
+              message: "배송 중입니다.",
             });
           }
         }
       }
-      
+
       // 주문 상세 정보 업데이트
       orderDetails[orderId] = order;
       localStorage.setItem(ORDER_DETAILS_KEY, JSON.stringify(orderDetails));
-      
+
       // 주문 목록도 업데이트
-      const ORDER_ADDS_KEY = 'dewscent_order_adds';
+      const ORDER_ADDS_KEY = "dewscent_order_adds";
       let adds = [];
       try {
         const stored = localStorage.getItem(ORDER_ADDS_KEY);
         if (stored) adds = JSON.parse(stored);
       } catch {}
-      
-      const orderInList = adds.find(o => o.id === orderId);
+
+      const orderInList = adds.find((o) => o.id === orderId);
       if (orderInList) {
         orderInList.status = order.status;
         localStorage.setItem(ORDER_ADDS_KEY, JSON.stringify(adds));
       }
-      
+
       return order;
     },
     // 유틸

@@ -113,21 +113,22 @@ $signupPath = $inPages ? '../api/signup.php'  : 'api/signup.php';
     </div>
 
     <div class="modal-body">
-      <form method="post" action="<?php echo $signupPath; ?>">
+      <div id="signupError" class="form-error" style="display:none;"></div>
+      <form id="signupForm" onsubmit="handleSignup(event); return false;">
         <div class="form-group">
           <label class="form-label">이름</label>
-          <input type="text" name="username" class="form-input" placeholder="이름을 입력하세요" required>
+          <input type="text" id="signupName" name="username" class="form-input" placeholder="이름을 입력하세요" required>
 
         </div>
 
         <div class="form-group">
           <label class="form-label">이메일</label>
-          <input type="email" name="email" class="form-input" placeholder="you@example.com" required>
+          <input type="email" id="signupEmail" name="email" class="form-input" placeholder="you@example.com" required>
         </div>
 
         <div class="form-group">
           <label class="form-label">비밀번호</label>
-          <input type="password" name="password" class="form-input" placeholder="8자 이상 입력" required>
+          <input type="password" id="signupPassword" name="password" class="form-input" placeholder="8자 이상 입력" required>
         </div>
 
         <button type="submit" class="form-btn primary">회원가입</button>

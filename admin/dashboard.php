@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/guard.php';
 ensure_admin();
 
@@ -13,6 +14,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 	<title><?= htmlspecialchars($pageTitle) ?></title>
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="../public/css/style.css?v=7">
+	<script>
+		// API 기본 URL 설정 (관리자 대시보드용)
+		window.DS_BASE_URL = "<?php echo rtrim(SITE_URL, '/'); ?>";
+	</script>
 	<script src="../public/js/api.js?v=4"></script>
 	<style>
 		/* 관리 영역 간단 레이아웃 */
@@ -99,11 +104,11 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					<div class="kpis">
 						<div class="kpi">
 							<h4>오늘 가입</h4>
-							<strong>0</strong>
+							<strong id="kpi-today-signups">0</strong>
 						</div>
 						<div class="kpi">
 							<h4>오늘 주문</h4>
-							<strong>0</strong>
+							<strong id="kpi-today-orders">0</strong>
 						</div>
 						<div class="kpi">
 							<h4>답변 대기 문의</h4>
@@ -114,7 +119,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 							<strong id="kpi-total-inquiries">0</strong>
 						</div>
 					</div>
-					<p style="font-size:.85rem;color:var(--light)">백엔드 연동 후, API를 통해 실제 데이터가 표시됩니다.</p>
 				</div>
 
 				<div class="admin-card" id="tab-users" style="display:none">
@@ -136,7 +140,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				</div>
 
 				<div class="admin-card" id="tab-orders" style="display:none">
-					<h3 style="margin-bottom:1rem;font-size:1rem;">주문 목록</h3>
+					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+						<h3 style="margin:0;font-size:1rem;">주문 목록</h3>
+						<button class="badge" style="cursor:pointer;font-size:.7rem;background:var(--sage);color:#fff;" onclick="renderAdminOrders()">새로고침</button>
+					</div>
 					<table class="table">
 						<thead>
 							<tr>
@@ -145,10 +152,11 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 								<th>금액</th>
 								<th>상태</th>
 								<th>주문일</th>
+								<th>관리</th>
 							</tr>
 						</thead>
 						<tbody id="ordersTableBody">
-							<tr><td colspan="5" style="text-align:center;color:var(--light)">데이터 없음 (연동 예정)</td></tr>
+							<tr><td colspan="6" style="text-align:center;color:var(--light)">데이터 없음 (연동 예정)</td></tr>
 						</tbody>
 					</table>
 				</div>
@@ -674,41 +682,45 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			return labels[type] || "기타";
 		}
 
-		function renderAdminInquiries() {
+		async function renderAdminInquiries() {
 			const container = document.getElementById('inquiriesAdminBody');
 			if (!container) return;
 
-			let inquiries = getInquiries();
-			if (currentInquiryFilter !== 'all') {
-				inquiries = inquiries.filter(inq => inq.status === currentInquiryFilter);
-			}
+			container.innerHTML = `<p style="text-align:center;color:var(--light);padding:2rem;">불러오는 중...</p>`;
 
-			if (!inquiries.length) {
-				container.innerHTML = `<p style="text-align:center;color:var(--light);padding:2rem;">문의 내역이 없습니다.</p>`;
-				return;
-			}
+			try {
+				let inquiries = await API.getInquiries();
+				
+				if (currentInquiryFilter !== 'all') {
+					inquiries = inquiries.filter(inq => inq.status === currentInquiryFilter);
+				}
 
-			container.innerHTML = inquiries.map(inq => `
+				if (!inquiries.length) {
+					container.innerHTML = `<p style="text-align:center;color:var(--light);padding:2rem;">문의 내역이 없습니다.</p>`;
+					return;
+				}
+
+				container.innerHTML = inquiries.map(inq => `
 				<div class="inquiry-admin-item" data-id="${inq.id}">
 					<div class="inquiry-admin-header" onclick="toggleAdminInquiry(${inq.id})">
 						<div class="inquiry-admin-left">
 							<span class="type-badge ${inq.type}">${getTypeLabel(inq.type)}</span>
 							<strong style="font-size:.9rem;">${inq.title}</strong>
-							<span style="font-size:.8rem;color:var(--light)">${inq.userId}</span>
+							<span style="font-size:.8rem;color:var(--light)">${inq.user_email || inq.userId || ''}</span>
 						</div>
 						<div style="display:flex;align-items:center;gap:.5rem;">
 							<span class="status-badge ${inq.status}">${inq.status === 'answered' ? '답변완료' : '답변대기'}</span>
-							<span style="font-size:.75rem;color:var(--light)">${inq.createdAt}</span>
+							<span style="font-size:.75rem;color:var(--light)">${inq.createdAt || inq.created_at?.substring(0, 10) || ''}</span>
 						</div>
 					</div>
 					<div class="inquiry-admin-body">
 						<div class="inquiry-admin-content">
-							${inq.orderNo ? `<p style="font-size:.8rem;color:var(--light);margin-bottom:.5rem;">주문번호: ${inq.orderNo}</p>` : ''}
+							${inq.orderNo || inq.order_no ? `<p style="font-size:.8rem;color:var(--light);margin-bottom:.5rem;">주문번호: ${inq.orderNo || inq.order_no}</p>` : ''}
 							<p>${inq.content.replace(/\n/g, '<br>')}</p>
 						</div>
 						${inq.answer ? `
 							<div style="background:var(--sage-bg);padding:.75rem;border-radius:8px;margin-bottom:1rem;">
-								<p style="font-size:.75rem;font-weight:600;color:var(--sage);margin-bottom:.5rem;">관리자 답변 (${inq.answeredAt || ''})</p>
+								<p style="font-size:.75rem;font-weight:600;color:var(--sage);margin-bottom:.5rem;">관리자 답변 (${inq.answeredAt || inq.answered_at?.substring(0, 10) || ''})</p>
 								<p style="font-size:.9rem;line-height:1.6;">${inq.answer.replace(/\n/g, '<br>')}</p>
 							</div>
 						` : ''}
@@ -721,6 +733,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					</div>
 				</div>
 			`).join('');
+			} catch (err) {
+				console.error('문의 로드 오류:', err);
+				container.innerHTML = `<p style="text-align:center;color:var(--rose);padding:2rem;">문의를 불러오는 중 오류가 발생했습니다.</p>`;
+			}
 		}
 
 		function toggleAdminInquiry(id) {
@@ -728,7 +744,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			if (item) item.classList.toggle('open');
 		}
 
-		function submitAdminAnswer(id) {
+		async function submitAdminAnswer(id) {
 			const textarea = document.getElementById('answer-' + id);
 			if (!textarea) return;
 			const answer = textarea.value.trim();
@@ -737,17 +753,18 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				return;
 			}
 
-			const inquiries = getInquiries();
-			const idx = inquiries.findIndex(inq => inq.id === id);
-			if (idx === -1) return;
-
-			inquiries[idx].answer = answer;
-			inquiries[idx].status = 'answered';
-			inquiries[idx].answeredAt = new Date().toISOString().split('T')[0];
-			setInquiries(inquiries);
-
-			alert('답변이 등록되었습니다.');
-			renderAdminInquiries();
+			try {
+				const result = await API.updateInquiryAnswer(id, answer);
+				if (result.ok) {
+					alert('답변이 등록되었습니다.');
+					renderAdminInquiries();
+				} else {
+					alert(result.message || '답변 등록 중 오류가 발생했습니다.');
+				}
+			} catch (err) {
+				console.error('답변 등록 오류:', err);
+				alert('답변 등록 중 오류가 발생했습니다.');
+			}
 		}
 
 		function filterInquiries(filter) {
@@ -757,11 +774,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			renderAdminInquiries();
 		}
 
-		function renderUsers() {
+		async function renderUsers() {
 			const tbody = document.getElementById('usersTableBody');
 			if (!tbody) return;
 			tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>`;
-			API.getUsers().then((rows) => {
+			
+			try {
+				const rows = await API.getUsers();
 				if (!rows || !rows.length) {
 					tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">데이터 없음</td></tr>`;
 					return;
@@ -771,32 +790,147 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<td>${u.id}</td>
 						<td>${u.name}</td>
 						<td>${u.email}</td>
-						<td>${u.joinedAt || ""}</td>
-						<td>${u.status || ""}</td>
+						<td>${u.joinedAt || u.created_at?.substring(0, 10) || ""}</td>
+						<td>${u.status || (u.is_admin ? '관리자' : '일반')}</td>
 					</tr>
 				`).join('');
-			});
+			} catch (err) {
+				console.error('회원 목록 로드 오류:', err);
+				const errorMsg = err.message || '알 수 없는 오류';
+				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--rose);">회원 목록을 불러오는 중 오류가 발생했습니다.<br><small style="font-size:0.75rem;color:var(--light);">${errorMsg}</small></td></tr>`;
+			}
 		}
 
-		function renderAdminOrders() {
+		async function renderAdminOrders() {
 			const tbody = document.getElementById('ordersTableBody');
 			if (!tbody) return;
-			tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>`;
-			API.getAdminOrders().then((rows) => {
+			tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>`;
+			
+			try {
+				const rows = await API.getAdminOrders();
 				if (!rows || !rows.length) {
-					tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">데이터 없음</td></tr>`;
+					tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--light)">데이터 없음</td></tr>`;
 					return;
 				}
-				tbody.innerHTML = rows.map((o) => `
+				const statusOptions = ['결제대기', '결제완료', '배송준비중', '배송중', '배송완료', '취소요청', '취소'];
+				tbody.innerHTML = rows.map((o) => {
+					const statusBadgeClass = o.status === '배송완료' ? 'answered' : 
+					                          o.status === '취소' ? 'waiting' : 'answered';
+					// 취소 요청 확인 (상태가 취소요청이거나 cancelRequested가 true인 경우)
+					const hasCancelRequest = o.status === '취소요청' || o.status === 'cancel_requested' || 
+					                         (o.cancelRequested === true || o.cancelRequested === 1);
+					return `
 					<tr>
-						<td>${o.id}</td>
-						<td>${o.customer}</td>
+						<td>${o.id}${hasCancelRequest ? '<br><span style="color:var(--rose);font-size:0.75rem;font-weight:600;">⚠ 취소요청</span>' : ''}</td>
+						<td>${o.customer || '비회원'}</td>
 						<td>₩${(o.total || 0).toLocaleString()}</td>
-						<td>${o.status || ""}</td>
+						<td>
+							<select id="status-${o.id}" onchange="updateOrderStatus('${o.id}', this.value)" 
+							        style="padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:4px;font-size:0.85rem;background:#fff;">
+								${statusOptions.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}
+							</select>
+						</td>
 						<td>${o.orderedAt || ""}</td>
+						<td>
+							${o.status === '결제대기' && !hasCancelRequest ? 
+								`<button class="badge" style="cursor:pointer;font-size:.7rem;background:var(--sage);color:#fff;margin-bottom:0.25rem;" onclick="confirmOrderPayment('${o.id}')">결제확인</button><br>` : ''}
+							${hasCancelRequest ? 
+								`<button class="badge" style="cursor:pointer;font-size:.7rem;background:var(--sage);color:#fff;margin-bottom:0.25rem;" onclick="approveOrderCancel('${o.id}')">취소승인</button>
+								 <button class="badge" style="cursor:pointer;font-size:.7rem;background:var(--rose);color:#fff;margin-bottom:0.25rem;" onclick="rejectOrderCancel('${o.id}')">취소거부</button><br>` : ''}
+							<button class="badge" style="cursor:pointer;font-size:.7rem;" onclick="viewOrderDetail('${o.id}')">상세보기</button>
+						</td>
 					</tr>
-				`).join('');
-			});
+				`;
+				}).join('');
+			} catch (err) {
+				console.error('주문 목록 로드 오류:', err);
+				tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--rose);">주문 목록을 불러오는 중 오류가 발생했습니다.<br><small style="font-size:0.75rem;color:var(--light);">${err.message || '알 수 없는 오류'}</small></td></tr>`;
+			}
+		}
+
+		async function updateOrderStatus(orderNumber, newStatus) {
+			if (!confirm(`주문 상태를 "${newStatus}"로 변경하시겠습니까?`)) {
+				// 취소하면 원래 상태로 복원
+				renderAdminOrders();
+				return;
+			}
+
+			try {
+				const result = await API.updateOrderStatus(orderNumber, newStatus);
+				if (result.ok) {
+					alert('주문 상태가 변경되었습니다.');
+					renderAdminOrders();
+				} else {
+					alert('상태 변경 실패: ' + (result.message || '알 수 없는 오류'));
+					renderAdminOrders();
+				}
+			} catch (err) {
+				console.error('주문 상태 변경 오류:', err);
+				alert('주문 상태 변경 중 오류가 발생했습니다: ' + err.message);
+				renderAdminOrders();
+			}
+		}
+
+		async function confirmOrderPayment(orderNumber) {
+			if (!confirm(`주문번호 ${orderNumber}의 결제를 확인하시겠습니까?\n결제대기 → 결제완료로 변경됩니다.`)) return;
+
+			try {
+				const result = await API.confirmPayment(orderNumber);
+				if (result.ok) {
+					alert(result.message || '결제가 확인되었습니다.');
+					// 주문 목록 새로고침
+					await renderAdminOrders();
+					// KPI도 업데이트
+					updateKPIs();
+				} else {
+					alert('결제 확인 실패: ' + (result.message || '알 수 없는 오류'));
+				}
+			} catch (err) {
+				console.error('결제 확인 오류:', err);
+				alert('결제 확인 중 오류가 발생했습니다: ' + err.message);
+			}
+		}
+
+		async function approveOrderCancel(orderNumber) {
+			if (!confirm(`주문번호 ${orderNumber}의 취소를 승인하시겠습니까?`)) return;
+
+			try {
+				const result = await API.approveCancel(orderNumber);
+				if (result.ok) {
+					alert(result.message || '주문 취소가 승인되었습니다.');
+					// 주문 목록 새로고침
+					await renderAdminOrders();
+					// KPI도 업데이트
+					updateKPIs();
+				} else {
+					alert('취소 승인 실패: ' + (result.message || '알 수 없는 오류'));
+				}
+			} catch (err) {
+				console.error('취소 승인 오류:', err);
+				alert('취소 승인 중 오류가 발생했습니다: ' + err.message);
+			}
+		}
+
+		async function rejectOrderCancel(orderNumber) {
+			if (!confirm(`주문번호 ${orderNumber}의 취소 요청을 거부하시겠습니까?`)) return;
+
+			try {
+				const result = await API.rejectCancel(orderNumber);
+				if (result.ok) {
+					alert(result.message || '취소 요청이 거부되었습니다.');
+					// 주문 목록 새로고침
+					await renderAdminOrders();
+				} else {
+					alert('취소 거부 실패: ' + (result.message || '알 수 없는 오류'));
+				}
+			} catch (err) {
+				console.error('취소 거부 오류:', err);
+				alert('취소 거부 중 오류가 발생했습니다: ' + err.message);
+			}
+		}
+
+		function viewOrderDetail(orderNumber) {
+			alert('주문 상세 기능은 준비 중입니다.\n주문번호: ' + orderNumber);
 		}
 
 		// ========== 상품 관리 ==========
@@ -1664,36 +1798,61 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		}
 
 		// ========== 리뷰 관리 ==========
-		function renderAdminReviews() {
+		async function renderAdminReviews() {
 			const container = document.getElementById('reviewsAdminBody');
 			if (!container) return;
-			const allReviews = JSON.parse(localStorage.getItem('dewscent_reviews') || '{}');
-			let html = '';
-			API.getProducts().then(products => {
-				products.forEach(p => {
-					const reviews = allReviews[p.id] || [];
-					if (reviews.length > 0) {
-						html += `<div style="margin-bottom:1.5rem;"><h4 style="font-size:.95rem;margin-bottom:.5rem;">${p.name} <span style="color:var(--light);font-weight:400;">(${reviews.length}개)</span></h4>`;
-						reviews.forEach(r => {
-							html += `<div style="background:var(--sage-bg);padding:.75rem;border-radius:8px;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:flex-start;">
-								<div><strong>${r.user}</strong> <span style="color:var(--light);font-size:.8rem;">${r.date}</span><br><span style="color:#d4a574;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><br><span style="font-size:.9rem;">${r.content}</span></div>
-								<button class="badge" style="cursor:pointer;font-size:.7rem;color:var(--rose);" onclick="deleteReview(${p.id},${r.id})">삭제</button>
-							</div>`;
-						});
-						html += '</div>';
-					}
+			
+			container.innerHTML = '<p style="text-align:center;color:var(--light);padding:2rem;">리뷰 목록을 불러오는 중...</p>';
+			
+			try {
+				// 모든 리뷰 가져오기 (productId 없이 호출하면 관리자용 전체 리뷰)
+				const reviews = await API.getReviews(null);
+				
+				if (!reviews || reviews.length === 0) {
+					container.innerHTML = '<p style="text-align:center;color:var(--light);padding:2rem;">등록된 리뷰가 없습니다.</p>';
+					return;
+				}
+				
+				// 상품 정보 가져오기 (상품명 표시용)
+				const products = await API.getProducts();
+				const productMap = {};
+				products.forEach(p => { productMap[p.id] = p; });
+				
+				let html = '';
+				reviews.forEach(r => {
+					const product = productMap[r.product_id] || { name: '알 수 없음' };
+					html += `<div style="background:var(--sage-bg);padding:.75rem;border-radius:8px;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:flex-start;">
+						<div style="flex:1;">
+							<div style="font-size:.75rem;color:var(--light);margin-bottom:.25rem;">${product.name}</div>
+							<div><strong>${r.user || r.user_name || '익명'}</strong> <span style="color:var(--light);font-size:.8rem;">${r.date || r.created_at?.substring(0, 10) || ''}</span></div>
+							<div style="color:#d4a574;margin:.25rem 0;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+							<div style="font-size:.9rem;">${r.content}</div>
+						</div>
+						<button class="badge" style="cursor:pointer;font-size:.7rem;color:var(--rose);margin-left:1rem;" onclick="deleteAdminReview(${r.product_id}, ${r.id})">삭제</button>
+					</div>`;
 				});
-				container.innerHTML = html || '<p style="text-align:center;color:var(--light);padding:2rem;">등록된 리뷰가 없습니다.</p>';
-			});
-		}
-		function deleteReview(productId, reviewId) {
-			if (!confirm('정말 삭제하시겠습니까?')) return;
-			const allReviews = JSON.parse(localStorage.getItem('dewscent_reviews') || '{}');
-			if (allReviews[productId]) {
-				allReviews[productId] = allReviews[productId].filter(r => r.id !== reviewId);
-				localStorage.setItem('dewscent_reviews', JSON.stringify(allReviews));
+				
+				container.innerHTML = html;
+			} catch (err) {
+				console.error('리뷰 로드 오류:', err);
+				container.innerHTML = '<p style="text-align:center;color:var(--rose);padding:2rem;">리뷰를 불러오는 중 오류가 발생했습니다: ' + (err.message || '알 수 없는 오류') + '</p>';
 			}
-			renderAdminReviews();
+		}
+		
+		async function deleteAdminReview(productId, reviewId) {
+			if (!confirm('정말 삭제하시겠습니까?')) return;
+			try {
+				const result = await API.deleteReview(productId, reviewId);
+				if (result.ok) {
+					alert('리뷰가 삭제되었습니다.');
+					renderAdminReviews();
+				} else {
+					alert(result.message || '리뷰 삭제 중 오류가 발생했습니다.');
+				}
+			} catch (err) {
+				console.error('리뷰 삭제 오류:', err);
+				alert('리뷰 삭제 중 오류가 발생했습니다.');
+			}
 		}
 
 		// ========== 사이트 설정 ==========
@@ -2066,11 +2225,54 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		});
 
 		// 기본 로드: 개요 표시 + KPI 업데이트
-		function updateKPIs() {
-			const inquiries = getInquiries();
-			const waiting = inquiries.filter(inq => inq.status === 'waiting').length;
-			document.getElementById('kpi-waiting-inquiries').textContent = waiting;
-			document.getElementById('kpi-total-inquiries').textContent = inquiries.length;
+		async function updateKPIs() {
+			try {
+				// 오늘 날짜 (YYYY-MM-DD 형식)
+				const today = new Date().toISOString().split('T')[0];
+				
+				// 문의 데이터
+				const inquiries = await API.getInquiries();
+				if (inquiries && Array.isArray(inquiries)) {
+					const waiting = inquiries.filter(inq => inq.status === 'waiting').length;
+					const waitingEl = document.getElementById('kpi-waiting-inquiries');
+					const totalEl = document.getElementById('kpi-total-inquiries');
+					if (waitingEl) waitingEl.textContent = waiting;
+					if (totalEl) totalEl.textContent = inquiries.length;
+				}
+				
+				// 회원 데이터 (오늘 가입)
+				try {
+					const users = await API.getUsers();
+					if (users && Array.isArray(users)) {
+						const todaySignups = users.filter(u => {
+							const joinedDate = u.joinedAt || u.created_at?.substring(0, 10) || '';
+							return joinedDate === today;
+						}).length;
+						const signupsEl = document.getElementById('kpi-today-signups');
+						if (signupsEl) signupsEl.textContent = todaySignups;
+					}
+				} catch (err) {
+					console.error('오늘 가입 수 로드 오류:', err);
+				}
+				
+				// 주문 데이터 (오늘 주문)
+				try {
+					const orders = await API.getAdminOrders();
+					if (orders && Array.isArray(orders)) {
+						const todayOrders = orders.filter(o => {
+							const orderDate = o.orderedAt || '';
+							return orderDate === today;
+						}).length;
+						const ordersEl = document.getElementById('kpi-today-orders');
+						if (ordersEl) ordersEl.textContent = todayOrders;
+					}
+				} catch (err) {
+					console.error('오늘 주문 수 로드 오류:', err);
+				}
+			} catch (err) {
+				console.error('KPI 업데이트 오류:', err);
+				// 오류 시 기본값 유지
+			}
 		}
 		updateKPIs();
 	</script>
