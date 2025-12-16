@@ -43,3 +43,5 @@ $basePrefix = $inPages ? '../' : '';
         </a>
     </div>
 </header>
+
+<?php include __DIR__ . '/auth_state.php'; ?>
