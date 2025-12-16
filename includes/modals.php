@@ -53,12 +53,12 @@ $adminPath = $inPages ? '../admin/index.php' : 'admin/index.php';
         <div class="modal-body">
             <form method="post" action="<?php echo $adminPath; ?>">
                 <div class="form-group">
-                    <label class="form-label">이메일</label>
-                    <input type="email" name="email" class="form-input" placeholder="admin@example.com" required>
+                    <label class="form-label">아이디</label>
+                    <input type="text" name="username" class="form-input" placeholder="admin" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">비밀번호</label>
-                    <input type="password" name="password" class="form-input" placeholder="admin" required>
+                    <input type="password" name="password" class="form-input" placeholder="비밀번호를 입력하세요" required>
                 </div>
                 <button type="submit" class="form-btn primary">로그인</button>
                 <button type="button" class="form-btn secondary" onclick="closeModal('adminLoginModal')">닫기</button>
