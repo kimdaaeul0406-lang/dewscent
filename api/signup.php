@@ -26,23 +26,17 @@ db()->insert(
   [$username, $email, $password]
 );
 
-// 자동 로그인 & 플래시 메시지
-regenerate_session();
+// 자동 로그인
 $_SESSION['user_id'] = db()->getConnection()->lastInsertId();
 $_SESSION['username'] = $username;
-$_SESSION['email'] = $email;
 $_SESSION['role'] = 'user';
-$_SESSION['signup_success'] = true;
 
-<<<<<<< HEAD
 // 메인으로 이동
 // 메인으로 이동 (서브 디렉토리 배포 환경에서도 동작하도록 SITE_URL 사용)
 $baseUrl = rtrim(SITE_URL, '/');
 header("Location: {$baseUrl}/index.php");
 exit;
-=======
 // 메인으로 이동 (서브 디렉토리 배포 환경에서도 동작하도록 SITE_URL 사용)
 $baseUrl = rtrim(SITE_URL, '/');
 header("Location: {$baseUrl}/index.php");
 exit;
->>>>>>> 5e98ed99810dcfbc94ca09b6edd1fe80001d925f
