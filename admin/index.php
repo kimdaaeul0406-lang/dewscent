@@ -45,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			}
 
 			if ($user && $passwordMatch) {
+				// 세션 고정 공격 방지 - 세션 ID 재생성
+				session_regenerate_id(true);
+
 				// 로그인 성공
 				$_SESSION['admin_logged_in'] = true;
 				$_SESSION['admin_email'] = $user['email'];

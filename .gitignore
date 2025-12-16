@@ -1,0 +1,37 @@
+# 환경 설정 파일
+.env
+.env.local
+.env.production
+
+# 로그 파일
+*.log
+logs/
+
+# 업로드 파일 (사용자 업로드)
+uploads/*
+!uploads/.gitkeep
+
+# 캐시
+cache/
+*.cache
+
+# IDE/에디터
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 임시 파일
+*.tmp
+*.temp
+*.bak
+
+# 의존성 (있는 경우)
+vendor/
+node_modules/
+
+# 민감한 SQL 파일
+database/create_admin.sql

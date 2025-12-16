@@ -2,10 +2,21 @@
 // api/products.php
 // 상품 CRUD API
 
+// 세션 시작 (인증 체크용)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+
+// CORS 설정 - 같은 도메인만 허용 (프로덕션용)
+$allowed_origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+if (strpos($allowed_origin, 'localhost') !== false || $allowed_origin === '') {
+    header('Access-Control-Allow-Origin: ' . ($allowed_origin ?: '*'));
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Credentials: true');
 
 // OPTIONS 요청 처리 (CORS preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -14,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../admin/guard.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = isset($_SERVER['PATH_INFO']) ? trim($_SERVER['PATH_INFO'], '/') : '';
@@ -42,6 +54,11 @@ try {
             break;
 
         case 'POST':
+            // 관리자 인증 필요
+            if (!ensure_admin_api()) {
+                exit;
+            }
+
             // 상품 등록
             $data = json_decode(file_get_contents('php://input'), true);
 
@@ -75,6 +92,11 @@ try {
             break;
 
         case 'PUT':
+            // 관리자 인증 필요
+            if (!ensure_admin_api()) {
+                exit;
+            }
+
             // 상품 수정
             if (!$id) {
                 http_response_code(400);
@@ -127,6 +149,11 @@ try {
             break;
 
         case 'DELETE':
+            // 관리자 인증 필요
+            if (!ensure_admin_api()) {
+                exit;
+            }
+
             // 상품 삭제
             if (!$id) {
                 http_response_code(400);
@@ -150,6 +177,8 @@ try {
             echo json_encode(['error' => '허용되지 않는 메소드입니다.']);
     }
 } catch (Exception $e) {
+    // 프로덕션에서는 상세 에러 메시지 숨김
+    error_log('API Error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => '서버 오류: ' . $e->getMessage()]);
+    echo json_encode(['error' => '서버 오류가 발생했습니다.']);
 }
