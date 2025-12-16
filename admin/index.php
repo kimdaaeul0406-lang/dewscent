@@ -27,17 +27,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = '이메일과 비밀번호를 입력해주세요.';
 	} else {
 		try {
-			// DB에서 관리자 계정 조회
+			// DB에서 관리자 계정 조회 (role = 'admin')
 			$user = db()->fetchOne(
-				"SELECT * FROM users WHERE email = ? AND is_admin = 1",
+				"SELECT * FROM users WHERE email = ? AND role = 'admin'",
 				[$email]
 			);
 
-			if ($user && password_verify($password, $user['password'])) {
+			// 비밀번호 확인 (해시 또는 평문 둘 다 지원)
+			$passwordMatch = false;
+			if ($user) {
+				if (password_verify($password, $user['password'])) {
+					$passwordMatch = true;
+				} elseif ($user['password'] === $password) {
+					// 평문 비밀번호 지원 (나중에 해시로 변경 권장)
+					$passwordMatch = true;
+				}
+			}
+
+			if ($user && $passwordMatch) {
 				// 로그인 성공
 				$_SESSION['admin_logged_in'] = true;
 				$_SESSION['admin_email'] = $user['email'];
-				$_SESSION['admin_name'] = $user['name'];
+				$_SESSION['admin_name'] = $user['username'] ?? $user['name'] ?? 'Admin';
 				$_SESSION['admin_id'] = $user['id'];
 				header('Location: dashboard.php');
 				exit;
