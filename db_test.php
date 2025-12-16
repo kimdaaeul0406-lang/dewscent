@@ -3,28 +3,44 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "1. 테스트 시작<br>";
-
-// config 파일 확인
-require_once __DIR__ . '/includes/config.php';
-echo "2. config.php 로드 완료<br>";
-echo "DB_HOST: " . DB_HOST . "<br>";
-echo "DB_NAME: " . DB_NAME . "<br>";
-
-// db.php 로드
 require_once __DIR__ . '/includes/db.php';
-echo "3. db.php 로드 완료<br>";
 
-// DB 연결 테스트
+echo "<h2>DB 연결 테스트</h2>";
+
 try {
     $pdo = db()->getConnection();
-    echo "4. DB 연결 성공!<br>";
+    echo "<p style='color:green;'>DB 연결 성공!</p>";
 
     // 테이블 확인
     $tables = db()->fetchAll("SHOW TABLES");
-    echo "5. 테이블 목록:<br>";
-    print_r($tables);
+    echo "<h3>테이블 목록:</h3>";
+    echo "<ul>";
+    foreach ($tables as $table) {
+        echo "<li>" . array_values($table)[0] . "</li>";
+    }
+    echo "</ul>";
+
+    // 상품 데이터 확인
+    $products = db()->fetchAll("SELECT * FROM products");
+    echo "<h3>상품 데이터 (" . count($products) . "개):</h3>";
+
+    if (count($products) > 0) {
+        echo "<table border='1' cellpadding='10'>";
+        echo "<tr><th>ID</th><th>이름</th><th>타입</th><th>가격</th><th>뱃지</th></tr>";
+        foreach ($products as $p) {
+            echo "<tr>";
+            echo "<td>" . $p['id'] . "</td>";
+            echo "<td>" . $p['name'] . "</td>";
+            echo "<td>" . $p['type'] . "</td>";
+            echo "<td>" . number_format($p['price']) . "원</td>";
+            echo "<td>" . ($p['badge'] ?? '-') . "</td>";
+            echo "</tr>";
+        }
+        echo "</table>";
+    } else {
+        echo "<p style='color:red;'>상품 데이터가 없습니다!</p>";
+    }
 
 } catch (Exception $e) {
-    echo "DB 연결 실패: " . $e->getMessage();
+    echo "<p style='color:red;'>오류: " . $e->getMessage() . "</p>";
 }
