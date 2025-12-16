@@ -32,5 +32,7 @@ $_SESSION['username'] = $username;
 $_SESSION['role'] = 'user';
 
 // 메인으로 이동
-header("Location: /index.php");
+// 메인으로 이동 (서브 디렉토리 배포 환경에서도 동작하도록 SITE_URL 사용)
+$baseUrl = rtrim(SITE_URL, '/');
+header("Location: {$baseUrl}/index.php");
 exit;
