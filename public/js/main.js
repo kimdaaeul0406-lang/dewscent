@@ -2232,6 +2232,11 @@ function submitReview() {
 const USER_KEY = "ds_current_user";
 const USERS_DB_KEY = "ds_users_db"; // 회원 목록 저장
 
+function apiUrl(path) {
+  const base = (window.DS_BASE_URL || "").replace(/\/$/, "");
+  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
 // 회원 목록 가져오기
 function getUsersDB() {
   try {
@@ -2478,28 +2483,41 @@ function login() {
     return;
   }
 
-  // 회원 정보 확인
-  const user = findUserByEmail(email);
-  if (!user) {
-    alert("등록되지 않은 이메일입니다.\n회원가입을 먼저 해주세요.");
-    return;
-  }
+  const loginUrl = apiUrl("/api/login.php");
+  const body = new URLSearchParams({ email, password });
 
-  // 비밀번호 확인
-  if (user.password !== password) {
-    alert("비밀번호가 일치하지 않습니다.");
-    return;
-  }
+  fetch(loginUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    credentials: "include",
+  })
+    .then(async (res) => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || "로그인에 실패했습니다.");
+      }
+      return data;
+    })
+    .then((data) => {
+      const user = data.user || {};
+      setCurrentUser({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      });
+      updateAuthUI();
+      closeModal("loginModal");
 
-  setCurrentUser({ email: user.email, name: user.name });
-  updateAuthUI();
-  closeModal("loginModal");
+      document.getElementById("loginEmail").value = "";
+      document.getElementById("loginPassword").value = "";
 
-  // 입력 필드 초기화
-  document.getElementById("loginEmail").value = "";
-  document.getElementById("loginPassword").value = "";
-
-  alert("로그인 되었습니다!");
+      alert("로그인 되었습니다!");
+    })
+    .catch((err) => {
+      alert(err.message || "로그인 중 문제가 발생했습니다.");
+    });
 }
 
 function signup() {
@@ -2553,13 +2571,19 @@ function signup() {
 }
 
 function logoutUser() {
-  clearCurrentUser();
-  updateAuthUI();
-  const mypage = document.getElementById("mypageModal");
-  if (mypage && mypage.classList.contains("active")) {
-    closeModal("mypageModal");
-  }
-  alert("로그아웃 되었습니다.");
+  const logoutUrl = apiUrl("/api/logout.php");
+
+  fetch(logoutUrl, { method: "POST", credentials: "include" })
+    .catch(() => null)
+    .finally(() => {
+      clearCurrentUser();
+      updateAuthUI();
+      const mypage = document.getElementById("mypageModal");
+      if (mypage && mypage.classList.contains("active")) {
+        closeModal("mypageModal");
+      }
+      alert("로그아웃 되었습니다.");
+    });
 }
 
 // 회원 탈퇴

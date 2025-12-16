@@ -1,6 +1,9 @@
 (function (w) {
-  const USE_MOCK_API = false; // false로 바꾸면 실제 API 엔드포인트로 연결
-  const BASE_URL = "/dewscent/api"; // PHP API 경로
+  const USE_MOCK_API = false; // false로 두면 실제 API 엔드포인트로 연결
+  const BASE_URL = (() => {
+    const root = (w.DS_BASE_URL || "").replace(/\/$/, "");
+    return root ? `${root}/api` : "/api";
+  })();
   const PRODUCTS_KEY = "dewscent_admin_products"; // LocalStorage 키
 
   function delay(ms) {

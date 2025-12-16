@@ -8,6 +8,7 @@ if (isset($_SESSION['user_id'])) {
         'id'    => (int) $_SESSION['user_id'],
         'name'  => $_SESSION['username'] ?? '',
         'email' => $_SESSION['email'] ?? '',
+
     ];
 }
 ?>
@@ -24,5 +25,6 @@ if (isset($_SESSION['user_id'])) {
   alert("회원가입이 완료되었습니다!\n자동으로 로그인되었습니다.");
   <?php unset($_SESSION['signup_success']); ?>
   <?php endif; ?>
+
 })();
 </script>
