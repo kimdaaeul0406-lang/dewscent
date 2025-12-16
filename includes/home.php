@@ -39,25 +39,14 @@
 
 <section class="best-section">
     <div class="best-header">
-        <p class="best-label">BEST SELLERS</p>
-        <h2 class="section-title">가장 사랑받는 향기</h2>
-        <p class="best-desc">많은 분들이 다시 찾은, 꾸준히 사랑받는 향기입니다.</p>
+        <p class="best-label" id="bestLabel">MOST LOVED</p>
+        <h2 class="section-title" id="bestTitle">다시 찾게 되는 향기</h2>
+        <p class="best-desc" id="bestSubtitle">한 번 스친 향기가 오래 기억에 남을 때가 있어요.<br>많은 분들이 다시 찾은 향기를 소개합니다.</p>
     </div>
-    <div class="products-grid" id="bestProductsGrid"></div>
+    <div class="products-grid" id="productsGrid"></div>
     <div class="best-footer">
-        <a href="pages/products.php?badge=BEST" class="best-more">MORE BEST →</a>
-    </div>
-</section>
-
-<section class="best-section">
-    <div class="best-header">
-        <p class="best-label">NEW ARRIVALS</p>
-        <h2 class="section-title">새로운 향기</h2>
-        <p class="best-desc">막 도착한 신상품을 만나보세요.</p>
-    </div>
-    <div class="products-grid" id="newProductsGrid"></div>
-    <div class="best-footer">
-        <a href="pages/products.php?badge=NEW" class="best-more">MORE NEW →</a>
+        <p class="best-quote" id="bestQuote">— 향기는 기억을 여는 열쇠 —</p>
+        <a href="pages/products.php" class="best-more">MORE SCENTS →</a>
     </div>
 </section>
 
