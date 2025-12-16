@@ -1,6 +1,6 @@
 (function (w) {
-  const USE_MOCK_API = true; // false로 바꾸면 실제 API 엔드포인트로 연결
-  const BASE_URL = "/api"; // 나중에 백엔드 연결 시 교체
+  const USE_MOCK_API = false; // false로 바꾸면 실제 API 엔드포인트로 연결
+  const BASE_URL = "/dewscent/api"; // PHP API 경로
   const PRODUCTS_KEY = "dewscent_admin_products"; // LocalStorage 키
 
   function delay(ms) {
@@ -273,7 +273,7 @@
       await delay(100);
       return getStoredProducts();
     }
-    return await getJSON("/admin/products");
+    return await getJSON("/products.php");
   }
 
   // 상품 단일 조회
@@ -283,7 +283,7 @@
       const products = getStoredProducts();
       return products.find((p) => p.id === id) || null;
     }
-    return await getJSON(`/admin/products/${id}`);
+    return await getJSON(`/products.php/${id}`);
   }
 
   // 상품 등록
@@ -311,7 +311,7 @@
       setStoredProducts(products);
       return newProduct;
     }
-    return await getJSON("/admin/products", {
+    return await getJSON("/products.php", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -328,7 +328,7 @@
       setStoredProducts(products);
       return products[idx];
     }
-    return await getJSON(`/admin/products/${id}`, {
+    return await getJSON(`/products.php/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -343,7 +343,7 @@
       setStoredProducts(filtered);
       return { success: true };
     }
-    return await getJSON(`/admin/products/${id}`, {
+    return await getJSON(`/products.php/${id}`, {
       method: "DELETE",
     });
   }
@@ -355,7 +355,7 @@
       const products = getStoredProducts();
       return products.filter((p) => p.status === "판매중");
     }
-    return await getJSON("/products");
+    return await getJSON("/products.php");
   }
 
   // ========== 배너/캐러셀 관리 ==========
