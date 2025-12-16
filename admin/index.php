@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../includes/db.php';
 
 $pageTitle = "관리자 로그인 | DewScent";
 
@@ -17,19 +18,35 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-// 간단한 임시 로그인 검증 (나중에 백엔드 연동 예정)
+// DB 연동 로그인 검증
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$email = trim($_POST['email'] ?? '');
 	$password = trim($_POST['password'] ?? '');
 
-	// 임시 정책: 비밀번호가 'admin'이면 통과 (백엔드 연동 시 교체)
-	if ($email !== '' && $password === 'admin') {
-		$_SESSION['admin_logged_in'] = true;
-		$_SESSION['admin_email'] = $email;
-		header('Location: dashboard.php');
-		exit;
+	if ($email === '' || $password === '') {
+		$error = '이메일과 비밀번호를 입력해주세요.';
 	} else {
-		$error = '로그인 정보가 올바르지 않습니다.';
+		try {
+			// DB에서 관리자 계정 조회
+			$user = db()->fetchOne(
+				"SELECT * FROM users WHERE email = ? AND is_admin = 1",
+				[$email]
+			);
+
+			if ($user && password_verify($password, $user['password'])) {
+				// 로그인 성공
+				$_SESSION['admin_logged_in'] = true;
+				$_SESSION['admin_email'] = $user['email'];
+				$_SESSION['admin_name'] = $user['name'];
+				$_SESSION['admin_id'] = $user['id'];
+				header('Location: dashboard.php');
+				exit;
+			} else {
+				$error = '이메일 또는 비밀번호가 올바르지 않습니다.';
+			}
+		} catch (Exception $e) {
+			$error = 'DB 연결 오류가 발생했습니다.';
+		}
 	}
 }
 ?>
