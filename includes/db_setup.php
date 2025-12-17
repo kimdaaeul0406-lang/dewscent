@@ -68,6 +68,27 @@ function ensure_tables_exist() {
                 // 컬럼이 이미 존재하거나 다른 오류 (무시)
             }
         }
+
+        // kakao_id 컬럼이 없으면 추가 (소셜 로그인용)
+        $columns = db()->fetchAll("SHOW COLUMNS FROM users LIKE 'kakao_id'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE users ADD COLUMN kakao_id VARCHAR(100) DEFAULT NULL COMMENT '카카오 사용자 ID' AFTER is_admin");
+                $conn->exec("CREATE INDEX idx_users_kakao_id ON users(kakao_id)");
+            } catch (PDOException $e) {
+                // 컬럼이나 인덱스가 이미 존재하거나 다른 오류 (무시)
+            }
+        }
+
+        // profile_image 컬럼이 없으면 추가 (소셜 로그인 프로필 이미지용)
+        $columns = db()->fetchAll("SHOW COLUMNS FROM users LIKE 'profile_image'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE users ADD COLUMN profile_image VARCHAR(500) DEFAULT NULL COMMENT '프로필 이미지 URL' AFTER kakao_id");
+            } catch (PDOException $e) {
+                // 컬럼이 이미 존재하거나 다른 오류 (무시)
+            }
+        }
         
         // products 테이블
         $conn->exec("
