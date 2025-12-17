@@ -344,8 +344,8 @@ $naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_C
                     <div class="payment-option">
                         <input type="radio" name="payment" value="card">
                         <div class="payment-option-info">
-                            <h5>카드 결제 (준비중)</h5>
-                            <p>현재는 무통장 입금만 가능합니다.</p>
+                            <h5>카드 결제</h5>
+                            <p>토스페이먼츠를 통한 안전한 결제</p>
                         </div>
                     </div>
                 </div>
@@ -357,6 +357,12 @@ $naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_C
                     <p style="font-size:.8rem;margin-top:.5rem;color:var(--light)">
                         주문 후 24시간 이내 입금이 확인되지 않으면 자동 취소될 수 있습니다.
                     </p>
+                </div>
+
+                <!-- 토스페이먼츠 결제위젯 UI 영역 (카드 결제 선택 시에만 표시) -->
+                <div id="tossPaymentWidget" style="display:none;margin-top:1.5rem;">
+                    <div id="payment-method-widget"></div>
+                    <div id="agreement-widget" style="margin-top:1rem;"></div>
                 </div>
             </div>
 

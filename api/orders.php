@@ -64,6 +64,7 @@ switch ($method) {
 
         $from = $_GET['from'] ?? null;
         $to   = $_GET['to'] ?? null;
+        $orderNumber = $_GET['orderNumber'] ?? null;
 
         // 관리자는 모든 주문, 일반 사용자는 자신의 주문만
         $where = [];
@@ -72,6 +73,12 @@ switch ($method) {
         if (!$isAdmin) {
             $where[] = 'o.user_id = ?';
             $params[] = $_SESSION['user_id'];
+        }
+        
+        // orderNumber로 특정 주문 조회
+        if ($orderNumber) {
+            $where[] = 'o.order_number = ?';
+            $params[] = $orderNumber;
         }
 
         if ($from) {
@@ -83,7 +90,7 @@ switch ($method) {
             $params[] = $to;
         }
 
-        $sql = "SELECT o.id, o.order_number, o.total_price, o.status, o.cancel_requested, o.cancel_reason, o.created_at, o.shipping_name, o.shipping_phone, o.shipping_address, u.name as user_name, u.email as user_email 
+        $sql = "SELECT o.id, o.order_number, o.total_price, o.status, o.cancel_requested, o.cancel_reason, o.created_at, o.shipping_name, o.shipping_phone, o.shipping_address, o.user_id, u.name as user_name, u.email as user_email 
                 FROM orders o 
                 LEFT JOIN users u ON o.user_id = u.id";
         if ($where) {
@@ -92,6 +99,16 @@ switch ($method) {
         $sql .= ' ORDER BY o.created_at DESC, o.id DESC';
 
         $rows = db()->fetchAll($sql, $params);
+        
+        // 디버깅: 주문 조회 로그
+        if (!$isAdmin) {
+            error_log("주문 조회: user_id=" . $_SESSION['user_id'] . ", 조회된 주문 수=" . count($rows));
+            if (!empty($rows)) {
+                foreach ($rows as $row) {
+                    error_log("  - 주문번호: {$row['order_number']}, user_id: {$row['user_id']}, 상태: {$row['status']}");
+                }
+            }
+        }
 
         $orders = array_map(function ($row) {
             $orderId = $row['id'];
@@ -169,13 +186,18 @@ switch ($method) {
             $conn->beginTransaction();
 
             // 주문 저장
+            // 결제 수단이 카드인 경우 paid, 무통장 입금인 경우 pending
+            $paymentMethod = $payment['method'] ?? '';
+            $orderStatus = ($paymentMethod === 'card') ? 'paid' : 'pending';
+            
             $orderId = db()->insert(
                 "INSERT INTO orders (user_id, order_number, total_price, status, shipping_name, shipping_phone, shipping_address, created_at)
-                 VALUES (?, ?, ?, 'pending', ?, ?, ?, NOW())",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
                 [
                     $_SESSION['user_id'],
                     $orderNumber,
                     $total,
+                    $orderStatus,
                     $customer['name'] ?? '',
                     $customer['phone'] ?? '',
                     $customer['address'] ?? ''
@@ -325,6 +347,9 @@ switch ($method) {
                         exit;
                     }
 
+                    // 취소 사유 가져오기
+                    $reason = trim($data['reason'] ?? '');
+
                     // 결제대기 상태는 즉시 취소, 결제완료 상태는 취소 요청
                     if ($order['status'] === 'pending') {
                         // 결제대기 상태: 즉시 취소
@@ -345,15 +370,6 @@ switch ($method) {
                         echo json_encode(['ok' => false, 'message' => '현재 상태에서는 취소할 수 없습니다.'], JSON_UNESCAPED_UNICODE);
                         exit;
                     }
-                    break;
-
-                    $cancelReason = trim($data['reason'] ?? '');
-                    db()->execute(
-                        "UPDATE orders SET cancel_requested = 1, cancel_reason = ? WHERE id = ?",
-                        [$cancelReason, $order['id']]
-                    );
-
-                    echo json_encode(['ok' => true, 'message' => '취소 요청이 접수되었습니다. 관리자 승인 후 취소됩니다.'], JSON_UNESCAPED_UNICODE);
                     break;
 
                 case 'confirm_payment':

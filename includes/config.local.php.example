@@ -1,0 +1,17 @@
+<?php
+/**
+ * 로컬 환경 설정 파일
+ * 
+ * 이 파일을 복사하여 config.local.php 파일을 만들고 실제 값을 입력하세요.
+ * cp config.local.php.example config.local.php
+ * 
+ * 이 파일은 .gitignore에 포함되어 있어 Git에 커밋되지 않습니다.
+ */
+
+// 카카오 소셜 로그인 설정
+define('KAKAO_CLIENT_ID', 'your_kakao_client_id_here');
+
+// 네이버 소셜 로그인 설정
+define('NAVER_CLIENT_ID', 'your_naver_client_id_here');
+define('NAVER_CLIENT_SECRET', 'your_naver_client_secret_here');
+

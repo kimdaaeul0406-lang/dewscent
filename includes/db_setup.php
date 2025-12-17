@@ -101,6 +101,16 @@ function ensure_tables_exist() {
             }
         }
         
+        // updated_at 컬럼이 없으면 추가
+        $columns = db()->fetchAll("SHOW COLUMNS FROM users LIKE 'updated_at'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
+            } catch (PDOException $e) {
+                // 컬럼이 이미 존재하거나 다른 오류 (무시)
+            }
+        }
+        
         // products 테이블
         $conn->exec("
             CREATE TABLE IF NOT EXISTS products (
@@ -232,6 +242,118 @@ function ensure_tables_exist() {
             } catch (PDOException $e) {
                 // 컬럼이 이미 존재하거나 다른 오류 (무시)
             }
+        }
+        
+        // payment_sessions 테이블 생성 (결제 임시 데이터 저장용)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS payment_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id VARCHAR(100) NOT NULL UNIQUE COMMENT '주문번호',
+                payment_key VARCHAR(255) NOT NULL COMMENT '토스페이먼츠 paymentKey',
+                amount INT NOT NULL COMMENT '결제 금액',
+                order_name VARCHAR(255) NOT NULL COMMENT '주문명',
+                customer_name VARCHAR(100) NOT NULL COMMENT '구매자 이름',
+                customer_email VARCHAR(255) NOT NULL COMMENT '구매자 이메일',
+                session_id VARCHAR(255) DEFAULT NULL COMMENT 'PHP 세션 ID',
+                user_id INT DEFAULT NULL COMMENT '사용자 ID (로그인한 경우)',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
+                expires_at TIMESTAMP NOT NULL COMMENT '만료 시간',
+                status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, completed, expired',
+                INDEX idx_order_id (order_id),
+                INDEX idx_session_id (session_id),
+                INDEX idx_expires_at (expires_at),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // payment_orders 테이블 생성 (임시 주문 저장용)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS payment_orders (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id VARCHAR(100) NOT NULL UNIQUE COMMENT '주문번호 (PK)',
+                order_name VARCHAR(255) NOT NULL COMMENT '주문명',
+                amount INT NOT NULL COMMENT '결제 금액',
+                customer_name VARCHAR(100) NOT NULL COMMENT '구매자 이름',
+                customer_email VARCHAR(255) NOT NULL COMMENT '구매자 이메일',
+                status VARCHAR(20) DEFAULT 'READY' COMMENT 'READY, DONE, FAIL',
+                payment_key VARCHAR(255) DEFAULT NULL COMMENT '토스페이먼츠 paymentKey',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
+                INDEX idx_order_id (order_id),
+                INDEX idx_status (status),
+                INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // coupons 테이블 생성 (쿠폰 정보)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS coupons (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(50) NOT NULL UNIQUE COMMENT '쿠폰 코드',
+                name VARCHAR(255) NOT NULL COMMENT '쿠폰명',
+                type VARCHAR(20) NOT NULL COMMENT 'percent 또는 fixed',
+                value INT NOT NULL COMMENT '할인율(%) 또는 할인금액(원)',
+                min_amount INT DEFAULT 0 COMMENT '최소 주문 금액',
+                max_discount INT DEFAULT 0 COMMENT '최대 할인 금액 (percent 타입일 때, 0이면 제한없음)',
+                start_date DATE DEFAULT NULL COMMENT '시작일',
+                end_date DATE DEFAULT NULL COMMENT '종료일',
+                usage_limit INT DEFAULT 0 COMMENT '사용 제한 횟수 (0이면 무제한)',
+                used_count INT DEFAULT 0 COMMENT '사용된 횟수',
+                active TINYINT(1) DEFAULT 1 COMMENT '활성화 여부',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_code (code),
+                INDEX idx_active (active),
+                INDEX idx_dates (start_date, end_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // user_coupons 테이블 생성 (사용자가 받은 쿠폰)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS user_coupons (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL COMMENT '사용자 ID',
+                coupon_id INT NOT NULL COMMENT '쿠폰 ID',
+                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '받은 시간',
+                used TINYINT(1) DEFAULT 0 COMMENT '사용 여부',
+                used_at TIMESTAMP NULL DEFAULT NULL COMMENT '사용한 시간',
+                order_id INT DEFAULT NULL COMMENT '사용한 주문 ID',
+                UNIQUE KEY unique_user_coupon (user_id, coupon_id),
+                INDEX idx_user_id (user_id),
+                INDEX idx_coupon_id (coupon_id),
+                INDEX idx_used (used),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // coupon_usages 테이블 생성 (쿠폰 사용 내역 - 중복 사용 방지)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS coupon_usages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL COMMENT '사용자 ID',
+                coupon_id INT NOT NULL COMMENT '쿠폰 ID',
+                order_id INT NOT NULL COMMENT '주문 ID',
+                order_number VARCHAR(50) NOT NULL COMMENT '주문번호',
+                discount_amount INT NOT NULL COMMENT '할인 금액',
+                used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_user_coupon (user_id, coupon_id),
+                INDEX idx_order_id (order_id),
+                INDEX idx_order_number (order_number),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // 기본 쿠폰 데이터 삽입 (없는 경우만)
+        $existingCoupon = db()->fetchOne("SELECT id FROM coupons WHERE code = 'WELCOME10'");
+        if (!$existingCoupon) {
+            $conn->exec("
+                INSERT INTO coupons (code, name, type, value, min_amount, max_discount, active, created_at)
+                VALUES ('WELCOME10', '신규 회원 10% 할인', 'percent', 10, 0, 10000, 1, NOW())
+            ");
         }
         
         return true;

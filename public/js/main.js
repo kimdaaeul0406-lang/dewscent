@@ -233,6 +233,10 @@ function saveReview(productId, reviewData) {
 }
 
 let cart = [];
+
+// 토스페이먼츠 결제위젯 인스턴스
+let paymentWidgets = null;
+let paymentWidgetInitialized = false;
 let currentProduct = null;
 let currentTestStep = 0;
 let testAnswers = [];
@@ -379,31 +383,92 @@ const isReload =
 // 인트로가 표시되는 동안 메인 스크롤 잠금
 // DOMContentLoaded 이벤트에서 실행하여 DOM이 완전히 로드된 후 실행
 function initIntro() {
+  // 주문 완료 후에는 인트로를 표시하지 않음
+  const urlParams = new URLSearchParams(window.location.search);
+  const orderId = urlParams.get("order");
+
+  if (orderId) {
+    // 주문 완료 페이지인 경우 인트로를 즉시 숨김
+    const introEl = document.getElementById("intro");
+    const mainEl = document.getElementById("main");
+
+    if (introEl) {
+      introEl.classList.add("hidden");
+    }
+    if (mainEl) {
+      mainEl.classList.add("visible");
+    }
+    document.body.style.overflow = "";
+    return;
+  }
+
   const introEl = document.getElementById("intro");
+  const mainEl = document.getElementById("main");
+
   if (introEl && !introEl.classList.contains("hidden")) {
     document.body.style.overflow = "hidden";
 
-    // 2.5초 후 인트로 숨기기
+    // 2.5초 후 인트로 자동으로 숨기기
     setTimeout(() => {
       hideIntro();
     }, 2500);
   } else if (!introEl) {
     // 인트로 요소가 없으면 메인을 바로 표시
-    const main = document.getElementById("main");
-    if (main) {
-      main.classList.add("visible");
+    if (mainEl) {
+      mainEl.classList.add("visible");
+      document.body.style.overflow = "";
+    }
+  } else {
+    // 인트로가 이미 숨겨져 있으면 메인 표시
+    if (mainEl) {
+      mainEl.classList.add("visible");
       document.body.style.overflow = "";
     }
   }
 }
 
 // DOM이 로드되면 인트로 초기화
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initIntro);
-} else {
-  // DOM이 이미 로드된 경우 즉시 실행
-  initIntro();
-}
+// 여러 방법으로 실행 보장하여 확실하게 실행되도록 함
+(function () {
+  function runInitIntro() {
+    try {
+      if (typeof initIntro === "function") {
+        initIntro();
+      } else {
+        console.error("initIntro 함수가 정의되지 않았습니다.");
+        // 함수가 없어도 메인은 표시
+        const main = document.getElementById("main");
+        const intro = document.getElementById("intro");
+        if (main) main.classList.add("visible");
+        if (intro) intro.classList.add("hidden");
+        document.body.style.overflow = "";
+      }
+    } catch (error) {
+      console.error("인트로 초기화 오류:", error);
+      // 에러가 발생해도 메인은 표시
+      const main = document.getElementById("main");
+      const intro = document.getElementById("intro");
+      if (main) main.classList.add("visible");
+      if (intro) intro.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+  }
+
+  // 즉시 실행 시도
+  if (document.readyState === "complete") {
+    runInitIntro();
+  } else if (document.readyState === "interactive") {
+    runInitIntro();
+  } else {
+    document.addEventListener("DOMContentLoaded", runInitIntro);
+  }
+
+  // 안전장치: window.onload에서도 실행
+  window.addEventListener("load", runInitIntro);
+
+  // 최종 안전장치: 약간의 지연 후에도 실행
+  setTimeout(runInitIntro, 100);
+})();
 
 // 웰컴 팝업 일주일간 안보기
 const WELCOME_HIDE_KEY = "dewscent_welcome_hidden";
@@ -1130,6 +1195,9 @@ function openModal(id) {
         loadMyCouponsForCheckout();
       }
     }, 100);
+
+    // 결제 방법에 따라 결제위젯 표시/숨김
+    handlePaymentMethodChange();
   }
 
   modal.classList.add("active");
@@ -1655,7 +1723,7 @@ function removeFromCart(index) {
 // 쿠폰 적용
 let appliedCoupon = null;
 
-function applyCouponCode() {
+async function applyCouponCode() {
   const codeInput = document.getElementById("couponCode");
   const code = codeInput?.value.trim().toUpperCase();
   if (!code) {
@@ -1664,7 +1732,7 @@ function applyCouponCode() {
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const result = API.validateCoupon(code, subtotal);
+  const result = await API.validateCoupon(code, subtotal);
 
   if (!result.valid) {
     alert(result.message);
@@ -1734,7 +1802,406 @@ function updateCheckoutSummary() {
   shippingEl.textContent =
     shipping === 0 ? "무료" : "₩" + shipping.toLocaleString();
   totalEl.textContent = "₩" + total.toLocaleString();
+
+  // 결제위젯 금액 업데이트
+  updatePaymentWidgetAmount(total);
+
+  // 결제 방법에 따라 결제위젯 표시/숨김
+  handlePaymentMethodChange();
 }
+
+// 결제위젯 초기화
+async function initializePaymentWidget(clientKey) {
+  if (paymentWidgetInitialized && paymentWidgets) {
+    return paymentWidgets;
+  }
+
+  // 토스페이먼츠 SDK 로드 대기 (최대 3초)
+  let retryCount = 0;
+  const maxRetries = 30; // 3초 (100ms * 30)
+
+  while (typeof TossPayments === "undefined" && retryCount < maxRetries) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    retryCount++;
+  }
+
+  // 토스페이먼츠 SDK 확인
+  if (typeof TossPayments === "undefined") {
+    console.error(
+      "[Payment Widget] ❌ 토스페이먼츠 v2 SDK가 로드되지 않았습니다."
+    );
+    console.error("[Payment Widget] 전역 객체 확인:", {
+      TossPayments: typeof TossPayments,
+      windowTossPayments: typeof window.TossPayments,
+      Payment: typeof Payment,
+      windowKeys: Object.keys(window).filter(
+        (k) =>
+          k.toLowerCase().includes("toss") ||
+          k.toLowerCase().includes("payment") ||
+          k.toLowerCase().includes("widget")
+      ),
+    });
+    return null;
+  }
+
+  // TossPayments가 함수인지 확인
+  if (typeof TossPayments !== "function") {
+    console.error(
+      "[Payment Widget] ❌ TossPayments가 함수가 아닙니다:",
+      typeof TossPayments,
+      TossPayments
+    );
+    return null;
+  }
+
+  console.log(
+    "[Payment Widget] ✅ TossPayments SDK 확인됨, 타입:",
+    typeof TossPayments
+  );
+
+  // TossPayments.ANONYMOUS 확인
+  if (typeof TossPayments.ANONYMOUS === "undefined") {
+    console.warn(
+      "[Payment Widget] ⚠️ TossPayments.ANONYMOUS가 정의되지 않았습니다."
+    );
+  }
+
+  try {
+    // 토스페이먼츠 초기화
+    console.log(
+      "[Payment Widget] TossPayments 초기화 시작, clientKey:",
+      clientKey ? clientKey.substring(0, 10) + "..." : "없음"
+    );
+    const tossPayments = TossPayments(clientKey);
+
+    // tossPayments 객체 확인
+    const tossPaymentsKeys = tossPayments ? Object.keys(tossPayments) : [];
+    console.log("[Payment Widget] TossPayments 객체:", {
+      type: typeof tossPayments,
+      hasWidgets: typeof tossPayments?.widgets === "function",
+      keys: tossPaymentsKeys,
+      hasBrandpay: typeof tossPayments?.brandpay === "function",
+      hasPayment: typeof tossPayments?.payment === "function",
+    });
+
+    if (!tossPayments) {
+      console.error("[Payment Widget] ❌ TossPayments 초기화 실패: null 반환");
+      return null;
+    }
+
+    if (typeof tossPayments.widgets !== "function") {
+      console.error(
+        "[Payment Widget] ❌ tossPayments.widgets가 함수가 아닙니다:",
+        {
+          widgetsType: typeof tossPayments.widgets,
+          tossPaymentsKeys: tossPaymentsKeys,
+          availableMethods: tossPaymentsKeys.filter(
+            (k) => typeof tossPayments[k] === "function"
+          ),
+          clientKeyPrefix: clientKey ? clientKey.substring(0, 8) : "없음",
+        }
+      );
+
+      // 클라이언트 키 타입 확인 및 안내
+      console.error(
+        "[Payment Widget] ⚠️ 중요: 결제위젯을 사용하려면 '결제위젯 연동 키(WidgetClientKey)'가 필요합니다."
+      );
+      console.error(
+        "[Payment Widget] ⚠️ 현재 사용 중인 키:",
+        clientKey ? clientKey.substring(0, 20) + "..." : "없음"
+      );
+      console.error(
+        "[Payment Widget] ⚠️ 토스페이먼츠 개발자센터 > API 키 메뉴에서 '결제위젯 연동 키'를 확인하세요."
+      );
+      console.error(
+        "[Payment Widget] ⚠️ 'API 개별 연동 키'를 사용하면 widgets 메서드가 없습니다."
+      );
+
+      // 사용 가능한 메서드 안내
+      const availableMethods = tossPaymentsKeys.filter(
+        (k) => typeof tossPayments[k] === "function"
+      );
+      if (availableMethods.length > 0) {
+        console.warn(
+          "[Payment Widget] ⚠️ 현재 키로 사용 가능한 메서드:",
+          availableMethods
+        );
+        if (availableMethods.includes("payment")) {
+          console.warn(
+            "[Payment Widget] 💡 'payment' 메서드가 있으므로 결제창 방식으로 변경할 수 있습니다."
+          );
+        }
+      }
+
+      // 사용 가능한 메서드가 있는지 확인
+      if (tossPaymentsKeys.length > 0) {
+        console.warn(
+          "[Payment Widget] ⚠️ 사용 가능한 메서드:",
+          tossPaymentsKeys.filter((k) => typeof tossPayments[k] === "function")
+        );
+      }
+
+      return null;
+    }
+
+    // 고객 키 생성 (로그인 사용자 이메일 또는 임시 ID)
+    const currentUser = getCurrentUser();
+    let customerKey;
+    if (currentUser && currentUser.email) {
+      // 로그인 사용자: 이메일을 기반으로 고객 키 생성 (안전하게 해시 처리하는 것을 권장)
+      customerKey = `customer_${currentUser.email.replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      )}`;
+    } else {
+      // 비회원: 익명 고객 키 사용
+      if (typeof TossPayments.ANONYMOUS === "undefined") {
+        console.error(
+          "[Payment Widget] ❌ TossPayments.ANONYMOUS가 정의되지 않았습니다"
+        );
+        // UUID 생성 (간단한 방법)
+        customerKey =
+          "anonymous_" +
+          Math.random().toString(36).substring(2, 15) +
+          Math.random().toString(36).substring(2, 15);
+      } else {
+        customerKey = TossPayments.ANONYMOUS;
+      }
+    }
+
+    console.log("[Payment Widget] customerKey:", customerKey);
+
+    // 결제위젯 인스턴스 생성
+    console.log("[Payment Widget] widgets() 호출 시작...");
+    paymentWidgets = tossPayments.widgets({
+      customerKey: customerKey,
+    });
+
+    if (!paymentWidgets) {
+      console.error("[Payment Widget] ❌ widgets() 호출 결과가 null입니다");
+      return null;
+    }
+
+    console.log("[Payment Widget] ✅ widgets() 호출 성공");
+
+    paymentWidgetInitialized = true;
+    console.log("[Payment Widget] ✅ 결제위젯 초기화 완료");
+    return paymentWidgets;
+  } catch (error) {
+    console.error("[Payment Widget] ❌ 결제위젯 초기화 실패:", error);
+    console.error("[Payment Widget] 에러 상세:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    return null;
+  }
+}
+
+// 결제위젯 금액 업데이트
+async function updatePaymentWidgetAmount(amount) {
+  if (!paymentWidgets || !paymentWidgetInitialized) {
+    return;
+  }
+
+  try {
+    await paymentWidgets.setAmount({
+      currency: "KRW",
+      value: amount,
+    });
+  } catch (error) {
+    console.error("결제위젯 금액 업데이트 실패:", error);
+  }
+}
+
+// 결제위젯 렌더링
+async function renderPaymentWidget(clientKey) {
+  console.log(
+    "[Payment Widget] 렌더링 시작, clientKey:",
+    clientKey ? clientKey.substring(0, 10) + "..." : "없음"
+  );
+
+  // 모달이 열려있는지 확인
+  const checkoutModal = document.getElementById("checkoutModal");
+  if (!checkoutModal || !checkoutModal.classList.contains("active")) {
+    console.error("[Payment Widget] ❌ checkoutModal이 열려있지 않습니다.");
+    return null;
+  }
+
+  // DOM 요소 찾기 (최대 3번 재시도)
+  let widgetContainer = document.getElementById("tossPaymentWidget");
+  let paymentMethodWidget = document.getElementById("payment-method-widget");
+  let agreementWidget = document.getElementById("agreement-widget");
+
+  // DOM 요소를 찾지 못하면 잠시 기다린 후 재시도
+  if (!widgetContainer || !paymentMethodWidget || !agreementWidget) {
+    console.log("[Payment Widget] DOM 요소를 찾지 못함, 재시도 중...");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    widgetContainer = document.getElementById("tossPaymentWidget");
+    paymentMethodWidget = document.getElementById("payment-method-widget");
+    agreementWidget = document.getElementById("agreement-widget");
+  }
+
+  console.log("[Payment Widget] DOM 요소 확인:", {
+    widgetContainer: !!widgetContainer,
+    paymentMethodWidget: !!paymentMethodWidget,
+    agreementWidget: !!agreementWidget,
+    modalActive: checkoutModal.classList.contains("active"),
+  });
+
+  if (!widgetContainer || !paymentMethodWidget || !agreementWidget) {
+    console.error("[Payment Widget] ❌ 결제위젯 컨테이너를 찾을 수 없습니다.", {
+      widgetContainer: !!widgetContainer,
+      paymentMethodWidget: !!paymentMethodWidget,
+      agreementWidget: !!agreementWidget,
+      modalActive: checkoutModal
+        ? checkoutModal.classList.contains("active")
+        : false,
+    });
+    return null;
+  }
+
+  try {
+    // 결제위젯 초기화
+    console.log("[Payment Widget] 초기화 시작...");
+    const widgets = await initializePaymentWidget(clientKey);
+    if (!widgets) {
+      console.error("[Payment Widget] ❌ 결제위젯 초기화에 실패했습니다.");
+      return null;
+    }
+    console.log("[Payment Widget] ✅ 초기화 성공");
+
+    // 결제 금액 계산
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+    const discount = appliedCoupon
+      ? API.applyCoupon(appliedCoupon, subtotal)
+      : 0;
+    const shipping = subtotal >= 50000 ? 0 : 3000;
+    const total = Math.max(0, subtotal - discount + shipping);
+
+    console.log("[Payment Widget] 결제 금액 설정:", {
+      subtotal,
+      discount,
+      shipping,
+      total,
+    });
+
+    // 결제 금액 설정
+    try {
+      await widgets.setAmount({
+        currency: "KRW",
+        value: total,
+      });
+      console.log("[Payment Widget] ✅ 금액 설정 완료");
+    } catch (error) {
+      console.error("[Payment Widget] ❌ 금액 설정 실패:", error);
+      throw error;
+    }
+
+    // 기존 위젯이 있으면 제거 (재렌더링을 위해)
+    // paymentMethodWidget과 agreementWidget의 내용을 비움
+    paymentMethodWidget.innerHTML = "";
+    agreementWidget.innerHTML = "";
+
+    // 결제 UI와 약관 UI 렌더링
+    console.log("[Payment Widget] UI 렌더링 시작...");
+    try {
+      await Promise.all([
+        widgets.renderPaymentMethods({
+          selector: "#payment-method-widget",
+          variantKey: "DEFAULT",
+        }),
+        widgets.renderAgreement({
+          selector: "#agreement-widget",
+          variantKey: "AGREEMENT",
+        }),
+      ]);
+      console.log("[Payment Widget] ✅ UI 렌더링 완료");
+    } catch (error) {
+      console.error("[Payment Widget] ❌ UI 렌더링 실패:", error);
+      throw error;
+    }
+
+    // 전역 변수 업데이트 (중요!)
+    paymentWidgets = widgets;
+    paymentWidgetInitialized = true;
+
+    console.log("[Payment Widget] ✅ 렌더링 완료, 전역 변수 업데이트됨");
+    return widgets;
+  } catch (error) {
+    console.error("[Payment Widget] ❌ 렌더링 실패:", error);
+    console.error("[Payment Widget] 에러 상세:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    // 에러 발생 시 사용자에게 알림
+    const paymentMethodWidget = document.getElementById(
+      "payment-method-widget"
+    );
+    if (paymentMethodWidget) {
+      paymentMethodWidget.innerHTML =
+        '<p style="color:var(--rose);font-size:0.9rem;text-align:center;padding:1rem;">결제위젯을 불러올 수 없습니다. 페이지를 새로고침해주세요.</p>';
+    }
+    // 초기화 실패 시 전역 변수 초기화
+    paymentWidgets = null;
+    paymentWidgetInitialized = false;
+    return null;
+  }
+}
+
+// 결제 방법 변경 처리
+function handlePaymentMethodChange() {
+  const paymentMethod =
+    document.querySelector('#checkoutModal input[name="payment"]:checked')
+      ?.value || "bank";
+  const widgetContainer = document.getElementById("tossPaymentWidget");
+  const bankInfo = document.getElementById("bankInfo");
+
+  if (paymentMethod === "card") {
+    // 카드 결제 선택 시 결제위젯 표시
+    if (widgetContainer) {
+      widgetContainer.style.display = "block";
+    }
+    if (bankInfo) {
+      bankInfo.style.display = "none";
+    }
+
+    // 결제위젯이 아직 렌더링되지 않았으면 placeholder 메시지 표시
+    if (!paymentWidgetInitialized) {
+      const paymentMethodWidget = document.getElementById(
+        "payment-method-widget"
+      );
+      const agreementWidget = document.getElementById("agreement-widget");
+      if (paymentMethodWidget && paymentMethodWidget.innerHTML.trim() === "") {
+        paymentMethodWidget.innerHTML =
+          '<p style="color:var(--light);font-size:0.9rem;text-align:center;padding:1rem;">주문 완료 버튼을 클릭하면 결제수단을 선택할 수 있습니다.</p>';
+      }
+    }
+  } else {
+    // 무통장 입금 선택 시 결제위젯 숨김
+    if (widgetContainer) {
+      widgetContainer.style.display = "none";
+    }
+    if (bankInfo) {
+      bankInfo.style.display = "block";
+    }
+  }
+}
+
+// 결제 방법 변경 이벤트 리스너 추가
+document.addEventListener("DOMContentLoaded", () => {
+  // 결제 방법 라디오 버튼 변경 감지
+  const paymentRadios = document.querySelectorAll(
+    '#checkoutModal input[name="payment"]'
+  );
+  paymentRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      handlePaymentMethodChange();
+    });
+  });
+});
 
 async function completeOrder() {
   // 주문 정보 수집
@@ -1775,28 +2242,7 @@ async function completeOrder() {
   const shipping = subtotal >= 50000 ? 0 : 3000;
   const total = Math.max(0, subtotal - discount + shipping);
 
-  // 쿠폰 사용 횟수 증가 및 사용자 쿠폰 사용 처리
-  if (appliedCoupon) {
-    const coupons = API.getCoupons();
-    const couponIndex = coupons.findIndex((c) => c.id === appliedCoupon.id);
-    if (couponIndex !== -1) {
-      coupons[couponIndex].usedCount =
-        (coupons[couponIndex].usedCount || 0) + 1;
-      API.setCoupons(coupons);
-    }
-
-    // 사용자 쿠폰 사용 처리
-    const userCoupons = getUserCoupons();
-    const userCouponIndex = userCoupons.findIndex(
-      (uc) => uc.couponId === appliedCoupon.id
-    );
-    if (userCouponIndex !== -1) {
-      userCoupons[userCouponIndex].used = true;
-      setUserCoupons(userCoupons);
-    }
-  }
-
-  // 주문 정보 저장
+  // 주문 정보 객체 생성 (카드 결제와 무통장 입금 모두에서 사용)
   const order = {
     id: orderId,
     items: cart.map((item) => ({
@@ -1821,7 +2267,7 @@ async function completeOrder() {
       shipping: shipping,
       total: total,
     },
-    status: "결제대기",
+    status: paymentMethod === "card" ? "결제대기" : "결제대기",
     orderedAt: now.toISOString().split("T")[0],
     createdAt: now.toISOString(),
     tracking: {
@@ -1837,6 +2283,359 @@ async function completeOrder() {
       ],
     },
   };
+
+  // 카드 결제인 경우 토스페이먼츠 결제위젯 사용
+  if (paymentMethod === "card") {
+    try {
+      // 사용자 이메일 가져오기
+      const currentUser = getCurrentUser();
+      const customerEmail =
+        currentUser?.email || `${name.replace(/\s+/g, "")}@dewscent.local`;
+
+      // 주문명 생성 (상품명들 조합)
+      const orderName =
+        cart.length === 1
+          ? cart[0].name
+          : `${cart[0].name} 외 ${cart.length - 1}건`;
+
+      // 토스페이먼츠 v2 SDK 확인
+      if (typeof TossPayments === "undefined") {
+        console.error(
+          "[Payment] ❌ 토스페이먼츠 v2 SDK가 로드되지 않았습니다."
+        );
+        console.error("[Payment] 전역 객체 확인:", {
+          TossPayments: typeof TossPayments,
+          windowTossPayments: typeof window.TossPayments,
+          Payment: typeof Payment,
+        });
+        alert(
+          "토스페이먼츠 SDK가 로드되지 않았습니다.\n페이지를 새로고침해주세요."
+        );
+        return;
+      }
+
+      // TossPayments가 함수인지 확인
+      if (typeof TossPayments !== "function") {
+        console.error(
+          "[Payment] ❌ TossPayments가 함수가 아닙니다:",
+          typeof TossPayments
+        );
+        alert(
+          "토스페이먼츠 SDK가 올바르게 로드되지 않았습니다.\n페이지를 새로고침해주세요."
+        );
+        return;
+      }
+
+      console.log("[Payment] ✅ TossPayments SDK 확인됨");
+
+      // 클라이언트 키 가져오기
+      console.log("[Payment] 클라이언트 키 요청 중...");
+      const keyResponse = await fetch(apiUrl("/api/payments/client-key.php"), {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const keyData = await keyResponse.json();
+
+      if (!keyResponse.ok || !keyData.success || !keyData.clientKey) {
+        console.error("[Payment] 클라이언트 키 가져오기 실패:", keyData);
+        alert("결제 설정 오류가 발생했습니다. 관리자에게 문의해주세요.");
+        return;
+      }
+
+      const clientKey = keyData.clientKey;
+      const keyType = keyData.keyType || "unknown";
+      console.log(
+        "[Payment] ✅ 클라이언트 키 가져오기 성공, 키 타입:",
+        keyType
+      );
+
+      // 결제 정보를 세션에 임시 저장 (결제 성공 후 주문 저장용)
+      sessionStorage.setItem(
+        "pending_order",
+        JSON.stringify({
+          orderId: orderId,
+          order: order,
+          total: total,
+        })
+      );
+
+      // 성공/실패 URL 생성
+      const baseUrl = window.location.origin;
+      // 결제 완료 후 주문 완료 페이지로 이동 (order 파라미터 포함)
+      const scriptPath = window.location.pathname;
+      const basePath = scriptPath.substring(0, scriptPath.lastIndexOf("/"));
+      const successUrl = `${baseUrl}${basePath}/index.php?order=${encodeURIComponent(
+        orderId
+      )}`;
+      const failUrl = `${baseUrl}${basePath}/payment_fail.php`;
+
+      // v1 Payment SDK 확인 (우선 시도)
+      if (typeof Payment !== "undefined") {
+        console.log("[Payment] v1 Payment SDK 사용 시도");
+        try {
+          const payment = Payment(clientKey);
+          if (payment && typeof payment.requestPayment === "function") {
+            // v1 Payment 객체의 requestPayment 사용 (ready.php 호출 불필요)
+            console.log("[Payment] v1 Payment.requestPayment 호출...");
+            await payment.requestPayment("카드", {
+              amount: total,
+              orderId: orderId,
+              orderName: orderName,
+              customerName: name,
+              customerEmail: customerEmail,
+              successUrl: successUrl,
+              failUrl: failUrl,
+            });
+
+            console.log("[Payment] ✅ 결제 요청 완료 (v1 방식)");
+            return;
+          }
+        } catch (v1Error) {
+          console.error("[Payment] v1 Payment 사용 실패:", v1Error);
+          // v1이 실패하면 v2 시도
+        }
+      }
+
+      // v2 TossPayments SDK 사용
+      const tossPayments = TossPayments(clientKey);
+
+      // widgets 메서드가 있는지 확인 (결제위젯 연동 키인지 확인)
+      if (typeof tossPayments.widgets === "function") {
+        // 결제위젯 방식 사용
+        console.log("[Payment] ✅ 결제위젯 방식 사용 가능");
+
+        // 결제위젯 초기화 및 렌더링
+        if (paymentWidgetInitialized && paymentWidgets) {
+          try {
+            await updatePaymentWidgetAmount(total);
+          } catch (error) {
+            console.error("결제위젯 금액 업데이트 실패, 재초기화 시도:", error);
+            paymentWidgets = null;
+            paymentWidgetInitialized = false;
+            const widgets = await renderPaymentWidget(clientKey);
+            if (!widgets) {
+              console.error("결제위젯 재초기화 실패");
+              alert(
+                "결제 시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요."
+              );
+              return;
+            }
+          }
+        } else {
+          console.log("[Payment] 결제위젯 처음 초기화 시작...");
+          const checkoutModal = document.getElementById("checkoutModal");
+          if (!checkoutModal || !checkoutModal.classList.contains("active")) {
+            console.error("[Payment] ❌ checkoutModal이 열려있지 않습니다.");
+            alert("주문서 모달이 열려있지 않습니다. 다시 시도해주세요.");
+            return;
+          }
+
+          const widgets = await renderPaymentWidget(clientKey);
+          if (!widgets) {
+            console.error("[Payment] ❌ 결제위젯 렌더링 실패");
+            alert(
+              "결제 시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요."
+            );
+            return;
+          }
+        }
+
+        if (!paymentWidgets || !paymentWidgetInitialized) {
+          console.error("[Payment] ❌ 결제위젯 초기화 상태 불일치");
+          alert(
+            "결제 시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요."
+          );
+          return;
+        }
+
+        console.log("[Payment] ✅ 결제위젯 초기화 완료, 결제 요청 준비됨");
+
+        // 결제위젯을 사용한 결제 요청
+        try {
+          await paymentWidgets.requestPayment({
+            orderId: orderId,
+            orderName: orderName,
+            successUrl: successUrl,
+            failUrl: failUrl,
+            customerEmail: customerEmail,
+            customerName: name,
+            customerMobilePhone: phone.replace(/-/g, ""),
+          });
+
+          console.log("토스페이먼츠 결제위젯 결제 요청 완료");
+          return;
+        } catch (paymentError) {
+          console.error("토스페이먼츠 결제위젯 오류:", paymentError);
+          alert(
+            "결제창을 열 수 없습니다: " +
+              (paymentError.message || "알 수 없는 오류")
+          );
+          return;
+        }
+      } else if (typeof tossPayments.payment === "function") {
+        // 결제창 방식 사용 (API 개별 연동 키인 경우)
+        console.log(
+          "[Payment] ⚠️ 결제위젯 연동 키가 없어 결제창 방식으로 진행합니다"
+        );
+
+        // 고객 키 생성
+        const currentUser = getCurrentUser();
+        let customerKey;
+        if (currentUser && currentUser.email) {
+          customerKey = `customer_${currentUser.email.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          )}`;
+        } else {
+          customerKey =
+            TossPayments.ANONYMOUS ||
+            `anonymous_${Math.random().toString(36).substring(2, 15)}`;
+        }
+
+        const payment = tossPayments.payment({ customerKey });
+
+        console.log("[Payment] ✅ 결제창 방식 초기화 완료");
+
+        // 결제창을 사용한 결제 요청
+        try {
+          await payment.requestPayment({
+            method: "CARD",
+            amount: {
+              currency: "KRW",
+              value: total,
+            },
+            orderId: orderId,
+            orderName: orderName,
+            successUrl: successUrl,
+            failUrl: failUrl,
+            customerEmail: customerEmail,
+            customerName: name,
+            customerMobilePhone: phone.replace(/-/g, ""),
+          });
+
+          console.log("토스페이먼츠 결제창 결제 요청 완료");
+          return;
+        } catch (paymentError) {
+          console.error("토스페이먼츠 결제창 오류:", paymentError);
+          alert(
+            "결제창을 열 수 없습니다: " +
+              (paymentError.message || "알 수 없는 오류")
+          );
+          return;
+        }
+      } else if (typeof tossPayments.requestPayment === "function") {
+        // requestPayment 메서드가 직접 있는 경우
+        // v2 SDK에서는 ready.php를 호출할 필요가 없습니다
+        console.log("[Payment] ⚠️ requestPayment 메서드를 직접 사용합니다");
+        console.log(
+          "[Payment] 사용 가능한 메서드:",
+          Object.keys(tossPayments).filter(
+            (k) => typeof tossPayments[k] === "function"
+          )
+        );
+
+        // orderId는 클라이언트에서 생성 (v2 SDK 방식)
+        // 이미 completeOrder 함수 시작 부분에서 orderId가 생성되어 있음
+
+        // tossPayments.requestPayment 직접 호출 시도
+        try {
+          // v2 SDK 형식 우선 시도: requestPayment({ method: 'CARD', ... })
+          console.log("[Payment] v2 형식으로 requestPayment 호출 시도...");
+          await tossPayments.requestPayment({
+            method: "CARD",
+            amount: {
+              currency: "KRW",
+              value: total,
+            },
+            orderId: orderId,
+            orderName: orderName,
+            successUrl: successUrl,
+            failUrl: failUrl,
+            customerEmail: customerEmail,
+            customerName: name,
+            customerMobilePhone: phone.replace(/-/g, ""),
+          });
+
+          console.log("[Payment] ✅ 결제 요청 완료 (v2 형식)");
+          return;
+        } catch (v2Error) {
+          console.error("[Payment] v2 형식 호출 실패:", v2Error);
+          console.log("[Payment] v1 형식으로 재시도...");
+
+          // v1 SDK 형식 시도: requestPayment('카드', params)
+          try {
+            await tossPayments.requestPayment("카드", {
+              amount: total,
+              orderId: orderId,
+              orderName: orderName,
+              customerName: name,
+              customerEmail: customerEmail,
+              successUrl: successUrl,
+              failUrl: failUrl,
+            });
+
+            console.log("[Payment] ✅ 결제 요청 완료 (v1 형식)");
+            return;
+          } catch (v1Error) {
+            console.error("[Payment] v1 형식 호출도 실패:", v1Error);
+            alert(
+              "결제창을 열 수 없습니다: " +
+                (v1Error.message || v2Error.message || "알 수 없는 오류")
+            );
+            return;
+          }
+        }
+      } else {
+        // 둘 다 없는 경우
+        console.error(
+          "[Payment] ❌ widgets, payment, requestPayment 메서드가 모두 없습니다"
+        );
+        console.error(
+          "[Payment] 사용 가능한 메서드:",
+          Object.keys(tossPayments).filter(
+            (k) => typeof tossPayments[k] === "function"
+          )
+        );
+        alert(
+          "결제 시스템을 사용할 수 없습니다.\n\n" +
+            "토스페이먼츠 개발자센터에서 올바른 클라이언트 키를 확인해주세요.\n" +
+            "- 결제위젯: 결제위젯 연동 키 필요\n" +
+            "- 결제창: API 개별 연동 키 필요"
+        );
+        return;
+      }
+    } catch (error) {
+      console.error("토스페이먼츠 결제 오류:", error);
+      alert(error.message || "결제 처리 중 오류가 발생했습니다.");
+      return;
+    }
+  }
+
+  // 무통장 입금인 경우 기존 플로우 계속 진행
+  // 쿠폰 사용 처리 (DB에 저장)
+  if (appliedCoupon) {
+    try {
+      const discount = API.applyCoupon(appliedCoupon, subtotal);
+      await fetch(apiUrl("/api/coupons.php?action=use"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          couponId: appliedCoupon.id,
+          orderId: result.ok ? result.orderId : null,
+          orderNumber: orderId,
+          discountAmount: discount,
+        }),
+      });
+
+      // 캐시 초기화
+      clearUserCouponsCache();
+    } catch (error) {
+      console.error("쿠폰 사용 처리 실패:", error);
+      // 쿠폰 사용 실패해도 주문은 계속 진행
+    }
+  }
 
   // DB에 주문 저장
   try {
@@ -1974,7 +2773,7 @@ async function showOrderDetail(orderId) {
   let order = null;
   try {
     const orders = await API.getOrders({});
-    order = orders.find(o => o.id === orderId);
+    order = orders.find((o) => o.id === orderId);
   } catch (err) {
     console.error("주문 정보 로드 오류:", err);
   }
@@ -2004,7 +2803,11 @@ async function showOrderDetail(orderId) {
   const body = document.getElementById("orderDetailBody");
   if (!subtitle || !body) {
     alert(
-      `주문번호: ${orderId}\n총 결제금액: ₩${(order.payment?.total || order.total || 0).toLocaleString()}`
+      `주문번호: ${orderId}\n총 결제금액: ₩${(
+        order.payment?.total ||
+        order.total ||
+        0
+      ).toLocaleString()}`
     );
     return;
   }
@@ -2032,9 +2835,15 @@ async function showOrderDetail(orderId) {
     <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
       <p style="font-weight:600;color:var(--sage);margin-bottom:.5rem;">주문 상태</p>
       <p style="font-size:1.1rem;color:var(--mid);"><span class="status-badge ${
-        order.status === "결제완료" || order.status === "paid" || order.status === "배송완료" || order.status === "delivered"
+        order.status === "결제완료" ||
+        order.status === "paid" ||
+        order.status === "배송완료" ||
+        order.status === "delivered"
           ? "answered"
-          : order.status === "배송준비중" || order.status === "preparing" || order.status === "배송중" || order.status === "shipping"
+          : order.status === "배송준비중" ||
+            order.status === "preparing" ||
+            order.status === "배송중" ||
+            order.status === "shipping"
           ? "answered"
           : order.status === "취소" || order.status === "cancelled"
           ? "waiting"
@@ -2050,9 +2859,11 @@ async function showOrderDetail(orderId) {
     <div class="checkout-section" style="margin-bottom:1.5rem;">
       <p class="checkout-section-title">주문 상품</p>
       <div style="display:flex;flex-direction:column;gap:.75rem;">
-        ${orderItems.length > 0 ? orderItems
-          .map(
-            (item) => `
+        ${
+          orderItems.length > 0
+            ? orderItems
+                .map(
+                  (item) => `
           <div style="display:flex;gap:1rem;padding:.75rem;background:var(--sage-bg);border-radius:8px;">
             <div style="width:80px;height:80px;background:${
               item.imageUrl || item.image
@@ -2060,7 +2871,9 @@ async function showOrderDetail(orderId) {
                 : "linear-gradient(135deg,var(--sage-lighter),var(--sage))"
             };background-size:cover;background-position:center;border-radius:8px;flex-shrink:0;"></div>
             <div style="flex:1;">
-              <p style="font-weight:500;margin-bottom:.25rem;">${item.name || item.product_name || ""}</p>
+              <p style="font-weight:500;margin-bottom:.25rem;">${
+                item.name || item.product_name || ""
+              }</p>
               <p style="font-size:.85rem;color:var(--light);margin-bottom:.25rem;">${
                 item.size || ""
               } ${item.type || ""}</p>
@@ -2073,8 +2886,10 @@ async function showOrderDetail(orderId) {
             </div>
           </div>
         `
-          )
-          .join("") : '<p style="text-align:center;color:var(--light);padding:1rem;">주문 상품 정보를 불러올 수 없습니다.</p>'}
+                )
+                .join("")
+            : '<p style="text-align:center;color:var(--light);padding:1rem;">주문 상품 정보를 불러올 수 없습니다.</p>'
+        }
       </div>
     </div>
     
@@ -2082,12 +2897,23 @@ async function showOrderDetail(orderId) {
       <p class="checkout-section-title">배송 정보</p>
       <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;">
         <p style="margin-bottom:.5rem;"><strong>받으시는 분:</strong> ${
-          order.customer?.name || order.customer_name || order.shipping_name || ""
+          order.customer?.name ||
+          order.customer_name ||
+          order.shipping_name ||
+          ""
         }</p>
         <p style="margin-bottom:.5rem;"><strong>연락처:</strong> ${
-          order.customer?.phone || order.customer_phone || order.shipping_phone || ""
+          order.customer?.phone ||
+          order.customer_phone ||
+          order.shipping_phone ||
+          ""
         }</p>
-        <p><strong>주소:</strong> ${order.customer?.address || order.customer_address || order.shipping_address || ""}</p>
+        <p><strong>주소:</strong> ${
+          order.customer?.address ||
+          order.customer_address ||
+          order.shipping_address ||
+          ""
+        }</p>
       </div>
     </div>
     
@@ -2095,7 +2921,10 @@ async function showOrderDetail(orderId) {
       <p class="checkout-section-title">결제 정보</p>
       <div class="cart-row">
         <span>상품 금액</span>
-        <span>₩${((order.payment?.subtotal || order.total || 0) - (order.payment?.shipping || 3000)).toLocaleString()}</span>
+        <span>₩${(
+          (order.payment?.subtotal || order.total || 0) -
+          (order.payment?.shipping || 3000)
+        ).toLocaleString()}</span>
       </div>
       <div class="cart-row">
         <span>배송비</span>
@@ -2107,7 +2936,11 @@ async function showOrderDetail(orderId) {
       </div>
       <div class="cart-row total">
         <span>총 결제금액</span>
-        <span>₩${(order.payment?.total || order.total || 0).toLocaleString()}</span>
+        <span>₩${(
+          order.payment?.total ||
+          order.total ||
+          0
+        ).toLocaleString()}</span>
       </div>
       <p style="font-size:.85rem;color:var(--light);margin-top:.5rem;">결제 방법: ${
         order.payment?.method === "bank" ? "무통장 입금" : "카드 결제"
@@ -2197,17 +3030,24 @@ async function showOrderDetail(orderId) {
     <div style="display:flex;gap:.75rem;">
       <button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderDetailModal')">닫기</button>
       ${
-        (order.status === "결제대기" || order.status === "pending") && !(order.cancelRequested === true || order.cancelRequested === 1)
+        (order.status === "결제대기" || order.status === "pending") &&
+        !(order.cancelRequested === true || order.cancelRequested === 1)
           ? `<button class="form-btn secondary" style="flex:1;" onclick="cancelOrder('${orderId}')">주문 취소</button>`
           : ""
       }
       ${
-        (order.status === "결제완료" || order.status === "paid" || order.status === "배송준비중" || order.status === "preparing") && !(order.cancelRequested === true || order.cancelRequested === 1)
+        (order.status === "결제완료" ||
+          order.status === "paid" ||
+          order.status === "배송준비중" ||
+          order.status === "preparing") &&
+        !(order.cancelRequested === true || order.cancelRequested === 1)
           ? `<button class="form-btn secondary" style="flex:1;" onclick="cancelOrder('${orderId}')">주문 취소 요청</button>`
           : ""
       }
       ${
-        (order.cancelRequested === true || order.cancelRequested === 1) && order.status !== "취소" && order.status !== "cancelled"
+        (order.cancelRequested === true || order.cancelRequested === 1) &&
+        order.status !== "취소" &&
+        order.status !== "cancelled"
           ? `<div style="padding:0.75rem;background:var(--rose-bg);border-radius:8px;text-align:center;color:var(--rose);font-size:0.9rem;">⚠ 취소 요청 중입니다. 관리자 승인을 기다리고 있습니다.</div>`
           : ""
       }
@@ -2247,24 +3087,30 @@ async function cancelOrder(orderId) {
   let order = null;
   try {
     const orders = await API.getOrders({});
-    order = orders.find(o => o.id === orderId);
+    order = orders.find((o) => o.id === orderId);
   } catch (err) {
     console.error("주문 정보 로드 오류:", err);
   }
 
-  const isPending = order && (order.status === "결제대기" || order.status === "pending");
-  const confirmMsg = isPending 
+  const isPending =
+    order && (order.status === "결제대기" || order.status === "pending");
+  const confirmMsg = isPending
     ? "정말 주문을 취소하시겠습니까?\n취소 후 복구할 수 없습니다."
     : "정말 주문 취소를 요청하시겠습니까?\n관리자 승인 후 취소됩니다.";
-  
+
   if (!confirm(confirmMsg)) return;
 
   const reason = prompt("취소 사유를 입력해주세요 (선택사항):");
-  
+
   try {
-    const result = await API.requestOrderCancel(orderId, reason || '');
+    const result = await API.requestOrderCancel(orderId, reason || "");
     if (result.ok) {
-      alert(result.message || (isPending ? "주문이 취소되었습니다." : "취소 요청이 접수되었습니다. 관리자 승인 후 처리됩니다."));
+      alert(
+        result.message ||
+          (isPending
+            ? "주문이 취소되었습니다."
+            : "취소 요청이 접수되었습니다. 관리자 승인 후 처리됩니다.")
+      );
       closeModal("orderDetailModal");
       // 주문 목록 새로고침 (DB에서 최신 상태 가져오기)
       mypageCurrentTab = "orders";
@@ -2276,24 +3122,147 @@ async function cancelOrder(orderId) {
     console.error("주문 취소 요청 오류:", error);
     let errorMsg = error.message || "알 수 없는 오류";
     // JSON 파싱 오류인 경우 더 명확한 메시지 표시
-    if (errorMsg.includes("Unexpected token") || errorMsg.includes("not valid JSON")) {
+    if (
+      errorMsg.includes("Unexpected token") ||
+      errorMsg.includes("not valid JSON")
+    ) {
       errorMsg = "서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
     }
     alert("취소 요청 중 오류가 발생했습니다: " + errorMsg);
   }
 }
 
+// 페이지 로드 시 주문 완료 모달 표시 및 주문 저장
+document.addEventListener("DOMContentLoaded", function () {
+  const urlParams = new URLSearchParams(window.location.search);
+  const orderId = urlParams.get("order");
+  const paymentKey = urlParams.get("paymentKey");
+  const amount = urlParams.get("amount");
+
+  if (orderId) {
+    // sessionStorage에서 주문 정보 가져오기
+    const pendingOrderData = sessionStorage.getItem("pending_order");
+
+    if (pendingOrderData) {
+      try {
+        const data = JSON.parse(pendingOrderData);
+        const order = data.order;
+
+        if (order) {
+          // 주문 정보를 서버에 저장
+          fetch(apiUrl("/api/orders.php"), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              orderNumber: order.id,
+              items: order.items,
+              customer: order.customer,
+              payment: {
+                ...order.payment,
+                method: "card", // 카드 결제
+              },
+              total: order.payment.total,
+            }),
+          })
+            .then((response) => response.json())
+            .then((result) => {
+              if (result.ok) {
+                console.log("[Order] ✅ 주문이 DB에 저장되었습니다:", result);
+                // sessionStorage에서 제거
+                sessionStorage.removeItem("pending_order");
+
+                // 주문 정보 가져오기
+                return fetch(
+                  apiUrl(
+                    `/api/orders.php?orderNumber=${encodeURIComponent(orderId)}`
+                  ),
+                  {
+                    credentials: "include",
+                  }
+                );
+              } else {
+                console.error("[Order] 주문 저장 실패:", result.message);
+                throw new Error(result.message || "주문 저장 실패");
+              }
+            })
+            .then((response) => response.json())
+            .then((orders) => {
+              if (orders && orders.length > 0) {
+                const savedOrder = orders[0];
+                // 주문 완료 모달 표시
+                showOrderCompleteModal(savedOrder);
+                // URL에서 파라미터 제거
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, "", newUrl);
+              } else {
+                console.log("[Order] 주문 정보를 찾을 수 없습니다:", orderId);
+              }
+            })
+            .catch((error) => {
+              console.error("[Order] 주문 처리 오류:", error);
+              // 오류가 발생해도 주문 완료 모달은 표시
+              if (order) {
+                showOrderCompleteModal(order);
+              }
+            });
+        } else {
+          console.error("[Order] sessionStorage에 주문 정보가 없습니다");
+        }
+      } catch (error) {
+        console.error("[Order] sessionStorage 파싱 오류:", error);
+      }
+    } else {
+      // sessionStorage에 주문 정보가 없으면 DB에서 조회
+      fetch(
+        apiUrl(`/api/orders.php?orderNumber=${encodeURIComponent(orderId)}`),
+        {
+          credentials: "include",
+        }
+      )
+        .then((response) => response.json())
+        .then((orders) => {
+          if (orders && orders.length > 0) {
+            const order = orders[0];
+            // 주문 완료 모달 표시
+            showOrderCompleteModal(order);
+            // URL에서 파라미터 제거
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, "", newUrl);
+          } else {
+            console.log("[Order] 주문 정보를 찾을 수 없습니다:", orderId);
+          }
+        })
+        .catch((error) => {
+          console.error("주문 정보 가져오기 실패:", error);
+        });
+    }
+  }
+});
+
 // 주문 완료 모달 표시
 function showOrderCompleteModal(order) {
   const body = document.getElementById("orderCompleteBody");
   if (!body) {
     // 모달이 없으면 alert로 표시
+    const paymentMethod =
+      order.payment?.method === "card" ? "카드 결제" : "무통장 입금";
     alert(
-      `주문이 완료되었습니다!\n\n주문번호: ${
-        order.id
-      }\n총 결제금액: ₩${order.payment.total.toLocaleString()}\n\n입금 계좌: 신한은행 110-123-456789\n예금주: (주)듀센트\n\n24시간 이내 입금 부탁드립니다.`
+      `결제가 완료되었습니다!\n\n주문번호: ${order.id}\n총 결제금액: ₩${(
+        order.payment?.total ||
+        order.total ||
+        0
+      ).toLocaleString()}\n결제 수단: ${paymentMethod}`
     );
     return;
+  }
+
+  // orderCompleteModal 열기
+  const modal = document.getElementById("orderCompleteModal");
+  if (modal) {
+    modal.classList.add("active");
   }
 
   body.innerHTML = `
@@ -2337,12 +3306,23 @@ function showOrderCompleteModal(order) {
       <p class="checkout-section-title">배송 정보</p>
       <div style="background:var(--sage-bg);padding:1rem;border-radius:8px;">
         <p style="margin-bottom:.5rem;"><strong>받으시는 분:</strong> ${
-          order.customer?.name || order.customer_name || order.shipping_name || ""
+          order.customer?.name ||
+          order.customer_name ||
+          order.shipping_name ||
+          ""
         }</p>
         <p style="margin-bottom:.5rem;"><strong>연락처:</strong> ${
-          order.customer?.phone || order.customer_phone || order.shipping_phone || ""
+          order.customer?.phone ||
+          order.customer_phone ||
+          order.shipping_phone ||
+          ""
         }</p>
-        <p><strong>주소:</strong> ${order.customer?.address || order.customer_address || order.shipping_address || ""}</p>
+        <p><strong>주소:</strong> ${
+          order.customer?.address ||
+          order.customer_address ||
+          order.shipping_address ||
+          ""
+        }</p>
       </div>
     </div>
     
@@ -2756,23 +3736,18 @@ function setOrderRemoves(list) {
 }
 
 function getMergedOrders(baseOrders) {
-  const removes = new Set(getOrderRemoves());
-  const adds = getOrderAdds();
-  const base = (baseOrders || []).filter((o) => !removes.has(o.id));
-  
-  // DB에서 가져온 주문 ID 집합 생성 (중복 제거용)
-  const baseOrderIds = new Set(base.map(o => o.id));
-  
-  // localStorage의 주문 중 DB에 없는 것만 추가 (DB 우선)
-  const uniqueAdds = adds.filter(o => !baseOrderIds.has(o.id));
-  
-  const merged = [...base, ...uniqueAdds];
-  merged.sort((a, b) => {
+  // DB에서 가져온 주문만 사용 (localStorage 캐시 제거)
+  // localStorage의 주문 캐시는 더 이상 사용하지 않음
+  const base = baseOrders || [];
+
+  // 주문 ID로 정렬 (최신순)
+  const sorted = [...base].sort((a, b) => {
     const ad = a.orderedAt ? new Date(a.orderedAt).getTime() : 0;
     const bd = b.orderedAt ? new Date(b.orderedAt).getTime() : 0;
     return bd - ad;
   });
-  return merged;
+
+  return sorted;
 }
 
 function getProfileOverrides() {
@@ -3136,6 +4111,11 @@ function logoutUser() {
     .catch(() => null)
     .finally(() => {
       clearCurrentUser();
+      // 주문 관련 localStorage 캐시 클리어
+      localStorage.removeItem(ORDER_ADDS_KEY);
+      localStorage.removeItem(ORDER_REMOVES_KEY);
+      localStorage.removeItem("dewscent_order_details");
+      sessionStorage.removeItem("pending_order");
       updateAuthUI();
       const mypage = document.getElementById("mypageModal");
       if (mypage && mypage.classList.contains("active")) {
@@ -3261,7 +4241,29 @@ function renderMyPage() {
     }),
   ])
     .then(([profile, orders]) => {
+      // 디버깅: 주문 내역 로그
+      console.log("[MyPage] DB에서 가져온 주문:", orders);
+      console.log("[MyPage] 현재 사용자:", user);
+
+      // 주문이 있으면 각 주문의 상세 정보 로그
+      if (orders && orders.length > 0) {
+        orders.forEach((order, index) => {
+          console.log(`[MyPage] 주문 ${index + 1}:`, {
+            id: order.id,
+            orderNumber: order.id,
+            status: order.status,
+            total: order.total,
+          });
+        });
+      }
+
+      return [profile, orders];
+    })
+    .then(([profile, orders]) => {
       console.log("주문 내역 로드:", orders); // 디버깅용
+
+      // localStorage 캐시 완전히 무시하고 DB 주문만 사용
+      // 기존 캐시는 사용하지 않음
       const mergedProfile = mergeProfileWithOverrides(profile);
       const payMethod = getPaymentMethod();
 
@@ -3291,16 +4293,15 @@ function renderMyPage() {
             mergedProfile.name || ""
           }</div>
         </div>
+        <div class="form-group" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+          <button class="form-btn secondary" onclick="logoutUser(); closeModal('mypageModal');" style="width: 100%;">
+            로그아웃
+          </button>
+        </div>
         <div class="form-group">
           <label class="form-label">이메일</label>
           <div class="form-input" style="background:#fff">${
             mergedProfile.email || ""
-          }</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">가입일</label>
-          <div class="form-input" style="background:#fff">${
-            mergedProfile.joinedAt || ""
           }</div>
         </div>
         <button class="form-btn secondary" onclick="openMypageTab('orders')">주문내역 보기</button>
@@ -3354,13 +4355,23 @@ function renderMyPage() {
                 ? addresses
                     .map(
                       (a, idx) => `
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.75rem;${idx > 0 ? 'border-top:1px solid var(--border);' : ''}">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.75rem;${
+                idx > 0 ? "border-top:1px solid var(--border);" : ""
+              }">
                 <div style="flex:1;min-width:0">
-                  <div style="font-weight:500;font-size:.85rem;margin-bottom:.25rem">${a.label} · ${a.recipient}</div>
-                  <div style="font-size:.8rem;color:var(--mid);word-break:break-all">${a.address}</div>
-                  <div style="font-size:.75rem;color:var(--light);margin-top:.15rem">${a.phone}</div>
+                  <div style="font-weight:500;font-size:.85rem;margin-bottom:.25rem">${
+                    a.label
+                  } · ${a.recipient}</div>
+                  <div style="font-size:.8rem;color:var(--mid);word-break:break-all">${
+                    a.address
+                  }</div>
+                  <div style="font-size:.75rem;color:var(--light);margin-top:.15rem">${
+                    a.phone
+                  }</div>
                 </div>
-                <button class="form-btn secondary btn-compact" style="flex-shrink:0;padding:.3rem .6rem;font-size:.75rem" onclick="deleteAddress(${a.id})">삭제</button>
+                <button class="form-btn secondary btn-compact" style="flex-shrink:0;padding:.3rem .6rem;font-size:.75rem" onclick="deleteAddress(${
+                  a.id
+                })">삭제</button>
               </div>`
                     )
                     .join("")
@@ -3397,276 +4408,15 @@ function renderMyPage() {
       }
 
       if (mypageCurrentTab === "coupons") {
-        const allCoupons = API.getActiveCoupons() || [];
-        const userCoupons = getUserCoupons() || [];
-
-        // 디버깅: 쿠폰 데이터 확인
-        console.log("=== 쿠폰 탭 디버깅 ===");
-        console.log("All coupons:", allCoupons);
-        console.log("User coupons:", userCoupons);
-        console.log("All coupons length:", allCoupons.length);
-        console.log("User coupons length:", userCoupons.length);
-
-        // 사용 가능한 쿠폰 목록
-        const availableCoupons = allCoupons.filter((c) => {
-          if (!c || !c.id) return false;
-          // 이미 받은 쿠폰은 제외
-          return !userCoupons.some((uc) => uc && uc.couponId === c.id);
+        // 쿠폰 데이터는 비동기로 로드해야 하므로 별도 처리
+        body.innerHTML = `${tabs}<div style="text-align:center;color:var(--light);padding:1rem">쿠폰을 불러오는 중...</div>`;
+        Promise.all([
+          API.getActiveCoupons().catch(() => []),
+          getUserCoupons().catch(() => []),
+        ]).then(([allCoupons, userCoupons]) => {
+          renderCouponsTab(allCoupons || [], userCoupons || [], body, tabs);
         });
-
-        console.log("Available coupons:", availableCoupons);
-
-        // 내 쿠폰 목록 - ID 타입 변환 포함, 관리자가 삭제한 쿠폰은 제외
-        const myCoupons = userCoupons
-          .map((uc, index) => {
-            console.log(`Processing user coupon ${index}:`, uc);
-            if (!uc || uc.couponId === undefined || uc.couponId === null) {
-              console.log(`  - Invalid user coupon at index ${index}`);
-              return null;
-            }
-            // ID 타입 변환 (숫자/문자열 모두 처리)
-            const couponId = Number(uc.couponId);
-            const coupon = allCoupons.find((c) => {
-              if (!c || !c.id) return false;
-              return Number(c.id) === couponId || c.id === uc.couponId;
-            });
-            console.log(
-              `  - Looking for coupon ID: ${
-                uc.couponId
-              } (${typeof uc.couponId}), converted: ${couponId}`
-            );
-            console.log(
-              `  - All coupon IDs:`,
-              allCoupons.map((c) => ({ id: c.id, type: typeof c.id }))
-            );
-            console.log(`  - Found coupon:`, coupon);
-            // 관리자가 삭제한 쿠폰은 null 반환 (표시하지 않음)
-            if (!coupon) {
-              console.log(
-                `  - Coupon not found (deleted by admin) for ID: ${uc.couponId}`
-              );
-              return null;
-            }
-            const merged = {
-              ...coupon,
-              receivedAt: uc.receivedAt,
-              used: uc.used || false,
-            };
-            console.log(`  - Merged coupon:`, merged);
-            return merged;
-          })
-          .filter((c) => c !== null);
-
-        console.log("My coupons (final):", myCoupons);
-        console.log("My coupons length:", myCoupons.length);
-
-        content = `
-        <div style="margin-bottom:2rem;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
-            <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">받을 수 있는 쿠폰</h3>
-            <span style="font-size:.75rem;color:var(--light);">${
-              availableCoupons.length
-            }개</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:.5rem;">
-            ${
-              availableCoupons.length > 0
-                ? availableCoupons
-                    .map((coupon) => {
-                      if (!coupon) return "";
-                      const discountText =
-                        coupon.type === "percent"
-                          ? `${coupon.value || 0}%`
-                          : `₩${(coupon.value || 0).toLocaleString()}`;
-                      const couponName = coupon.name || "쿠폰";
-                      return `
-                <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
-                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
-                    <div>
-                      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
-                        <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
-                      </div>
-                      <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
-                      <p style="font-size:.8rem;color:var(--light);line-height:1.5;">${
-                        coupon.minAmount > 0
-                          ? `최소 ₩${coupon.minAmount.toLocaleString()}`
-                          : "제한없음"
-                      }${coupon.endDate ? ` · ~${coupon.endDate}` : ""}</p>
-                    </div>
-                  </div>
-                  <div style="display:flex;align-items:center;flex-shrink:0;">
-                    <button class="form-btn primary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="receiveCoupon(${
-                      coupon.id
-                    })" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">받기</button>
-                  </div>
-                </div>
-              `;
-                    })
-                    .join("")
-                : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">받을 수 있는 쿠폰이 없습니다</p></div>'
-            }
-          </div>
-        </div>
-        
-        <div>
-          ${(() => {
-            // 사용 가능한 쿠폰과 사용한 쿠폰 분리
-            const availableCoupons = myCoupons.filter((c) => !c.used);
-            const usedCoupons = myCoupons.filter((c) => c.used);
-
-            return `
-              <div style="margin-bottom:2rem;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
-                  <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용 가능한 쿠폰</h3>
-                  <span style="font-size:.75rem;color:var(--light);">${
-                    availableCoupons.length
-                  }개</span>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:.5rem;">
-                  ${
-                    availableCoupons.length > 0
-                      ? availableCoupons
-                          .map((coupon, idx) => {
-                            console.log(`Rendering coupon ${idx}:`, coupon);
-                            if (!coupon) {
-                              console.log(
-                                `  - Coupon ${idx} is null/undefined`
-                              );
-                              return "";
-                            }
-
-                            const discountText =
-                              coupon.type === "percent"
-                                ? `${coupon.value || 0}%`
-                                : `₩${(coupon.value || 0).toLocaleString()}`;
-                            const couponName = coupon.name || "쿠폰";
-                            const couponCode = coupon.code || "";
-                            const isUsed = coupon.used || false;
-
-                            console.log(
-                              `  - Discount: ${discountText}, Name: ${couponName}, Code: ${couponCode}, Used: ${isUsed}`
-                            );
-
-                            return `
-                      <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
-                        <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
-                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
-                            <div>
-                              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
-                                <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
-                              </div>
-                              <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
-                              ${
-                                couponCode
-                                  ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>`
-                                  : ""
-                              }
-                              ${
-                                coupon.endDate
-                                  ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>`
-                                  : ""
-                              }
-                              ${
-                                coupon.receivedAt
-                                  ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>`
-                                  : ""
-                              }
-                            </div>
-                          </div>
-                          <div style="display:flex;align-items:center;flex-shrink:0;">
-                            ${
-                              couponCode
-                                ? `
-                              <button class="form-btn secondary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="event.stopPropagation();copyCouponCode('${couponCode}')" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">복사</button>
-                            `
-                                : ""
-                            }
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                          })
-                          .filter((html) => html)
-                          .join("")
-                      : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용 가능한 쿠폰이 없습니다</p></div>'
-                  }
-                </div>
-              </div>
-              
-              <div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
-                  <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용한 쿠폰</h3>
-                  <span style="font-size:.75rem;color:var(--light);">${
-                    usedCoupons.length
-                  }개</span>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:.5rem;">
-                  ${
-                    usedCoupons.length > 0
-                      ? usedCoupons
-                          .map((coupon, idx) => {
-                            console.log(
-                              `Rendering used coupon ${idx}:`,
-                              coupon
-                            );
-                            if (!coupon) {
-                              console.log(
-                                `  - Coupon ${idx} is null/undefined`
-                              );
-                              return "";
-                            }
-
-                            const discountText =
-                              coupon.type === "percent"
-                                ? `${coupon.value || 0}%`
-                                : `₩${(coupon.value || 0).toLocaleString()}`;
-                            const couponName = coupon.name || "쿠폰";
-                            const couponCode = coupon.code || "";
-
-                            return `
-                      <div style="padding:1.25rem;background:linear-gradient(135deg, var(--sage-bg) 0%, var(--cloud) 100%);border:1px solid var(--border);border-radius:12px;opacity:0.7;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
-                        <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
-                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
-                            <div>
-                              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
-                                <strong style="color:var(--light);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
-                                <span style="font-size:.7rem;color:var(--light);padding:.2rem .5rem;background:var(--border);border-radius:6px;white-space:nowrap;">사용완료</span>
-                              </div>
-                              <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
-                              ${
-                                couponCode
-                                  ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>`
-                                  : ""
-                              }
-                              ${
-                                coupon.endDate
-                                  ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>`
-                                  : ""
-                              }
-                              ${
-                                coupon.receivedAt
-                                  ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>`
-                                  : ""
-                              }
-                            </div>
-                          </div>
-                          <div style="display:flex;align-items:center;flex-shrink:0;">
-                            <span style="font-size:.8rem;color:var(--light);padding:.65rem 1.25rem;white-space:nowrap;">사용완료</span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                          })
-                          .filter((html) => html)
-                          .join("")
-                      : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용한 쿠폰이 없습니다</p></div>'
-                  }
-                </div>
-              </div>
-            `;
-          })()}
-        </div>
-      `;
+        return; // 쿠폰 탭은 비동기로 렌더링되므로 여기서 종료
       }
 
       if (mypageCurrentTab === "orders") {
@@ -3705,7 +4455,12 @@ function renderMyPage() {
               <tr style="cursor:pointer;" onclick="showOrderDetail('${o.id}')">
                 <td style="padding:.6rem .8rem;border-top:1px solid var(--border);color:var(--sage);font-weight:500;">${
                   o.id
-                }${(o.cancelRequested === true || o.cancelRequested === 1) && o.status === '결제대기' ? '<br><span style="color:var(--rose);font-size:0.75rem;">⚠ 취소요청중</span>' : ''}</td>
+                }${
+                    (o.cancelRequested === true || o.cancelRequested === 1) &&
+                    o.status === "결제대기"
+                      ? '<br><span style="color:var(--rose);font-size:0.75rem;">⚠ 취소요청중</span>'
+                      : ""
+                  }</td>
                 <td style="padding:.6rem .8rem;border-top:1px solid var(--border)">₩${(
                   o.total || 0
                 ).toLocaleString()}</td>
@@ -4284,51 +5039,349 @@ if (document.querySelector(".slider-section")) {
 // ============================================================
 // 쿠폰 관련 함수들
 // ============================================================
-const USER_COUPONS_KEY = "dewscent_user_coupons";
+let userCouponsCache = null;
+let userCouponsCacheTime = 0;
+const USER_COUPONS_CACHE_DURATION = 30000; // 30초 캐시
 
-function getUserCoupons() {
+// 쿠폰 탭 렌더링 함수
+function renderCouponsTab(allCoupons, userCoupons, body, tabs) {
+  // 디버깅: 쿠폰 데이터 확인
+  console.log("=== 쿠폰 탭 디버깅 ===");
+  console.log("All coupons:", allCoupons);
+  console.log("User coupons:", userCoupons);
+  console.log("All coupons length:", allCoupons.length);
+  console.log("User coupons length:", userCoupons.length);
+
+  // 사용 가능한 쿠폰 목록
+  const availableCoupons = allCoupons.filter((c) => {
+    if (!c || !c.id) return false;
+    // 이미 받은 쿠폰은 제외
+    return !userCoupons.some((uc) => uc && uc.couponId === c.id);
+  });
+
+  console.log("Available coupons:", availableCoupons);
+
+  // 내 쿠폰 목록 - ID 타입 변환 포함, 관리자가 삭제한 쿠폰은 제외
+  const myCoupons = userCoupons
+    .map((uc, index) => {
+      console.log(`Processing user coupon ${index}:`, uc);
+      if (!uc || uc.couponId === undefined || uc.couponId === null) {
+        console.log(`  - Invalid user coupon at index ${index}`);
+        return null;
+      }
+      // ID 타입 변환 (숫자/문자열 모두 처리)
+      const couponId = Number(uc.couponId);
+      const coupon = allCoupons.find((c) => {
+        if (!c || !c.id) return false;
+        return Number(c.id) === couponId || c.id === uc.couponId;
+      });
+      console.log(
+        `  - Looking for coupon ID: ${
+          uc.couponId
+        } (${typeof uc.couponId}), converted: ${couponId}`
+      );
+      console.log(
+        `  - All coupon IDs:`,
+        allCoupons.map((c) => ({ id: c.id, type: typeof c.id }))
+      );
+      console.log(`  - Found coupon:`, coupon);
+      // 관리자가 삭제한 쿠폰은 null 반환 (표시하지 않음)
+      if (!coupon) {
+        console.log(
+          `  - Coupon not found (deleted by admin) for ID: ${uc.couponId}`
+        );
+        return null;
+      }
+      const merged = {
+        ...coupon,
+        receivedAt: uc.receivedAt,
+        used: uc.used || false,
+      };
+      console.log(`  - Merged coupon:`, merged);
+      return merged;
+    })
+    .filter((c) => c !== null);
+
+  console.log("My coupons (final):", myCoupons);
+  console.log("My coupons length:", myCoupons.length);
+
+  let content = `
+    <div style="margin-bottom:2rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+        <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">받을 수 있는 쿠폰</h3>
+        <span style="font-size:.75rem;color:var(--light);">${
+          availableCoupons.length
+        }개</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.5rem;">
+        ${
+          availableCoupons.length > 0
+            ? availableCoupons
+                .map((coupon) => {
+                  if (!coupon) return "";
+                  const discountText =
+                    coupon.type === "percent"
+                      ? `${coupon.value || 0}%`
+                      : `₩${(coupon.value || 0).toLocaleString()}`;
+                  const couponName = coupon.name || "쿠폰";
+                  return `
+              <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                      <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                    </div>
+                    <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                    <p style="font-size:.8rem;color:var(--light);line-height:1.5;">${
+                      coupon.minAmount > 0
+                        ? `최소 ₩${coupon.minAmount.toLocaleString()}`
+                        : "제한없음"
+                    }${coupon.endDate ? ` · ~${coupon.endDate}` : ""}</p>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;flex-shrink:0;">
+                  <button class="form-btn primary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="receiveCoupon(${
+                    coupon.id || 0
+                  })" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">받기</button>
+                </div>
+              </div>
+            `;
+                })
+                .join("")
+            : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">받을 수 있는 쿠폰이 없습니다</p></div>'
+        }
+      </div>
+    </div>
+    
+    <div>
+      ${(() => {
+        // 사용 가능한 쿠폰과 사용한 쿠폰 분리
+        const availableMyCoupons = myCoupons.filter((c) => !c.used);
+        const usedCoupons = myCoupons.filter((c) => c.used);
+
+        return `
+          <div style="margin-bottom:2rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+              <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용 가능한 쿠폰</h3>
+              <span style="font-size:.75rem;color:var(--light);">${
+                availableMyCoupons.length
+              }개</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.5rem;">
+              ${
+                availableMyCoupons.length > 0
+                  ? availableMyCoupons
+                      .map((coupon, idx) => {
+                        if (!coupon) return "";
+                        const discountText =
+                          coupon.type === "percent"
+                            ? `${coupon.value || 0}%`
+                            : `₩${(coupon.value || 0).toLocaleString()}`;
+                        const couponName = coupon.name || "쿠폰";
+                        const couponCode = coupon.code || "";
+
+                        return `
+                    <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                      <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
+                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                          <div>
+                            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                              <strong style="color:var(--sage);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                            </div>
+                            <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                            ${
+                              couponCode
+                                ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>`
+                                : ""
+                            }
+                            ${
+                              coupon.endDate
+                                ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>`
+                                : ""
+                            }
+                            ${
+                              coupon.receivedAt
+                                ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>`
+                                : ""
+                            }
+                          </div>
+                        </div>
+                        <div style="display:flex;align-items:center;flex-shrink:0;">
+                          ${
+                            couponCode
+                              ? `
+                            <button class="form-btn secondary" style="padding:.65rem 1.25rem;font-size:.85rem;white-space:nowrap;border-radius:8px;background:var(--sage);color:var(--white);border:none;font-weight:500;transition:all 0.2s;" onclick="event.stopPropagation();copyCouponCode('${couponCode}')" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">복사</button>
+                          `
+                              : ""
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                      })
+                      .filter((html) => html)
+                      .join("")
+                  : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용 가능한 쿠폰이 없습니다</p></div>'
+              }
+            </div>
+          </div>
+          
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+              <h3 style="font-size:.9rem;color:var(--dark);font-weight:500;">사용한 쿠폰</h3>
+              <span style="font-size:.75rem;color:var(--light);">${
+                usedCoupons.length
+              }개</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.5rem;">
+              ${
+                usedCoupons.length > 0
+                  ? usedCoupons
+                      .map((coupon, idx) => {
+                        if (!coupon) return "";
+                        const discountText =
+                          coupon.type === "percent"
+                            ? `${coupon.value || 0}%`
+                            : `₩${(coupon.value || 0).toLocaleString()}`;
+                        const couponName = coupon.name || "쿠폰";
+                        const couponCode = coupon.code || "";
+
+                        return `
+                    <div style="padding:1.25rem;background:linear-gradient(135deg, var(--sage-bg) 0%, var(--cloud) 100%);border:1px solid var(--border);border-radius:12px;opacity:0.7;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);transition:all 0.3s;" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
+                      <div style="display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;">
+                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+                          <div>
+                            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                              <strong style="color:var(--light);font-size:1.1rem;white-space:nowrap;font-weight:600;letter-spacing:-0.02em;">${discountText} 할인</strong>
+                              <span style="font-size:.7rem;color:var(--light);padding:.2rem .5rem;background:var(--border);border-radius:6px;white-space:nowrap;">사용완료</span>
+                            </div>
+                            <p style="font-weight:600;color:var(--dark);font-size:1rem;margin-bottom:.4rem;word-break:break-word;overflow-wrap:break-word;line-height:1.5;">${couponName}</p>
+                            ${
+                              couponCode
+                                ? `<p style="font-size:.8rem;color:var(--mid);margin-bottom:.3rem;line-height:1.5;">코드: <code style="font-family:monospace;color:var(--sage);background:var(--white);padding:.25rem .6rem;border-radius:6px;font-size:.8rem;white-space:nowrap;font-weight:500;border:1px solid var(--sage-lighter);">${couponCode}</code></p>`
+                                : ""
+                            }
+                            ${
+                              coupon.endDate
+                                ? `<p style="font-size:.75rem;color:var(--light);margin-top:.2rem;line-height:1.5;">~ ${coupon.endDate}</p>`
+                                : ""
+                            }
+                            ${
+                              coupon.receivedAt
+                                ? `<p style="font-size:.75rem;color:var(--light);margin-top:.15rem;line-height:1.5;">받은 날짜: ${coupon.receivedAt}</p>`
+                                : ""
+                            }
+                          </div>
+                        </div>
+                        <div style="display:flex;align-items:center;flex-shrink:0;">
+                          <span style="font-size:.8rem;color:var(--light);padding:.65rem 1.25rem;white-space:nowrap;">사용완료</span>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                      })
+                      .filter((html) => html)
+                      .join("")
+                  : '<div style="padding:1.5rem;text-align:center;color:var(--light);background:var(--sage-bg);border-radius:8px;border:1px dashed var(--border);"><p style="font-size:.8rem;">사용한 쿠폰이 없습니다</p></div>'
+              }
+            </div>
+          </div>
+        `;
+      })()}
+    </div>
+  `;
+
+  body.innerHTML = `${tabs}${content}<button class="form-btn ivory" onclick="closeModal('mypageModal')">닫기</button>`;
+}
+
+async function getUserCoupons() {
   try {
-    const stored = localStorage.getItem(USER_COUPONS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
+    const now = Date.now();
+    if (
+      userCouponsCache &&
+      now - userCouponsCacheTime < USER_COUPONS_CACHE_DURATION
+    ) {
+      return userCouponsCache;
+    }
+
+    const response = await fetch(apiUrl("/api/coupons.php?action=my"), {
+      credentials: "include",
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.coupons) {
+      // DB 필드명을 JavaScript 필드명으로 변환
+      userCouponsCache = data.coupons.map((uc) => ({
+        couponId: uc.coupon_id,
+        receivedAt: uc.received_at ? uc.received_at.split(" ")[0] : "",
+        used: uc.used == 1,
+        code: uc.code,
+        name: uc.name,
+        type: uc.type,
+        value: uc.value,
+        minAmount: uc.min_amount,
+        maxDiscount: uc.max_discount,
+        startDate: uc.start_date || "",
+        endDate: uc.end_date || "",
+        active: uc.active == 1,
+      }));
+      userCouponsCacheTime = now;
+      return userCouponsCache;
+    }
+    return [];
+  } catch (error) {
+    console.error("내 쿠폰 조회 실패:", error);
     return [];
   }
 }
 
 function setUserCoupons(coupons) {
-  localStorage.setItem(USER_COUPONS_KEY, JSON.stringify(coupons));
+  // DB에 저장되므로 더 이상 localStorage 사용 안 함
+  // 캐시만 업데이트
+  userCouponsCache = coupons;
+  userCouponsCacheTime = Date.now();
 }
 
-function receiveCoupon(couponId) {
-  const userCoupons = getUserCoupons();
+function clearUserCouponsCache() {
+  userCouponsCache = null;
+  userCouponsCacheTime = 0;
+}
 
-  // 이미 받은 쿠폰인지 확인
-  if (userCoupons.some((uc) => uc.couponId === couponId)) {
-    alert("이미 받은 쿠폰입니다.");
-    return;
+async function receiveCoupon(couponId) {
+  try {
+    const response = await fetch(apiUrl("/api/coupons.php?action=receive"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ couponId }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // 캐시 초기화
+      clearUserCouponsCache();
+
+      // 쿠폰 정보 가져오기
+      const allCoupons = await API.getActiveCoupons();
+      const coupon = allCoupons.find((c) => c.id === couponId);
+
+      if (coupon) {
+        alert(`쿠폰을 받았습니다!\n\n${coupon.name}\n코드: ${coupon.code}`);
+      } else {
+        alert("쿠폰을 받았습니다!");
+      }
+
+      // 마이페이지 다시 렌더링
+      openMypageTab("coupons");
+    } else {
+      alert(data.message || "쿠폰 받기에 실패했습니다.");
+    }
+  } catch (error) {
+    console.error("쿠폰 받기 실패:", error);
+    alert("쿠폰 받기 중 오류가 발생했습니다.");
   }
-
-  // 쿠폰 정보 가져오기
-  const allCoupons = API.getActiveCoupons();
-  const coupon = allCoupons.find((c) => c.id === couponId);
-
-  if (!coupon) {
-    alert("유효하지 않은 쿠폰입니다.");
-    return;
-  }
-
-  // 쿠폰 받기
-  userCoupons.push({
-    couponId: couponId,
-    receivedAt: new Date().toISOString().split("T")[0],
-    used: false,
-  });
-
-  setUserCoupons(userCoupons);
-  alert(`쿠폰을 받았습니다!\n\n${coupon.name}\n코드: ${coupon.code}`);
-
-  // 마이페이지 다시 렌더링
-  openMypageTab("coupons");
 }
 
 function copyCouponCode(code) {
@@ -4354,7 +5407,7 @@ function copyCouponCode(code) {
 }
 
 // 결제 모달에서 내 쿠폰 목록 표시
-function loadMyCouponsForCheckout() {
+async function loadMyCouponsForCheckout() {
   const myCouponsList = document.getElementById("myCouponsList");
   const availableCouponsList = document.getElementById("availableCouponsList");
 
@@ -4364,8 +5417,8 @@ function loadMyCouponsForCheckout() {
   }
 
   try {
-    const userCoupons = getUserCoupons() || [];
-    const allCoupons = API.getActiveCoupons() || [];
+    const userCoupons = (await getUserCoupons()) || [];
+    const allCoupons = (await API.getActiveCoupons()) || [];
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
 
     console.log("사용자 쿠폰:", userCoupons);
@@ -4403,20 +5456,10 @@ function loadMyCouponsForCheckout() {
           console.log("Coupon not found for ID:", uc.couponId);
           return null;
         }
-        try {
-          const validation = API.validateCoupon(coupon.code, subtotal);
-          if (validation.valid) {
-            const merged = { ...coupon, receivedAt: uc.receivedAt };
-            console.log("Valid coupon found:", merged);
-            return merged;
-          } else {
-            console.log("Coupon validation failed:", validation.message);
-            return null;
-          }
-        } catch (e) {
-          console.error("쿠폰 검증 오류:", e);
-          return null;
-        }
+        // 쿠폰은 이미 활성화된 것이므로 검증 없이 반환
+        const merged = { ...coupon, receivedAt: uc.receivedAt };
+        console.log("Valid coupon found:", merged);
+        return merged;
       })
       .filter((c) => c !== null);
 
@@ -4448,7 +5491,7 @@ function loadMyCouponsForCheckout() {
 
             return `
             <div style="padding:1.25rem;background:linear-gradient(135deg, var(--white) 0%, var(--sage-bg) 100%);border:1px solid var(--sage-lighter);border-radius:12px;display:flex;justify-content:space-between;align-items:stretch;gap:1.25rem;cursor:pointer;transition:all 0.3s;width:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(95,113,97,0.08);" onclick="applyMyCoupon(${
-              coupon.id
+              coupon.id || 0
             })" onmouseover="this.style.borderColor='var(--sage)';this.style.boxShadow='0 4px 16px rgba(95,113,97,0.2)'" onmouseout="this.style.borderColor='var(--sage-lighter)';this.style.boxShadow='0 2px 8px rgba(95,113,97,0.08)'">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
                 <div>
@@ -4493,8 +5536,8 @@ function loadMyCouponsForCheckout() {
   }
 }
 
-function applyMyCoupon(couponId) {
-  const allCoupons = API.getActiveCoupons();
+async function applyMyCoupon(couponId) {
+  const allCoupons = await API.getActiveCoupons();
   const coupon = allCoupons.find((c) => c.id === couponId);
 
   if (!coupon) {
@@ -4503,7 +5546,7 @@ function applyMyCoupon(couponId) {
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const result = API.validateCoupon(coupon.code, subtotal);
+  const result = await API.validateCoupon(coupon.code, subtotal);
 
   if (!result.valid) {
     alert(result.message);

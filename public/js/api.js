@@ -343,21 +343,28 @@
       body: JSON.stringify(data),
       ...opts,
     });
+    
+    // 응답 본문 확인
+    const text = await res.text();
+    let jsonData;
+    
+    try {
+      jsonData = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error("[API] JSON 파싱 실패:", text, e);
+      const error = new Error("서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      error.status = res.status;
+      throw error;
+    }
+    
     if (!res.ok) {
-      let errorMessage = `API Error: ${res.status}`;
-      try {
-        const errorData = await res.json();
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-      } catch (e) {
-        // JSON 파싱 실패 시 기본 메시지 사용
-      }
+      let errorMessage = jsonData.message || `API Error: ${res.status}`;
       const error = new Error(errorMessage);
       error.status = res.status;
       throw error;
     }
-    return await res.json();
+    
+    return jsonData;
   }
 
   // 공개 API (목업/실API 스위치)
@@ -761,41 +768,63 @@
   }
 
   // ========== 쿠폰 관리 ==========
-  const COUPONS_KEY = "dewscent_coupons";
-  const defaultCoupons = [
-    {
-      id: 1,
-      code: "WELCOME10",
-      name: "신규 회원 10% 할인",
-      type: "percent", // percent 또는 fixed
-      value: 10, // 할인율 또는 할인금액
-      minAmount: 0, // 최소 주문 금액
-      maxDiscount: 10000, // 최대 할인 금액 (percent 타입일 때)
-      startDate: "",
-      endDate: "",
-      active: true,
-      usageLimit: 0, // 0이면 무제한
-      usedCount: 0,
-      createdAt: new Date().toISOString().split("T")[0],
-    },
-  ];
+  let couponsCache = null;
+  let couponsCacheTime = 0;
+  const CACHE_DURATION = 60000; // 1분 캐시
 
-  function getCoupons() {
+  async function getCoupons() {
     try {
-      const stored = localStorage.getItem(COUPONS_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(COUPONS_KEY, JSON.stringify(defaultCoupons));
-      return defaultCoupons;
-    } catch {
-      return defaultCoupons;
+      const now = Date.now();
+      if (couponsCache && (now - couponsCacheTime) < CACHE_DURATION) {
+        return couponsCache;
+      }
+      
+      const response = await fetch(`${BASE_URL}/coupons.php`);
+      const data = await response.json();
+      
+      if (data.success && data.coupons) {
+        // DB 필드명을 JavaScript 필드명으로 변환
+        couponsCache = data.coupons.map(c => ({
+          id: c.id,
+          code: c.code,
+          name: c.name,
+          type: c.type,
+          value: c.value,
+          minAmount: c.min_amount,
+          maxDiscount: c.max_discount,
+          startDate: c.start_date || "",
+          endDate: c.end_date || "",
+          active: c.active == 1,
+          usageLimit: c.usage_limit,
+          usedCount: c.used_count,
+          createdAt: c.created_at ? c.created_at.split(' ')[0] : ""
+        }));
+        couponsCacheTime = now;
+        return couponsCache;
+      }
+      return [];
+    } catch (error) {
+      console.error('쿠폰 목록 조회 실패:', error);
+      return [];
     }
   }
+  
   function setCoupons(coupons) {
-    localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
+    // DB에 저장되므로 더 이상 localStorage 사용 안 함
+    // 캐시만 업데이트
+    couponsCache = coupons;
+    couponsCacheTime = Date.now();
   }
-  function getActiveCoupons() {
+  
+  function clearCouponsCache() {
+    couponsCache = null;
+    couponsCacheTime = 0;
+  }
+  
+  async function getActiveCoupons() {
+    const coupons = await getCoupons();
     const now = new Date().toISOString().split("T")[0];
-    return getCoupons().filter((c) => {
+    return coupons.filter((c) => {
       if (!c.active) return false;
       if (c.startDate && c.startDate > now) return false;
       if (c.endDate && c.endDate < now) return false;
@@ -803,17 +832,50 @@
       return true;
     });
   }
-  function validateCoupon(code, amount) {
-    const coupons = getActiveCoupons();
-    const coupon = coupons.find((c) => c.code === code.toUpperCase());
-    if (!coupon) return { valid: false, message: "유효하지 않은 쿠폰입니다." };
-    if (amount < coupon.minAmount)
+  
+  async function validateCoupon(code, amount) {
+    try {
+      const response = await fetch(`${BASE_URL}/coupons.php?action=validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code, amount })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.valid) {
+        // DB 필드명 변환
+        const coupon = data.coupon;
+        return {
+          valid: true,
+          coupon: {
+            id: coupon.id,
+            code: coupon.code,
+            name: coupon.name,
+            type: coupon.type,
+            value: coupon.value,
+            minAmount: coupon.min_amount,
+            maxDiscount: coupon.max_discount,
+            startDate: coupon.start_date || "",
+            endDate: coupon.end_date || "",
+            active: coupon.active == 1,
+            usageLimit: coupon.usage_limit,
+            usedCount: coupon.used_count
+          }
+        };
+      }
+      
       return {
         valid: false,
-        message: `최소 주문 금액 ₩${coupon.minAmount.toLocaleString()} 이상이어야 합니다.`,
+        message: data.message || "유효하지 않은 쿠폰입니다."
       };
-    return { valid: true, coupon };
+    } catch (error) {
+      console.error('쿠폰 검증 실패:', error);
+      return { valid: false, message: "쿠폰 검증 중 오류가 발생했습니다." };
   }
+  }
+  
   function applyCoupon(coupon, amount) {
     let discount = 0;
     if (coupon.type === "percent") {
@@ -1178,6 +1240,7 @@
     // 쿠폰
     getCoupons,
     setCoupons,
+    clearCouponsCache,
     getActiveCoupons,
     validateCoupon,
     applyCoupon,

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>주문 캐시 클리어</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #cc0000;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h2>주문 캐시 클리어</h2>
+    <div class="info">
+        <p>이 페이지는 localStorage와 sessionStorage에 저장된 주문 관련 캐시를 삭제합니다.</p>
+        <p>DB에서 주문을 삭제했는데도 페이지에 나타나는 경우 사용하세요.</p>
+    </div>
+    
+    <div id="status"></div>
+    
+    <button onclick="clearAllCache()">모든 주문 캐시 삭제</button>
+    <button onclick="showCache()">현재 캐시 확인</button>
+    
+    <script>
+        function clearAllCache() {
+            // 주문 관련 localStorage 키들
+            const keys = [
+                'ds_order_adds',
+                'ds_order_removes',
+                'dewscent_order_details',
+                'pending_order'
+            ];
+            
+            let cleared = [];
+            keys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    cleared.push(key);
+                }
+            });
+            
+            // sessionStorage도 확인
+            if (sessionStorage.getItem('pending_order')) {
+                sessionStorage.removeItem('pending_order');
+                cleared.push('pending_order (sessionStorage)');
+            }
+            
+            const status = document.getElementById('status');
+            if (cleared.length > 0) {
+                status.innerHTML = '<div style="background:#d4edda;padding:10px;border-radius:5px;margin:10px 0;">✅ 삭제된 캐시:<br>' + cleared.join('<br>') + '</div>';
+            } else {
+                status.innerHTML = '<div style="background:#fff3cd;padding:10px;border-radius:5px;margin:10px 0;">ℹ️ 삭제할 캐시가 없습니다.</div>';
+            }
+        }
+        
+        function showCache() {
+            const keys = [
+                'ds_order_adds',
+                'ds_order_removes',
+                'dewscent_order_details'
+            ];
+            
+            let info = '<div style="background:#f0f0f0;padding:15px;border-radius:5px;margin:10px 0;">';
+            info += '<strong>현재 캐시 상태:</strong><br><br>';
+            
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    try {
+                        const parsed = JSON.parse(value);
+                        info += `<strong>${key}:</strong> ${JSON.stringify(parsed, null, 2)}<br><br>`;
+                    } catch (e) {
+                        info += `<strong>${key}:</strong> ${value}<br><br>`;
+                    }
+                } else {
+                    info += `<strong>${key}:</strong> 없음<br><br>`;
+                }
+            });
+            
+            const pending = sessionStorage.getItem('pending_order');
+            if (pending) {
+                info += `<strong>pending_order (sessionStorage):</strong> ${pending.substring(0, 100)}...<br>`;
+            } else {
+                info += `<strong>pending_order (sessionStorage):</strong> 없음<br>`;
+            }
+            
+            info += '</div>';
+            
+            document.getElementById('status').innerHTML = info;
+        }
+        
+        // 페이지 로드 시 자동으로 캐시 확인
+        window.onload = function() {
+            showCache();
+        };
+    </script>
+</body>
+</html>

@@ -50,11 +50,89 @@ define('DB_CHARSET', 'utf8mb4');
 define('SITE_NAME', 'DewScent');
 define('SITE_URL', getenv('SITE_URL') ?: 'http://localhost/dewscent');
 
+// 로컬 설정 파일 로드 (있는 경우)
+$localConfigPath = __DIR__ . '/config.local.php';
+if (file_exists($localConfigPath)) {
+    require_once $localConfigPath;
+}
+
+// .env 파일 로드 (있는 경우)
+$envPath = __DIR__ . '/../.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) {
+            continue; // 주석 건너뛰기
+        }
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            // 따옴표 제거
+            $value = trim($value, '"\'');
+            if (!empty($key) && !getenv($key)) {
+                putenv("$key=$value");
+                $_ENV[$key] = $value;
+            }
+        }
+    }
+}
+
 // 카카오 소셜 로그인 설정
-define('KAKAO_CLIENT_ID', getenv('KAKAO_CLIENT_ID') ?: 'bde4b35d973dcfb50e5f683f30d9aee6');
-define('KAKAO_REDIRECT_URI', SITE_URL . '/api/kakao_callback.php');
+// 우선순위: config.local.php (define) > .env (getenv) > 환경 변수 (getenv)
+$kakaoClientId = '';
+if (defined('KAKAO_CLIENT_ID')) {
+    // config.local.php에서 이미 정의된 경우
+    $kakaoClientId = KAKAO_CLIENT_ID;
+} else {
+    // .env 또는 환경 변수에서 읽기
+    $kakaoClientId = getenv('KAKAO_CLIENT_ID') ?: '';
+}
+
+if (empty($kakaoClientId)) {
+    throw new RuntimeException('KAKAO_CLIENT_ID가 설정되지 않았습니다. .env 또는 config.local.php 파일을 확인하세요.');
+}
+
+// 아직 정의되지 않은 경우에만 define
+if (!defined('KAKAO_CLIENT_ID')) {
+    define('KAKAO_CLIENT_ID', $kakaoClientId);
+}
+if (!defined('KAKAO_REDIRECT_URI')) {
+    define('KAKAO_REDIRECT_URI', SITE_URL . '/api/kakao_callback.php');
+}
 
 // 네이버 소셜 로그인 설정
-define('NAVER_CLIENT_ID', getenv('NAVER_CLIENT_ID') ?: 'J9X4FpOqye8r2bPW3FJT');
-define('NAVER_CLIENT_SECRET', getenv('NAVER_CLIENT_SECRET') ?: 'DJesIiEXsc');
-define('NAVER_REDIRECT_URI', SITE_URL . '/api/naver_callback.php');
+// 우선순위: config.local.php (define) > .env (getenv) > 환경 변수 (getenv)
+$naverClientId = '';
+$naverClientSecret = '';
+
+if (defined('NAVER_CLIENT_ID')) {
+    // config.local.php에서 이미 정의된 경우
+    $naverClientId = NAVER_CLIENT_ID;
+} else {
+    // .env 또는 환경 변수에서 읽기
+    $naverClientId = getenv('NAVER_CLIENT_ID') ?: '';
+}
+
+if (defined('NAVER_CLIENT_SECRET')) {
+    // config.local.php에서 이미 정의된 경우
+    $naverClientSecret = NAVER_CLIENT_SECRET;
+} else {
+    // .env 또는 환경 변수에서 읽기
+    $naverClientSecret = getenv('NAVER_CLIENT_SECRET') ?: '';
+}
+
+if (empty($naverClientId) || empty($naverClientSecret)) {
+    throw new RuntimeException('NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 설정되지 않았습니다. .env 또는 config.local.php 파일을 확인하세요.');
+}
+
+// 아직 정의되지 않은 경우에만 define
+if (!defined('NAVER_CLIENT_ID')) {
+    define('NAVER_CLIENT_ID', $naverClientId);
+}
+if (!defined('NAVER_CLIENT_SECRET')) {
+    define('NAVER_CLIENT_SECRET', $naverClientSecret);
+}
+if (!defined('NAVER_REDIRECT_URI')) {
+    define('NAVER_REDIRECT_URI', SITE_URL . '/api/naver_callback.php');
+}

@@ -62,7 +62,9 @@ if ($tokenError) {
 $tokenResult = json_decode($tokenResponse, true);
 
 if (!isset($tokenResult['access_token'])) {
-    error_log('네이버 토큰 응답 오류: ' . $tokenResponse);
+    // 토큰 정보는 로그에 출력하지 않음 (보안)
+    $errorCode = isset($tokenResult['error']) ? $tokenResult['error'] : 'unknown';
+    error_log('네이버 토큰 응답 오류: ' . $errorCode);
     header('Location: ' . SITE_URL . '?error=naver_token_invalid');
     exit;
 }
@@ -91,7 +93,9 @@ if ($profileError) {
 $profileResult = json_decode($profileResponse, true);
 
 if ($profileResult['resultcode'] !== '00' || !isset($profileResult['response']['id'])) {
-    error_log('네이버 프로필 응답 오류: ' . $profileResponse);
+    // 민감한 정보는 로그에 출력하지 않음 (보안)
+    $errorCode = isset($profileResult['resultcode']) ? $profileResult['resultcode'] : 'unknown';
+    error_log('네이버 프로필 응답 오류: resultcode=' . $errorCode);
     header('Location: ' . SITE_URL . '?error=naver_profile_invalid');
     exit;
 }
@@ -111,42 +115,76 @@ $user = db()->fetchOne(
 
 if ($user) {
     // 기존 회원 - 프로필 이미지 업데이트
+    error_log("네이버 로그인: 기존 네이버 계정 발견 - user_id={$user['id']}, email={$user['email']}");
     if ($profileImage && $profileImage !== $user['profile_image']) {
-        db()->query(
-            "UPDATE users SET profile_image = ?, updated_at = NOW() WHERE id = ?",
-            [$profileImage, $user['id']]
-        );
+        // updated_at 컬럼이 있는지 확인
+        $hasUpdatedAt = !empty(db()->fetchAll("SHOW COLUMNS FROM users LIKE 'updated_at'"));
+        if ($hasUpdatedAt) {
+            db()->execute(
+                "UPDATE users SET profile_image = ?, updated_at = NOW() WHERE id = ?",
+                [$profileImage, $user['id']]
+            );
+        } else {
+            db()->execute(
+                "UPDATE users SET profile_image = ? WHERE id = ?",
+                [$profileImage, $user['id']]
+            );
+        }
     }
 } else {
-    // 신규 회원 - 이메일로 기존 계정 확인
+    // 신규 회원 - 같은 이메일이면 기존 계정에 연동, 다르면 신규 가입
     if ($email) {
         $existingUser = db()->fetchOne(
-            "SELECT id, name, email, is_admin, naver_id FROM users WHERE email = ? LIMIT 1",
+            "SELECT id, name, email, is_admin, kakao_id, naver_id FROM users WHERE email = ? LIMIT 1",
             [$email]
         );
 
         if ($existingUser) {
-            // 기존 이메일 계정에 네이버 연동
-            db()->query(
-                "UPDATE users SET naver_id = ?, profile_image = ?, updated_at = NOW() WHERE id = ?",
-                [$naverId, $profileImage, $existingUser['id']]
-            );
+            // 같은 이메일이면 기존 계정에 네이버 연동
+            error_log("네이버 로그인: 같은 이메일로 기존 계정 연동 - naver_id={$naverId}, 기존 user_id={$existingUser['id']}, email={$existingUser['email']}");
+            // updated_at 컬럼이 있는지 확인
+            $hasUpdatedAt = !empty(db()->fetchAll("SHOW COLUMNS FROM users LIKE 'updated_at'"));
+            if ($hasUpdatedAt) {
+                db()->execute(
+                    "UPDATE users SET naver_id = ?, profile_image = ?, updated_at = NOW() WHERE id = ?",
+                    [$naverId, $profileImage, $existingUser['id']]
+                );
+            } else {
+                db()->execute(
+                    "UPDATE users SET naver_id = ?, profile_image = ? WHERE id = ?",
+                    [$naverId, $profileImage, $existingUser['id']]
+                );
+            }
             $user = $existingUser;
             $user['naver_id'] = $naverId;
+        } else {
+            // 같은 이메일이 없으면 신규 가입
+            error_log("네이버 로그인: 신규 회원 가입 - naver_id={$naverId}, email={$email}");
+            $userEmail = $email;
+            
+            $newUserId = db()->insert(
+                "INSERT INTO users (name, email, password, naver_id, profile_image, created_at) VALUES (?, ?, '', ?, ?, NOW())",
+                [$nickname, $userEmail, $naverId, $profileImage]
+            );
+
+            $user = [
+                'id' => (int) $newUserId,
+                'name' => $nickname,
+                'email' => $userEmail,
+                'is_admin' => 0,
+                'naver_id' => $naverId,
+                'profile_image' => $profileImage
+            ];
         }
-    }
-
-    // 완전 신규 회원 가입
-    if (!$user) {
-        // 이메일이 없으면 네이버ID 기반 임시 이메일 생성
-        $userEmail = $email ?: 'naver_' . $naverId . '@dewscent.local';
-
-        db()->query(
+    } else {
+        // 네이버 이메일이 없으면 네이버ID 기반 임시 이메일로 신규 가입
+        $userEmail = 'naver_' . $naverId . '@dewscent.local';
+        error_log("네이버 로그인: 신규 회원 가입 (이메일 없음) - naver_id={$naverId}, email={$userEmail}");
+        
+        $newUserId = db()->insert(
             "INSERT INTO users (name, email, password, naver_id, profile_image, created_at) VALUES (?, ?, '', ?, ?, NOW())",
             [$nickname, $userEmail, $naverId, $profileImage]
         );
-
-        $newUserId = db()->getConnection()->lastInsertId();
 
         $user = [
             'id' => (int) $newUserId,
@@ -161,6 +199,9 @@ if ($user) {
 
 // 5. 세션 설정
 regenerate_session();
+
+// 세션 설정 전 로그
+error_log("네이버 로그인: 세션 설정 - user_id={$user['id']}, email={$user['email']}, name={$user['name']}");
 
 $_SESSION['user_id'] = (int) $user['id'];
 $_SESSION['username'] = $user['name'] ?? $nickname;

@@ -2075,15 +2075,19 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		}
 
 		// ========== 쿠폰 관리 ==========
-		function renderCoupons() {
+		async function renderCoupons() {
 			const tbody = document.getElementById('couponsTableBody');
 			if (!tbody) return;
-			const coupons = API.getCoupons();
-			if (coupons.length === 0) {
-				tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--light)">등록된 쿠폰이 없습니다.</td></tr>';
-				return;
-			}
-			tbody.innerHTML = coupons.map(c => {
+			
+			tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--light)">불러오는 중입니다...</td></tr>';
+			
+			try {
+				const coupons = await API.getCoupons();
+				if (coupons.length === 0) {
+					tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--light)">등록된 쿠폰이 없습니다.</td></tr>';
+					return;
+				}
+				tbody.innerHTML = coupons.map(c => {
 				const discountText = c.type === 'percent' ? `${c.value}%` : `₩${c.value.toLocaleString()}`;
 				const period = (c.startDate || '') + (c.endDate ? ' ~ ' + c.endDate : '');
 				const usage = `${c.usedCount || 0}${c.usageLimit > 0 ? '/' + c.usageLimit : ''}`;
@@ -2101,7 +2105,11 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						</td>
 					</tr>
 				`;
-			}).join('');
+				}).join('');
+			} catch (error) {
+				console.error('쿠폰 목록 로딩 실패:', error);
+				tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--rose)">쿠폰을 불러오는 중 오류가 발생했습니다.</td></tr>';
+			}
 		}
 		function openCouponForm() {
 			document.getElementById('couponForm').style.display = 'block';
@@ -2120,7 +2128,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		function closeCouponForm() {
 			document.getElementById('couponForm').style.display = 'none';
 		}
-		function saveCoupon() {
+		async function saveCoupon() {
 			const editId = document.getElementById('couponEditId').value;
 			const code = document.getElementById('couponCode').value.trim().toUpperCase();
 			const name = document.getElementById('couponName').value.trim();
@@ -2130,66 +2138,96 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				alert('필수 항목을 모두 입력해주세요. (쿠폰 코드, 쿠폰명, 할인 값)');
 				return;
 			}
-			const coupons = API.getCoupons();
-			if (editId) {
-				const idx = coupons.findIndex(c => c.id === parseInt(editId));
-				if (idx !== -1) {
-					coupons[idx] = {
-						...coupons[idx],
+			
+			try {
+				const baseUrl = window.DS_BASE_URL || '';
+				const response = await fetch(`${baseUrl}/api/coupons.php?action=save`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					credentials: 'include',
+					body: JSON.stringify({
+						id: editId ? parseInt(editId) : 0,
 						code, name, type, value,
 						minAmount: parseInt(document.getElementById('couponMinAmount').value) || 0,
 						maxDiscount: parseInt(document.getElementById('couponMaxDiscount').value) || 0,
-						startDate: document.getElementById('couponStartDate').value || '',
-						endDate: document.getElementById('couponEndDate').value || '',
+						startDate: document.getElementById('couponStartDate').value || null,
+						endDate: document.getElementById('couponEndDate').value || null,
 						usageLimit: parseInt(document.getElementById('couponUsageLimit').value) || 0,
-						active: document.getElementById('couponActive').checked
-					};
+						active: document.getElementById('couponActive').checked ? 1 : 0
+					})
+				});
+				
+				const data = await response.json();
+				
+				if (data.success) {
+					// 캐시 초기화
+					if (typeof API.clearCouponsCache === 'function') {
+						API.clearCouponsCache();
+					}
+					closeCouponForm();
+					await renderCoupons();
+					alert('쿠폰이 저장되었습니다. 고객이 결제 시 사용할 수 있습니다.');
+				} else {
+					alert(data.message || '쿠폰 저장에 실패했습니다.');
 				}
-			} else {
-				if (coupons.some(c => c.code === code)) {
-					alert('이미 존재하는 쿠폰 코드입니다.');
+			} catch (error) {
+				console.error('쿠폰 저장 실패:', error);
+				alert('쿠폰 저장 중 오류가 발생했습니다.');
+			}
+		}
+		async function editCoupon(id) {
+			try {
+				const coupons = await API.getCoupons();
+				const coupon = coupons.find(c => c.id === id);
+				if (!coupon) {
+					alert('쿠폰을 찾을 수 없습니다.');
 					return;
 				}
-				coupons.push({
-					id: Date.now(),
-					code, name, type, value,
-					minAmount: parseInt(document.getElementById('couponMinAmount').value) || 0,
-					maxDiscount: parseInt(document.getElementById('couponMaxDiscount').value) || 0,
-					startDate: document.getElementById('couponStartDate').value || '',
-					endDate: document.getElementById('couponEndDate').value || '',
-					usageLimit: parseInt(document.getElementById('couponUsageLimit').value) || 0,
-					usedCount: 0,
-					active: document.getElementById('couponActive').checked,
-					createdAt: new Date().toISOString().split('T')[0]
-				});
+				document.getElementById('couponEditId').value = id;
+				document.getElementById('couponCode').value = coupon.code;
+				document.getElementById('couponName').value = coupon.name;
+				document.getElementById('couponType').value = coupon.type;
+				document.getElementById('couponValue').value = coupon.value;
+				document.getElementById('couponMinAmount').value = coupon.minAmount || 0;
+				document.getElementById('couponMaxDiscount').value = coupon.maxDiscount || 0;
+				document.getElementById('couponStartDate').value = coupon.startDate || '';
+				document.getElementById('couponEndDate').value = coupon.endDate || '';
+				document.getElementById('couponUsageLimit').value = coupon.usageLimit || 0;
+				document.getElementById('couponActive').checked = coupon.active !== false;
+				document.getElementById('couponForm').style.display = 'block';
+			} catch (error) {
+				console.error('쿠폰 수정 폼 로딩 실패:', error);
+				alert('쿠폰 정보를 불러오는 중 오류가 발생했습니다.');
 			}
-			API.setCoupons(coupons);
-			closeCouponForm();
-			renderCoupons();
-			alert('쿠폰이 저장되었습니다. 고객이 결제 시 사용할 수 있습니다.');
 		}
-		function editCoupon(id) {
-			const coupons = API.getCoupons();
-			const coupon = coupons.find(c => c.id === id);
-			if (!coupon) return;
-			document.getElementById('couponEditId').value = id;
-			document.getElementById('couponCode').value = coupon.code;
-			document.getElementById('couponName').value = coupon.name;
-			document.getElementById('couponType').value = coupon.type;
-			document.getElementById('couponValue').value = coupon.value;
-			document.getElementById('couponMinAmount').value = coupon.minAmount || 0;
-			document.getElementById('couponMaxDiscount').value = coupon.maxDiscount || 0;
-			document.getElementById('couponStartDate').value = coupon.startDate || '';
-			document.getElementById('couponEndDate').value = coupon.endDate || '';
-			document.getElementById('couponUsageLimit').value = coupon.usageLimit || 0;
-			document.getElementById('couponActive').checked = coupon.active !== false;
-			document.getElementById('couponForm').style.display = 'block';
-		}
-		function deleteCoupon(id) {
+		async function deleteCoupon(id) {
 			if (!confirm('정말 삭제하시겠습니까?')) return;
-			const coupons = API.getCoupons().filter(c => c.id !== id);
-			API.setCoupons(coupons);
-			renderCoupons();
+			
+			try {
+				const baseUrl = window.DS_BASE_URL || '';
+				const response = await fetch(`${baseUrl}/api/coupons.php?action=delete`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					credentials: 'include',
+					body: JSON.stringify({ id: id })
+				});
+				
+				const data = await response.json();
+				
+				if (data.success) {
+					// 캐시 초기화
+					if (typeof API.clearCouponsCache === 'function') {
+						API.clearCouponsCache();
+					}
+					await renderCoupons();
+					alert('쿠폰이 삭제되었습니다.');
+				} else {
+					alert(data.message || '쿠폰 삭제에 실패했습니다.');
+				}
+			} catch (error) {
+				console.error('쿠폰 삭제 실패:', error);
+				alert('쿠폰 삭제 중 오류가 발생했습니다.');
+			}
 		}
 
 		// ========== 탭 전환 ==========

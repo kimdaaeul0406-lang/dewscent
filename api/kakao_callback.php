@@ -60,7 +60,9 @@ if ($tokenError) {
 $tokenResult = json_decode($tokenResponse, true);
 
 if (!isset($tokenResult['access_token'])) {
-    error_log('카카오 토큰 응답 오류: ' . $tokenResponse);
+    // 토큰 정보는 로그에 출력하지 않음 (보안)
+    $errorCode = isset($tokenResult['error']) ? $tokenResult['error'] : 'unknown';
+    error_log('카카오 토큰 응답 오류: ' . $errorCode);
     header('Location: ' . SITE_URL . '?error=kakao_token_invalid');
     exit;
 }
@@ -90,7 +92,9 @@ if ($profileError) {
 $profileResult = json_decode($profileResponse, true);
 
 if (!isset($profileResult['id'])) {
-    error_log('카카오 프로필 응답 오류: ' . $profileResponse);
+    // 민감한 정보는 로그에 출력하지 않음 (보안)
+    $errorCode = isset($profileResult['error']) ? $profileResult['error'] : 'unknown';
+    error_log('카카오 프로필 응답 오류: ' . $errorCode);
     header('Location: ' . SITE_URL . '?error=kakao_profile_invalid');
     exit;
 }
@@ -109,42 +113,76 @@ $user = db()->fetchOne(
 
 if ($user) {
     // 기존 회원 - 프로필 이미지 업데이트
+    error_log("카카오 로그인: 기존 카카오 계정 발견 - user_id={$user['id']}, email={$user['email']}");
     if ($profileImage && $profileImage !== $user['profile_image']) {
-        db()->query(
-            "UPDATE users SET profile_image = ?, updated_at = NOW() WHERE id = ?",
-            [$profileImage, $user['id']]
-        );
+        // updated_at 컬럼이 있는지 확인
+        $hasUpdatedAt = !empty(db()->fetchAll("SHOW COLUMNS FROM users LIKE 'updated_at'"));
+        if ($hasUpdatedAt) {
+            db()->execute(
+                "UPDATE users SET profile_image = ?, updated_at = NOW() WHERE id = ?",
+                [$profileImage, $user['id']]
+            );
+        } else {
+            db()->execute(
+                "UPDATE users SET profile_image = ? WHERE id = ?",
+                [$profileImage, $user['id']]
+            );
+        }
     }
 } else {
-    // 신규 회원 - 이메일로 기존 계정 확인
+    // 신규 회원 - 같은 이메일이면 기존 계정에 연동, 다르면 신규 가입
     if ($kakaoEmail) {
         $existingUser = db()->fetchOne(
-            "SELECT id, name, email, is_admin, kakao_id FROM users WHERE email = ? LIMIT 1",
+            "SELECT id, name, email, is_admin, kakao_id, naver_id FROM users WHERE email = ? LIMIT 1",
             [$kakaoEmail]
         );
 
         if ($existingUser) {
-            // 기존 이메일 계정에 카카오 연동
-            db()->query(
-                "UPDATE users SET kakao_id = ?, profile_image = ?, updated_at = NOW() WHERE id = ?",
-                [$kakaoId, $profileImage, $existingUser['id']]
-            );
+            // 같은 이메일이면 기존 계정에 카카오 연동
+            error_log("카카오 로그인: 같은 이메일로 기존 계정 연동 - kakao_id={$kakaoId}, 기존 user_id={$existingUser['id']}, email={$existingUser['email']}");
+            // updated_at 컬럼이 있는지 확인
+            $hasUpdatedAt = !empty(db()->fetchAll("SHOW COLUMNS FROM users LIKE 'updated_at'"));
+            if ($hasUpdatedAt) {
+                db()->execute(
+                    "UPDATE users SET kakao_id = ?, profile_image = ?, updated_at = NOW() WHERE id = ?",
+                    [$kakaoId, $profileImage, $existingUser['id']]
+                );
+            } else {
+                db()->execute(
+                    "UPDATE users SET kakao_id = ?, profile_image = ? WHERE id = ?",
+                    [$kakaoId, $profileImage, $existingUser['id']]
+                );
+            }
             $user = $existingUser;
             $user['kakao_id'] = $kakaoId;
+        } else {
+            // 같은 이메일이 없으면 신규 가입
+            error_log("카카오 로그인: 신규 회원 가입 - kakao_id={$kakaoId}, email={$kakaoEmail}");
+            $email = $kakaoEmail;
+            
+            $newUserId = db()->insert(
+                "INSERT INTO users (name, email, password, kakao_id, profile_image, created_at) VALUES (?, ?, '', ?, ?, NOW())",
+                [$nickname, $email, $kakaoId, $profileImage]
+            );
+
+            $user = [
+                'id' => (int) $newUserId,
+                'name' => $nickname,
+                'email' => $email,
+                'is_admin' => 0,
+                'kakao_id' => $kakaoId,
+                'profile_image' => $profileImage
+            ];
         }
-    }
-
-    // 완전 신규 회원 가입
-    if (!$user) {
-        // 이메일이 없으면 카카오ID 기반 임시 이메일 생성
-        $email = $kakaoEmail ?: 'kakao_' . $kakaoId . '@dewscent.local';
-
-        db()->query(
+    } else {
+        // 카카오 이메일이 없으면 카카오ID 기반 임시 이메일로 신규 가입
+        $email = 'kakao_' . $kakaoId . '@dewscent.local';
+        error_log("카카오 로그인: 신규 회원 가입 (이메일 없음) - kakao_id={$kakaoId}, email={$email}");
+        
+        $newUserId = db()->insert(
             "INSERT INTO users (name, email, password, kakao_id, profile_image, created_at) VALUES (?, ?, '', ?, ?, NOW())",
             [$nickname, $email, $kakaoId, $profileImage]
         );
-
-        $newUserId = db()->getConnection()->lastInsertId();
 
         $user = [
             'id' => (int) $newUserId,

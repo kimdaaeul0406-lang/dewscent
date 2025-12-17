@@ -33,8 +33,13 @@ $pageTitle = "DewScent | 당신의 향기를 찾아서";
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
     <?php include __DIR__ . '/includes/modals.php'; ?>
 
+    <!-- 토스페이먼츠 결제 스크립트 -->
+    <script src="https://js.tosspayments.com/v1/payment"></script>
+    <!-- 토스페이먼츠 결제위젯 v2 SDK -->
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+    
     <!-- API 클라이언트 + 메인 스크립트 (캐시 방지용 버전 파라미터) -->
-    <script src="public/js/api.js?v=4"></script>
-    <script src="public/js/main.js?v=6"></script>
+    <script src="public/js/api.js?v=4" onerror="console.error('api.js 로드 실패')"></script>
+    <script src="public/js/main.js?v=8" onerror="console.error('main.js 로드 실패')"></script>
 </body>
 </html>
