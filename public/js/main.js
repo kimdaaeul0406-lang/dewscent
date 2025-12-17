@@ -3336,36 +3336,35 @@ function renderMyPage() {
         </div>
         <div class="form-group">
           <label class="form-label">배송지 추가</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-            <input type="text" id="mp_addr_label" class="form-input" placeholder="예: 기본, 회사">
-            <input type="text" id="mp_addr_recipient" class="form-input" placeholder="받는 분">
-            <input type="text" id="mp_addr_address" class="form-input" placeholder="주소">
-            <input type="text" id="mp_addr_phone" class="form-input" placeholder="연락처">
-          </div>
-          <div style="display:flex;gap:.5rem;justify-content:flex-end">
-            <button class="form-btn primary" style="flex:0 0 auto;min-width:140px" onclick="addAddressFromForm()">배송지 등록</button>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem">
+              <input type="text" id="mp_addr_label" class="form-input" placeholder="예: 기본, 회사" style="font-size:0.85rem">
+              <input type="text" id="mp_addr_recipient" class="form-input" placeholder="받는 분" style="font-size:0.85rem">
+            </div>
+            <input type="text" id="mp_addr_address" class="form-input" placeholder="주소" style="font-size:0.85rem">
+            <input type="text" id="mp_addr_phone" class="form-input" placeholder="연락처" style="font-size:0.85rem">
+            <button class="form-btn primary" style="width:100%;margin-top:.25rem" onclick="addAddressFromForm()">배송지 등록</button>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">등록된 배송지</label>
-          <div style="padding:.5rem;border:1px solid var(--border);border-radius:12px;background:#fff">
+          <div style="border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden">
             ${
               addresses.length
                 ? addresses
                     .map(
-                      (a) => `
-              <div style="display:flex;justify-content:space-between;gap:1rem;margin-bottom:.5rem">
-                <div>
-                  <strong>${a.label}</strong> · ${a.recipient}<br/>
-                  ${a.address} · ${a.phone}
+                      (a, idx) => `
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.75rem;${idx > 0 ? 'border-top:1px solid var(--border);' : ''}">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:500;font-size:.85rem;margin-bottom:.25rem">${a.label} · ${a.recipient}</div>
+                  <div style="font-size:.8rem;color:var(--mid);word-break:break-all">${a.address}</div>
+                  <div style="font-size:.75rem;color:var(--light);margin-top:.15rem">${a.phone}</div>
                 </div>
-                <span>
-                  <button class="form-btn secondary" style="padding:.4rem .8rem;margin:0" onclick="deleteAddress(${a.id})">삭제</button>
-                </span>
+                <button class="form-btn secondary btn-compact" style="flex-shrink:0;padding:.3rem .6rem;font-size:.75rem" onclick="deleteAddress(${a.id})">삭제</button>
               </div>`
                     )
                     .join("")
-                : '<span style="color:var(--light)">등록된 배송지가 없습니다.</span>'
+                : '<div style="padding:1rem;text-align:center;color:var(--light);font-size:.85rem">등록된 배송지가 없습니다.</div>'
             }
           </div>
         </div>

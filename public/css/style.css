@@ -1231,16 +1231,19 @@ footer {
 .phone-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 .phone-row .form-input {
-  flex: 1 1 0%;
-  min-width: 0;
+  flex: 1 1 140px;
+  min-width: 120px;
 }
 .phone-row .form-btn {
   width: auto;
   flex: 0 0 auto;
   margin-top: 0;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8rem;
 }
 .input-help {
   display: block;
@@ -1255,37 +1258,36 @@ footer {
 }
 .mypage-tabs {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-right: 1rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  margin-bottom: 1.25rem;
+  padding: 0;
   width: 100%;
-  max-width: 100%;
 }
 .mypage-tabs::-webkit-scrollbar {
   display: none;
 }
 .mypage-tab {
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.8rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: #fff;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   white-space: nowrap;
   flex-shrink: 0;
+  transition: all 0.2s;
+}
+.mypage-tab:hover {
+  border-color: var(--sage-light);
 }
 .mypage-tab.active {
   border-color: var(--sage);
   color: var(--sage);
   background: var(--sage-bg);
+  font-weight: 500;
 }
 
 /* 마이페이지 항목들 정돈 */
@@ -2627,66 +2629,127 @@ body.cart-page .best-section {
 
 /* 마이페이지 모달 크기 조정 */
 .mypage-modal {
-  max-width: 500px !important;
+  max-width: 480px !important;
   width: 90% !important;
-  max-height: 90vh !important;
+  max-height: 85vh !important;
   display: flex !important;
   flex-direction: column !important;
+  margin: auto !important;
 }
 
 /* 마이페이지 모달 가로 스크롤 - 모달 크기는 유지하고 내용만 스크롤 */
 .mypage-modal .modal-body {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: auto;
-  max-height: calc(90vh - 120px); /* 모달 헤더와 여백 제외 */
+  max-height: calc(85vh - 100px);
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin; /* Firefox */
-  -ms-overflow-style: auto; /* IE and Edge */
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
   flex: 1;
+  padding: 1.25rem 1.5rem 1.5rem !important;
 }
 
 .mypage-modal .modal-body::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-  width: 0;
-  height: 0;
+  width: 4px;
 }
 
 .mypage-modal .modal-body::-webkit-scrollbar-track {
-  display: none;
+  background: transparent;
 }
 
 .mypage-modal .modal-body::-webkit-scrollbar-thumb {
-  display: none;
+  background: var(--border);
+  border-radius: 2px;
 }
 
-.mypage-modal .modal-body::-webkit-scrollbar-button {
-  display: none;
-}
-
-.mypage-modal .modal-body::-webkit-scrollbar-corner {
-  display: none;
-}
-
-/* 마이페이지 내용이 잘리지 않도록 */
+/* 마이페이지 내용 정렬 */
 #mypageBody {
   width: 100%;
-  min-width: max-content;
+  text-align: left;
 }
 
-/* 주문내역 테이블 가로 스크롤 */
+/* 마이페이지 폼 그룹 */
+#mypageBody .form-group {
+  margin-bottom: 1.25rem;
+}
+
+#mypageBody .form-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 마이페이지 버튼 정렬 */
+#mypageBody .form-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+#mypageBody .form-btn.btn-compact {
+  width: auto;
+  margin-top: 0;
+}
+
+/* 주문내역 테이블 */
 .orders-group {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
 }
 
 .orders-group table {
   width: 100%;
-  min-width: 600px;
+  min-width: 320px;
+  font-size: 0.85rem;
 }
 
+.orders-group th,
+.orders-group td {
+  padding: 0.6rem 0.5rem !important;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* 주문내역 필터 */
 .orders-filters {
-  min-width: 600px;
-  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.orders-filters-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.orders-filters-left .form-input {
+  width: 120px !important;
+  min-width: 100px;
+  padding: 0.5rem !important;
+  font-size: 0.8rem !important;
+}
+
+.orders-filters .form-btn {
+  padding: 0.5rem 0.8rem !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap;
+}
+
+/* 배송지 아이템 */
+#mypageBody .address-item,
+#mypageBody [style*="justify-content:space-between"] {
+  flex-wrap: wrap;
+}
+
+/* 배송지 삭제 버튼 */
+#mypageBody .form-btn.secondary[onclick*="delete"] {
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.75rem !important;
+  width: auto !important;
+  min-width: 50px;
 }
 
 /* ============================================================
