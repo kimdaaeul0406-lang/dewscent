@@ -89,6 +89,17 @@ function ensure_tables_exist() {
                 // 컬럼이 이미 존재하거나 다른 오류 (무시)
             }
         }
+
+        // naver_id 컬럼이 없으면 추가 (네이버 소셜 로그인용)
+        $columns = db()->fetchAll("SHOW COLUMNS FROM users LIKE 'naver_id'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE users ADD COLUMN naver_id VARCHAR(100) DEFAULT NULL COMMENT '네이버 사용자 ID' AFTER profile_image");
+                $conn->exec("CREATE INDEX idx_users_naver_id ON users(naver_id)");
+            } catch (PDOException $e) {
+                // 컬럼이나 인덱스가 이미 존재하거나 다른 오류 (무시)
+            }
+        }
         
         // products 테이블
         $conn->exec("

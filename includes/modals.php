@@ -7,6 +7,14 @@ $signupPath = $inPages ? '../api/signup.php'  : 'api/signup.php';
 $kakaoLoginUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' . KAKAO_CLIENT_ID
     . '&redirect_uri=' . urlencode(KAKAO_REDIRECT_URI)
     . '&response_type=code';
+
+// 네이버 로그인 URL 생성
+$naverState = bin2hex(random_bytes(16)); // CSRF 방지용 state 값
+$_SESSION['naver_state'] = $naverState;
+$naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_CLIENT_ID
+    . '&redirect_uri=' . urlencode(NAVER_REDIRECT_URI)
+    . '&response_type=code'
+    . '&state=' . $naverState;
 ?>
 <!-- 웰컴 팝업 (향기 테스트) -->
 <div class="popup-overlay" id="welcomePopup">
@@ -100,7 +108,10 @@ $kakaoLoginUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' . KAKAO_CL
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M9 0.5C4.02944 0.5 0 3.69365 0 7.61538C0 10.0736 1.55906 12.2399 3.93188 13.4688L2.93344 17.0312C2.84906 17.3464 3.21344 17.5964 3.48781 17.4196L7.87406 14.5196C8.24437 14.5687 8.61937 14.7308 9 14.7308C13.9706 14.7308 18 11.5371 18 7.61538C18 3.69365 13.9706 0.5 9 0.5Z" fill="black"/></svg>
                     카카오로 로그인
                 </a>
-                <button class="social-btn" disabled style="opacity:0.5;cursor:not-allowed;">네이버로 로그인 (준비중)</button>
+                <a href="<?php echo htmlspecialchars($naverLoginUrl); ?>" class="social-btn naver-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#03C75A;color:#fff;text-decoration:none;">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M12.1875 9.5625L5.53125 0H0V18H5.8125V8.4375L12.4688 18H18V0H12.1875V9.5625Z" fill="white"/></svg>
+                    네이버로 로그인
+                </a>
             </div>
 
             <div class="form-footer">
