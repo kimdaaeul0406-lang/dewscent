@@ -38,39 +38,22 @@ $pathParts = $path ? explode('/', $path) : [];
 // ID 추출 (있으면)
 $id = isset($pathParts[0]) && is_numeric($pathParts[0]) ? (int)$pathParts[0] : null;
 
-// 상품에 variants 추가하는 헬퍼 함수
-function addVariantsToProduct($product) {
-    if (!$product) return $product;
-    $variants = db()->fetchAll(
-        "SELECT id, volume, price, stock, is_default, sort_order
-         FROM product_variants
-         WHERE product_id = ?
-         ORDER BY sort_order ASC, price ASC",
-        [$product['id']]
-    );
-    $product['variants'] = $variants ?: [];
-    return $product;
-}
 
 try {
     switch ($method) {
         case 'GET':
             if ($id) {
-                // 단일 상품 조회 (variants 포함)
+                // 단일 상품 조회
                 $product = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
                 if ($product) {
-                    $product = addVariantsToProduct($product);
                     echo json_encode($product);
                 } else {
                     http_response_code(404);
                     echo json_encode(['error' => '상품을 찾을 수 없습니다.']);
                 }
             } else {
-                // 전체 상품 목록 (variants 포함)
+                // 전체 상품 목록
                 $products = db()->fetchAll("SELECT * FROM products ORDER BY id DESC");
-                foreach ($products as &$p) {
-                    $p = addVariantsToProduct($p);
-                }
                 echo json_encode($products);
             }
             break;
@@ -90,11 +73,19 @@ try {
                 exit;
             }
 
+            // category/type 값 검증 및 정리
+            $category = $data['category'] ?? $data['type'] ?? '향수';
+            $validCategories = ['향수', '바디미스트', '헤어미스트', '디퓨저', '섬유유연제', '룸스프레이'];
+            // category가 너무 길거나 유효하지 않으면 기본값 사용
+            if (strlen($category) > 50 || !in_array($category, $validCategories)) {
+                $category = '향수';
+            }
+
             $sql = "INSERT INTO products (name, type, price, originalPrice, rating, reviews, badge, `desc`, image, stock, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $params = [
                 $data['name'],
-                $data['category'] ?? $data['type'] ?? '향수',
+                $category,
                 (int)$data['price'],
                 isset($data['originalPrice']) ? (int)$data['originalPrice'] : null,
                 $data['rating'] ?? 0,
@@ -136,6 +127,15 @@ try {
                 exit;
             }
 
+            // category/type 값 검증 및 정리
+            $category = $data['category'] ?? $data['type'] ?? $existing['type'];
+            // 유효한 카테고리 목록
+            $validCategories = ['향수', '바디미스트', '헤어미스트', '디퓨저', '섬유유연제', '룸스프레이'];
+            // category가 너무 길거나 유효하지 않으면 기본값 사용
+            if (strlen($category) > 50 || !in_array($category, $validCategories)) {
+                $category = $existing['type'] ?? '향수';
+            }
+
             $sql = "UPDATE products SET
                     name = ?,
                     type = ?,
@@ -150,24 +150,28 @@ try {
                     status = ?
                     WHERE id = ?";
             $params = [
-                $data['name'] ?? $existing['name'],
-                $data['category'] ?? $data['type'] ?? $existing['type'],
+                trim($data['name'] ?? $existing['name']),
+                $category,
                 (int)($data['price'] ?? $existing['price']),
                 isset($data['originalPrice']) ? (int)$data['originalPrice'] : $existing['originalPrice'],
                 $data['rating'] ?? $existing['rating'],
                 $data['reviews'] ?? $existing['reviews'],
                 $data['badge'] ?? $existing['badge'],
                 $data['desc'] ?? $existing['desc'],
-                $data['imageUrl'] ?? $data['image'] ?? $existing['image'],
+                trim($data['imageUrl'] ?? $data['image'] ?? $existing['image'] ?? ''),
                 (int)($data['stock'] ?? $existing['stock'] ?? 0),
                 $data['status'] ?? $existing['status'] ?? '판매중',
                 $id
             ];
 
-            db()->execute($sql, $params);
-            $updated = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
-
-            echo json_encode($updated);
+            try {
+                db()->execute($sql, $params);
+                $updated = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
+                echo json_encode($updated);
+            } catch (Exception $e) {
+                error_log('Product update error: ' . $e->getMessage() . ' - SQL: ' . $sql . ' - Params: ' . json_encode($params));
+                throw $e;
+            }
             break;
 
         case 'DELETE':
@@ -200,7 +204,13 @@ try {
     }
 } catch (Exception $e) {
     // 프로덕션에서는 상세 에러 메시지 숨김
-    error_log('API Error: ' . $e->getMessage());
+    error_log('Products API Error: ' . $e->getMessage());
+    error_log('Products API Stack Trace: ' . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['error' => '서버 오류가 발생했습니다.']);
+    // 개발 환경에서는 상세 오류 메시지 표시
+    $errorMessage = '서버 오류가 발생했습니다.';
+    if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
+        $errorMessage = '서버 오류: ' . $e->getMessage();
+    }
+    echo json_encode(['error' => $errorMessage, 'details' => $e->getMessage()]);
 }

@@ -233,15 +233,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 								</div>
 								<img id="prodImagePreview" class="image-preview" style="display:none;">
 							</div>
-							<!-- 용량별 가격 설정 -->
-							<div style="grid-column:1/-1;margin-top:.5rem;">
-								<label style="font-size:.8rem;color:var(--light);display:flex;align-items:center;gap:.5rem;">
-									용량별 가격 설정
-									<span style="font-size:.7rem;color:#888;">(선택사항 - 설정하면 기본 가격 대신 용량별 가격이 적용됩니다)</span>
-								</label>
-								<div id="variantsContainer" style="margin-top:.5rem;"></div>
-								<button type="button" class="badge" style="cursor:pointer;background:#6b8cce;color:#fff;border:none;padding:.4rem .8rem;font-size:.75rem;margin-top:.5rem;" onclick="addVariantRow()">+ 용량 추가</button>
-							</div>
 						</div>
 						<div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap;">
 							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveProduct()">저장</button>
@@ -971,54 +962,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			});
 		}
 
-		// 용량별 가격 행 추가
-		function addVariantRow(variant = null) {
-			const container = document.getElementById('variantsContainer');
-			const row = document.createElement('div');
-			row.className = 'variant-row';
-			row.style.cssText = 'display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;';
-			row.innerHTML = `
-				<input type="text" class="form-input variant-volume" placeholder="용량 (예: 30ml)" value="${variant?.volume || ''}" style="width:100px;">
-				<input type="number" class="form-input variant-price" placeholder="가격" value="${variant?.price || ''}" style="width:100px;">
-				<input type="number" class="form-input variant-stock" placeholder="재고" value="${variant?.stock || 0}" style="width:70px;">
-				<label style="font-size:.75rem;display:flex;align-items:center;gap:.25rem;">
-					<input type="radio" name="defaultVariant" class="variant-default" ${variant?.is_default == 1 ? 'checked' : ''}> 기본
-				</label>
-				<button type="button" onclick="this.parentElement.remove()" style="background:var(--rose);color:#fff;border:none;border-radius:4px;padding:.25rem .5rem;cursor:pointer;font-size:.7rem;">삭제</button>
-			`;
-			container.appendChild(row);
-		}
-
-		// 폼에서 variants 데이터 가져오기
-		function getVariantsFromForm() {
-			const rows = document.querySelectorAll('.variant-row');
-			const variants = [];
-			rows.forEach((row, index) => {
-				const volume = row.querySelector('.variant-volume').value.trim();
-				const price = row.querySelector('.variant-price').value;
-				const stock = row.querySelector('.variant-stock').value;
-				const isDefault = row.querySelector('.variant-default').checked;
-				if (volume && price) {
-					variants.push({
-						volume,
-						price: parseInt(price),
-						stock: parseInt(stock) || 0,
-						is_default: isDefault ? 1 : 0,
-						sort_order: index
-					});
-				}
-			});
-			return variants;
-		}
-
-		// variants 로드
-		function loadVariants(variants) {
-			const container = document.getElementById('variantsContainer');
-			container.innerHTML = '';
-			if (variants && variants.length > 0) {
-				variants.forEach(v => addVariantRow(v));
-			}
-		}
 
 		// 상품 폼 열기 (등록)
 		function openProductForm() {
@@ -1034,8 +977,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('prodBadge').value = '';
 			document.getElementById('prodDesc').value = '';
 			document.getElementById('prodImageUrl').value = '';
-			// variants 초기화
-			document.getElementById('variantsContainer').innerHTML = '';
 		}
 
 		// 상품 폼 닫기
@@ -1071,8 +1012,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				preview.style.display = 'none';
 				preview.src = '';
 			}
-			// variants 로드
-			loadVariants(product.variants || []);
 		}
 
 		// 상품 저장 (등록/수정)
@@ -1080,22 +1019,29 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			const editId = document.getElementById('productEditId').value;
 			const name = document.getElementById('prodName').value.trim();
 			const price = document.getElementById('prodPrice').value;
-			const variants = getVariantsFromForm();
 
 			if (!name) {
 				alert('상품명을 입력해주세요.');
 				return;
 			}
-			// variants가 있으면 기본 가격 검증 스킵, 없으면 기본 가격 필수
-			if (variants.length === 0 && (!price || parseInt(price) <= 0)) {
-				alert('가격을 입력하거나 용량별 가격을 설정해주세요.');
+			if (!price || parseInt(price) <= 0) {
+				alert('가격을 입력해주세요.');
 				return;
+			}
+
+			// category 값 검증 및 정리
+			const categorySelect = document.getElementById('prodCategory');
+			let category = categorySelect ? categorySelect.value : '향수';
+			// category가 유효한 옵션 값인지 확인 (50자 제한)
+			const validCategories = ['향수', '바디미스트', '헤어미스트', '디퓨저', '섬유유연제', '룸스프레이'];
+			if (!validCategories.includes(category) || category.length > 50) {
+				category = '향수'; // 기본값으로 설정
 			}
 
 			const data = {
 				name: name,
-				price: variants.length > 0 ? (variants.find(v => v.is_default)?.price || variants[0].price) : parseInt(price),
-				category: document.getElementById('prodCategory').value,
+				price: parseInt(price),
+				category: category,
 				stock: parseInt(document.getElementById('prodStock').value) || 0,
 				status: document.getElementById('prodStatus').value,
 				badge: document.getElementById('prodBadge').value,
@@ -1104,20 +1050,10 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			};
 
 			try {
-				let productId = editId;
 				if (editId) {
 					await API.updateProduct(parseInt(editId), data);
 				} else {
-					const created = await API.createProduct(data);
-					productId = created.id;
-				}
-
-				// variants 저장
-				if (productId && variants.length > 0) {
-					await saveVariants(productId, variants);
-				} else if (productId && variants.length === 0) {
-					// variants가 없으면 기존 variants 삭제
-					await deleteAllVariants(productId);
+					await API.createProduct(data);
 				}
 
 				alert(editId ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.');
@@ -1126,29 +1062,6 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			} catch (e) {
 				alert('오류가 발생했습니다: ' + e.message);
 			}
-		}
-
-		// variants 저장 API 호출
-		async function saveVariants(productId, variants) {
-			const response = await fetch(`/api/variants.php/${productId}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ variants })
-			});
-			if (!response.ok) {
-				throw new Error('용량별 가격 저장 실패');
-			}
-			return await response.json();
-		}
-
-		// 모든 variants 삭제
-		async function deleteAllVariants(productId) {
-			const response = await fetch(`/api/variants.php/${productId}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-			return response.ok;
 		}
 
 		// 상품 삭제
