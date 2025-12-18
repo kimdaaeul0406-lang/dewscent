@@ -20,17 +20,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // DB 연동 로그인 검증
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	$username = trim($_POST['username'] ?? '');
+	$email = trim($_POST['username'] ?? ''); // 이메일 또는 이름으로 로그인
 	$password = trim($_POST['password'] ?? '');
 
-	if ($username === '' || $password === '') {
-		$error = '아이디와 비밀번호를 입력해주세요.';
+	if ($email === '' || $password === '') {
+		$error = '이메일과 비밀번호를 입력해주세요.';
 	} else {
 		try {
-			// DB에서 관리자 계정 조회 (role = 'admin')
+			// DB에서 관리자 계정 조회 (is_admin = 1)
+			// 이메일 또는 이름으로 로그인 가능
 			$user = db()->fetchOne(
-				"SELECT * FROM users WHERE username = ? AND role = 'admin'",
-				[$username]
+				"SELECT * FROM users WHERE (email = ? OR name = ?) AND is_admin = 1",
+				[$email, $email]
 			);
 
 			// 비밀번호 확인 (해시 또는 평문 둘 다 지원)
@@ -51,12 +52,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				// 로그인 성공
 				$_SESSION['admin_logged_in'] = true;
 				$_SESSION['admin_email'] = $user['email'];
-				$_SESSION['admin_name'] = $user['username'] ?? $user['name'] ?? 'Admin';
+				$_SESSION['admin_name'] = $user['name'] ?? 'Admin';
 				$_SESSION['admin_id'] = $user['id'];
+				$_SESSION['role'] = 'admin';
+				$_SESSION['user_id'] = $user['id'];
+				$_SESSION['is_admin'] = 1;
 				header('Location: dashboard.php');
 				exit;
 			} else {
-				$error = '아이디 또는 비밀번호가 올바르지 않습니다.';
+				$error = '이메일 또는 비밀번호가 올바르지 않습니다.';
 			}
 		} catch (Exception $e) {
 			$error = 'DB 연결 오류가 발생했습니다.';
@@ -95,8 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				<?php endif; ?>
 				<form method="post" action="index.php">
 					<div class="form-group">
-						<label class="form-label">아이디</label>
-						<input type="text" name="username" class="form-input" placeholder="admin" required>
+						<label class="form-label">이메일</label>
+						<input type="text" name="username" class="form-input" placeholder="admin@example.com" required>
 					</div>
 					<div class="form-group">
 						<label class="form-label">비밀번호</label>

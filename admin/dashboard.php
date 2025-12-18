@@ -2265,8 +2265,11 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		// 기본 로드: 개요 표시 + KPI 업데이트
 		async function updateKPIs() {
 			try {
-				// 오늘 날짜 (YYYY-MM-DD 형식)
-				const today = new Date().toISOString().split('T')[0];
+				// 오늘 날짜 (YYYY-MM-DD 형식, 한국 시간대 기준)
+				const now = new Date();
+				const kstOffset = 9 * 60; // 한국 시간대 UTC+9
+				const kstTime = new Date(now.getTime() + (kstOffset + now.getTimezoneOffset()) * 60000);
+				const today = kstTime.toISOString().split('T')[0];
 				
 				// 문의 데이터
 				const inquiries = await API.getInquiries();
