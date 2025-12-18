@@ -123,13 +123,67 @@ function ensure_tables_exist() {
                 reviews INT DEFAULT 0,
                 badge VARCHAR(20) DEFAULT NULL COMMENT 'BEST, NEW, SALE 등',
                 `desc` TEXT COMMENT '상품 설명',
-                image VARCHAR(255) DEFAULT NULL COMMENT '상품 이미지 경로',
+                image TEXT DEFAULT NULL COMMENT '상품 카드 이미지 경로 (메인페이지 표시용, Base64 지원)',
+                detail_image TEXT DEFAULT NULL COMMENT '상품 상세 이미지 경로 (클릭 시 모달 표시용, Base64 지원)',
                 stock INT DEFAULT 0 COMMENT '재고 수량',
                 status VARCHAR(20) DEFAULT '판매중' COMMENT '판매중, 품절, 숨김',
+                fragrance_type VARCHAR(50) DEFAULT NULL COMMENT '향기 타입 (시트러스, 플로럴, 우디 등)',
+                emotion_keys TEXT DEFAULT NULL COMMENT '감정 키들 (JSON 배열 형식)',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        
+        // fragrance_type 컬럼이 없으면 추가
+        $columns = db()->fetchAll("SHOW COLUMNS FROM products LIKE 'fragrance_type'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE products ADD COLUMN fragrance_type VARCHAR(50) DEFAULT NULL COMMENT '향기 타입 (시트러스, 플로럴, 우디 등)' AFTER status");
+            } catch (PDOException $e) {
+                // 컬럼이 이미 존재하거나 다른 오류 (무시)
+            }
+        }
+        
+        // emotion_keys 컬럼이 없으면 추가
+        $columns = db()->fetchAll("SHOW COLUMNS FROM products LIKE 'emotion_keys'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE products ADD COLUMN emotion_keys TEXT DEFAULT NULL COMMENT '감정 키들 (JSON 배열 형식)' AFTER fragrance_type");
+            } catch (PDOException $e) {
+                // 컬럼이 이미 존재하거나 다른 오류 (무시)
+            }
+        }
+        
+        // detail_image 컬럼이 없으면 추가
+        $columns = db()->fetchAll("SHOW COLUMNS FROM products LIKE 'detail_image'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE products ADD COLUMN detail_image TEXT DEFAULT NULL COMMENT '상품 상세 이미지 경로 (클릭 시 모달 표시용, Base64 지원)' AFTER image");
+            } catch (PDOException $e) {
+                // 컬럼이 이미 존재하거나 다른 오류 (무시)
+            }
+        }
+        
+        // image와 detail_image 컬럼이 VARCHAR(255)이면 TEXT로 변경 (Base64 이미지 지원 - 필수!)
+        try {
+            $imageColumn = db()->fetchOne("SHOW COLUMNS FROM products WHERE Field = 'image'");
+            if ($imageColumn && stripos($imageColumn['Type'], 'varchar') !== false) {
+                $conn->exec("ALTER TABLE products MODIFY COLUMN image TEXT DEFAULT NULL COMMENT '상품 카드 이미지 경로 (메인페이지 표시용, Base64 지원)'");
+                error_log("DB Migration: image 컬럼을 VARCHAR에서 TEXT로 변경했습니다.");
+            }
+        } catch (PDOException $e) {
+            error_log("DB Migration 오류 (image): " . $e->getMessage());
+        }
+        
+        try {
+            $detailImageColumn = db()->fetchOne("SHOW COLUMNS FROM products WHERE Field = 'detail_image'");
+            if ($detailImageColumn && stripos($detailImageColumn['Type'], 'varchar') !== false) {
+                $conn->exec("ALTER TABLE products MODIFY COLUMN detail_image TEXT DEFAULT NULL COMMENT '상품 상세 이미지 경로 (클릭 시 모달 표시용, Base64 지원)'");
+                error_log("DB Migration: detail_image 컬럼을 VARCHAR에서 TEXT로 변경했습니다.");
+            }
+        } catch (PDOException $e) {
+            error_log("DB Migration 오류 (detail_image): " . $e->getMessage());
+        }
 
         // product_variants 테이블 (용량별 가격)
         $conn->exec("
@@ -210,11 +264,40 @@ function ensure_tables_exist() {
                 shipping_name VARCHAR(50) DEFAULT NULL,
                 shipping_phone VARCHAR(20) DEFAULT NULL,
                 shipping_address TEXT DEFAULT NULL,
+                guest_email VARCHAR(255) DEFAULT NULL COMMENT '비회원 주문 이메일',
+                guest_session_id VARCHAR(100) DEFAULT NULL COMMENT '비회원 세션 ID',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        
+        // 비회원 주문 컬럼 추가 (기존 테이블 마이그레이션)
+        try {
+            $columns = db()->fetchAll("SHOW COLUMNS FROM orders LIKE 'guest_email'");
+            if (empty($columns)) {
+                $conn->exec("ALTER TABLE orders ADD COLUMN guest_email VARCHAR(255) DEFAULT NULL COMMENT '비회원 주문 이메일' AFTER shipping_address");
+            }
+        } catch (PDOException $e) {
+            // 컬럼이 이미 존재하거나 다른 오류 (무시)
+        }
+        
+        try {
+            $columns = db()->fetchAll("SHOW COLUMNS FROM orders LIKE 'guest_session_id'");
+            if (empty($columns)) {
+                $conn->exec("ALTER TABLE orders ADD COLUMN guest_session_id VARCHAR(100) DEFAULT NULL COMMENT '비회원 세션 ID' AFTER guest_email");
+            }
+        } catch (PDOException $e) {
+            // 컬럼이 이미 존재하거나 다른 오류 (무시)
+        }
+        
+        // 비회원 주문 조회를 위한 인덱스 추가
+        try {
+            $conn->exec("CREATE INDEX IF NOT EXISTS idx_orders_guest_email ON orders(guest_email)");
+            $conn->exec("CREATE INDEX IF NOT EXISTS idx_orders_guest_session ON orders(guest_session_id)");
+        } catch (PDOException $e) {
+            // 인덱스가 이미 존재하거나 다른 오류 (무시)
+        }
         
         // order_items 테이블 생성
         $conn->exec("
@@ -225,11 +308,24 @@ function ensure_tables_exist() {
                 product_name VARCHAR(255) NOT NULL,
                 quantity INT NOT NULL,
                 price INT NOT NULL COMMENT '주문 시점 가격',
+                variant_id INT DEFAULT NULL COMMENT '선택된 variant ID (용량별 가격)',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        
+        // variant_id 컬럼이 없으면 추가
+        $columns = db()->fetchAll("SHOW COLUMNS FROM order_items LIKE 'variant_id'");
+        if (empty($columns)) {
+            try {
+                $conn->exec("ALTER TABLE order_items ADD COLUMN variant_id INT DEFAULT NULL COMMENT '선택된 variant ID (용량별 가격)' AFTER price");
+                $conn->exec("ALTER TABLE order_items ADD FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL");
+            } catch (PDOException $e) {
+                // 컬럼이나 외래키가 이미 존재하거나 다른 오류 (무시)
+            }
+        }
         
         // orders 인덱스
         try {
@@ -274,7 +370,7 @@ function ensure_tables_exist() {
                 session_id VARCHAR(255) DEFAULT NULL COMMENT 'PHP 세션 ID',
                 user_id INT DEFAULT NULL COMMENT '사용자 ID (로그인한 경우)',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-                expires_at TIMESTAMP NOT NULL COMMENT '만료 시간',
+                expires_at TIMESTAMP NULL DEFAULT NULL COMMENT '만료 시간',
                 status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, completed, expired',
                 INDEX idx_order_id (order_id),
                 INDEX idx_session_id (session_id),
@@ -371,6 +467,27 @@ function ensure_tables_exist() {
                 INSERT INTO coupons (code, name, type, value, min_amount, max_discount, active, created_at)
                 VALUES ('WELCOME10', '신규 회원 10% 할인', 'percent', 10, 0, 10000, 1, NOW())
             ");
+        }
+        
+        // 기본 관리자 계정 생성 (없는 경우만)
+        try {
+            $admin = db()->fetchOne("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+            if (!$admin) {
+                // 관리자 계정이 없으면 생성
+                $adminEmail = 'admin@dewscent.com';
+                $adminPassword = password_hash('admin123', PASSWORD_DEFAULT);
+                db()->insert(
+                    "INSERT INTO users (email, password, name, is_admin, created_at)
+                     VALUES (?, ?, '관리자', 1, NOW())",
+                    [$adminEmail, $adminPassword]
+                );
+                error_log('기본 관리자 계정이 자동 생성되었습니다. 이메일: ' . $adminEmail . ', 비밀번호: admin123');
+            }
+        } catch (PDOException $e) {
+            // 중복된 이메일이거나 다른 오류 (무시)
+            if (strpos($e->getMessage(), 'Duplicate entry') === false) {
+                error_log('관리자 계정 자동 생성 중 오류 (무시됨): ' . $e->getMessage());
+            }
         }
         
         return true;

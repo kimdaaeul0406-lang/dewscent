@@ -661,26 +661,34 @@ main.visible {
   justify-content: center;
   position: relative;
   background: linear-gradient(180deg, var(--sage-lighter), var(--sage-light));
+  background-size: cover;
+  background-position: center;
 }
-.product-card:nth-child(2) .product-image {
+/* 인라인 스타일의 background-image가 우선 적용되도록 */
+.product-image[style*="background-image"],
+.product-list-image[style*="background-image"] {
+  background: transparent !important;
+}
+/* nth-child 선택자들은 이미지가 없을 때만 적용 */
+.product-card:nth-child(2) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--rose-lighter), var(--rose-light));
 }
-.product-card:nth-child(3) .product-image {
+.product-card:nth-child(3) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--ivory-light), var(--ivory));
 }
-.product-card:nth-child(4) .product-image {
+.product-card:nth-child(4) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--mist), var(--sage-bg));
 }
-.product-card:nth-child(5) .product-image {
+.product-card:nth-child(5) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--aqua), var(--rose-lighter));
 }
-.product-card:nth-child(6) .product-image {
+.product-card:nth-child(6) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--ivory), var(--sage-lighter));
 }
-.product-card:nth-child(7) .product-image {
+.product-card:nth-child(7) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, var(--sage-bg), var(--rose-lighter));
 }
-.product-card:nth-child(8) .product-image {
+.product-card:nth-child(8) .product-image:not([style*="background-image"]) {
   background: linear-gradient(180deg, #faf5f4, var(--sage-lighter));
 }
 .product-badge {
@@ -719,6 +727,12 @@ main.visible {
   font-size: 0.7rem;
   color: var(--light);
   margin-bottom: 0.3rem;
+}
+.product-category {
+  font-size: 0.75rem;
+  color: var(--sage);
+  margin-bottom: 0.25rem;
+  font-weight: 500;
 }
 .product-name {
   font-size: 0.95rem;
@@ -1772,6 +1786,9 @@ body.cart-page .best-header::after {
   width: 45%;
   min-height: 500px;
   background: linear-gradient(135deg, var(--sage-lighter), var(--sage-light));
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
 }
 .product-modal-content {
   width: 55%;
@@ -1795,6 +1812,13 @@ body.cart-page .best-header::after {
   font-size: 0.8rem;
   color: var(--light);
   margin-bottom: 0.3rem;
+}
+.product-modal-category {
+  font-size: 0.85rem;
+  color: var(--sage);
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
 }
 .product-modal-name {
   font-size: 1.5rem;
@@ -2415,6 +2439,10 @@ body.cart-page .best-section {
   height: 120px;
   background: linear-gradient(135deg, var(--sage-lighter), var(--rose-lighter));
   border-radius: 10px;
+}
+/* 리스트 이미지도 인라인 스타일이 있으면 기본 배경 제거 */
+.product-list-image[style*="background-image"] {
+  background: transparent !important;
   position: relative;
 }
 .product-list-image .product-badge {

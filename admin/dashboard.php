@@ -14,6 +14,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 	<title><?= htmlspecialchars($pageTitle) ?></title>
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="../public/css/style.css?v=7">
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 	<script>
 		// API 기본 URL 설정 (관리자 대시보드용)
 		window.DS_BASE_URL = "<?php echo rtrim(SITE_URL, '/'); ?>";
@@ -119,6 +120,60 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 							<strong id="kpi-total-inquiries">0</strong>
 						</div>
 					</div>
+					
+					<!-- 통계 그래프 섹션 -->
+					<div style="margin-top:2rem;padding-top:2rem;border-top:2px solid var(--border);">
+						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+							<h3 style="margin:0;font-size:1.1rem;font-weight:600;color:var(--sage);">전체 통계</h3>
+							<div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+								<input type="date" id="statFromDate" style="padding:0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;">
+								<span style="color:var(--mid);">~</span>
+								<input type="date" id="statToDate" style="padding:0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;">
+								<button onclick="loadStatistics()" style="padding:0.5rem 1rem;background:var(--sage);color:#fff;border:none;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:500;">조회</button>
+								<button onclick="resetDateRange()" style="padding:0.5rem 1rem;background:var(--border);color:var(--mid);border:none;border-radius:6px;font-size:0.85rem;cursor:pointer;">초기화</button>
+							</div>
+						</div>
+						
+						<!-- 통계 요약 -->
+						<div id="statSummary" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:1rem;margin-bottom:2rem;">
+							<div style="background:var(--sage-bg);padding:1rem;border-radius:8px;text-align:center;">
+								<div style="font-size:0.85rem;color:var(--mid);margin-bottom:0.5rem;">총 주문</div>
+								<div id="statTotalOrders" style="font-size:1.5rem;font-weight:700;color:var(--sage);">0</div>
+							</div>
+							<div style="background:var(--sage-bg);padding:1rem;border-radius:8px;text-align:center;">
+								<div style="font-size:0.85rem;color:var(--mid);margin-bottom:0.5rem;">총 매출</div>
+								<div id="statTotalRevenue" style="font-size:1.5rem;font-weight:700;color:var(--sage);">₩0</div>
+							</div>
+							<div style="background:var(--sage-bg);padding:1rem;border-radius:8px;text-align:center;">
+								<div style="font-size:0.85rem;color:var(--mid);margin-bottom:0.5rem;">평균 주문금액</div>
+								<div id="statAvgOrder" style="font-size:1.5rem;font-weight:700;color:var(--sage);">₩0</div>
+							</div>
+							<div style="background:var(--sage-bg);padding:1rem;border-radius:8px;text-align:center;">
+								<div style="font-size:0.85rem;color:var(--mid);margin-bottom:0.5rem;">고유 고객</div>
+								<div id="statCustomers" style="font-size:1.5rem;font-weight:700;color:var(--sage);">0</div>
+							</div>
+						</div>
+						
+						<!-- 그래프 컨테이너 -->
+						<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:1.5rem;margin-bottom:2rem;">
+							<div style="background:var(--white);padding:1.5rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+								<h4 style="margin:0 0 1rem 0;font-size:1rem;font-weight:600;color:var(--sage);">일별 주문 수</h4>
+								<canvas id="ordersChart"></canvas>
+							</div>
+							<div style="background:var(--white);padding:1.5rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+								<h4 style="margin:0 0 1rem 0;font-size:1rem;font-weight:600;color:var(--sage);">일별 매출</h4>
+								<canvas id="revenueChart"></canvas>
+							</div>
+							<div style="background:var(--white);padding:1.5rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+								<h4 style="margin:0 0 1rem 0;font-size:1rem;font-weight:600;color:var(--sage);">일별 가입자</h4>
+								<canvas id="signupsChart"></canvas>
+							</div>
+							<div style="background:var(--white);padding:1.5rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+								<h4 style="margin:0 0 1rem 0;font-size:1rem;font-weight:600;color:var(--sage);">주문 상태별 통계</h4>
+								<canvas id="statusChart"></canvas>
+							</div>
+						</div>
+					</div>
 				</div>
 
 				<div class="admin-card" id="tab-users" style="display:none">
@@ -148,7 +203,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<thead>
 							<tr>
 								<th>주문번호</th>
-								<th>고객</th>
+								<th>고객 (회원/비회원)</th>
 								<th>금액</th>
 								<th>상태</th>
 								<th>주문일</th>
@@ -185,12 +240,8 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 								<input type="text" id="prodName" class="form-input" placeholder="상품명">
 							</div>
 							<div>
-								<label style="font-size:.8rem;color:var(--light);">가격 (원) *</label>
-								<input type="number" id="prodPrice" class="form-input" placeholder="42000">
-							</div>
-							<div>
 								<label style="font-size:.8rem;color:var(--light);">카테고리</label>
-								<select id="prodCategory" class="form-input">
+								<select id="prodCategory" class="form-input" onchange="updateVolumeOptions()">
 									<option value="향수">향수</option>
 									<option value="바디미스트">바디미스트</option>
 									<option value="헤어미스트">헤어미스트</option>
@@ -200,8 +251,16 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 								</select>
 							</div>
 							<div>
-								<label style="font-size:.8rem;color:var(--light);">재고</label>
-								<input type="number" id="prodStock" class="form-input" placeholder="50" value="0">
+								<label style="font-size:.8rem;color:var(--light);">향으로 찾기</label>
+								<select id="prodFragranceType" class="form-input">
+									<option value="">선택 안함</option>
+									<option value="시트러스">시트러스</option>
+									<option value="플로럴">플로럴</option>
+									<option value="우디">우디</option>
+									<option value="머스크">머스크</option>
+									<option value="오리엔탈">오리엔탈</option>
+									<option value="프레시">프레시</option>
+								</select>
 							</div>
 							<div>
 								<label style="font-size:.8rem;color:var(--light);">상태</label>
@@ -221,17 +280,43 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 								</select>
 							</div>
 							<div style="grid-column:1/-1;">
+								<label style="font-size:.8rem;color:var(--light);">기분으로 찾기 (여러 개 선택 가능)</label>
+								<div id="prodEmotionsContainer" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem;padding:.75rem;background:#f8f9fa;border-radius:4px;">
+									<!-- JavaScript로 동적 생성 -->
+								</div>
+							</div>
+							<div style="grid-column:1/-1;">
 								<label style="font-size:.8rem;color:var(--light);">상품 설명</label>
 								<textarea id="prodDesc" class="form-input" rows="2" placeholder="상품에 대한 간단한 설명" style="resize:none;"></textarea>
 							</div>
 							<div style="grid-column:1/-1;">
-								<label style="font-size:.8rem;color:var(--light);">이미지</label>
+								<label style="font-size:.8rem;color:var(--light);">상품 카드 이미지 (메인페이지 표시용)</label>
 								<div class="image-upload-wrap">
 									<input type="text" id="prodImageUrl" class="form-input" placeholder="URL 입력 또는 파일 업로드">
 									<input type="file" id="prodImageFile" class="image-upload-input" accept="image/*" onchange="uploadProductImage(this)">
 									<button type="button" class="image-upload-btn" onclick="document.getElementById('prodImageFile').click()">파일 선택</button>
+									<button type="button" class="image-upload-btn" style="background:var(--rose);" onclick="clearProductImage()" id="clearImageBtn" style="display:none;">이미지 삭제</button>
 								</div>
 								<img id="prodImagePreview" class="image-preview" style="display:none;">
+							</div>
+							<div style="grid-column:1/-1;">
+								<label style="font-size:.8rem;color:var(--light);">상품 상세 이미지 (클릭 시 모달 표시용)</label>
+								<div class="image-upload-wrap">
+									<input type="text" id="prodDetailImageUrl" class="form-input" placeholder="URL 입력 또는 파일 업로드 (없으면 카드 이미지 사용)">
+									<input type="file" id="prodDetailImageFile" class="image-upload-input" accept="image/*" onchange="uploadProductDetailImage(this)">
+									<button type="button" class="image-upload-btn" onclick="document.getElementById('prodDetailImageFile').click()">파일 선택</button>
+									<button type="button" class="image-upload-btn" style="background:var(--rose);" onclick="clearProductDetailImage()" id="clearDetailImageBtn" style="display:none;">이미지 삭제</button>
+								</div>
+								<img id="prodDetailImagePreview" class="image-preview" style="display:none;">
+							</div>
+							<!-- 용량별 가격 설정 -->
+							<div style="grid-column:1/-1;margin-top:1rem;padding:1rem;background:#f8f9fa;border-radius:4px;">
+								<label style="font-size:.8rem;color:var(--light);display:block;margin-bottom:.5rem;">
+									용량별 가격 설정
+									<span style="font-size:.7rem;color:#888;">(카테고리별 용량 옵션이 자동으로 표시됩니다)</span>
+								</label>
+								<div id="variantsContainer" style="margin-top:.5rem;"></div>
+								<button type="button" class="badge" style="cursor:pointer;background:#6b8cce;color:#fff;border:none;padding:.4rem .8rem;font-size:.75rem;margin-top:.5rem;display:none;" id="addVariantBtn" onclick="addVariantRow()">+ 용량 추가</button>
 							</div>
 						</div>
 						<div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap;">
@@ -656,6 +741,19 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						<div style="grid-column:1/-1;"><label style="font-size:.8rem;color:var(--light);">인스타그램 URL</label><input type="text" id="settingInstagram" class="form-input" placeholder="https://instagram.com/dewscent"></div>
 					</div>
 					<div style="margin-top:1rem;"><button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveSiteSettings()">저장</button></div>
+					
+					<!-- 향기 타입 관리 -->
+					<div style="margin-top:2rem;padding-top:2rem;border-top:1px solid var(--border);">
+						<h3 style="margin-bottom:1rem;font-size:1rem;">향으로 찾기 메뉴 관리</h3>
+						<p style="font-size:.85rem;color:var(--light);margin-bottom:1rem;">햄버거 메뉴의 "향으로 찾기" 섹션에 표시될 향기 타입을 관리합니다.</p>
+						<div id="fragranceTypesContainer" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem;">
+							<!-- JavaScript로 동적 생성 -->
+						</div>
+						<div style="display:flex;gap:.5rem;">
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="addFragranceType()">+ 추가</button>
+							<button class="badge" style="cursor:pointer;background:var(--sage);color:#fff;border:none;padding:.5rem 1rem;" onclick="saveFragranceTypes()">저장</button>
+						</div>
+					</div>
 				</div>
 
 			</div>
@@ -819,10 +917,18 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					// 취소 요청 확인 (상태가 취소요청이거나 cancelRequested가 true인 경우)
 					const hasCancelRequest = o.status === '취소요청' || o.status === 'cancel_requested' || 
 					                         (o.cancelRequested === true || o.cancelRequested === 1);
+					// 회원/비회원 구분
+					const isGuest = o.is_guest === true || o.is_guest === 1 || !o.email || (o.email && !o.customer_name);
+					const memberBadge = isGuest 
+						? '<span class="badge" style="background:#888;color:#fff;font-size:.7rem;padding:.2rem .4rem;border-radius:4px;">비회원</span>'
+						: '<span class="badge" style="background:var(--sage);color:#fff;font-size:.7rem;padding:.2rem .4rem;border-radius:4px;">회원</span>';
 					return `
 					<tr>
 						<td>${o.id}${hasCancelRequest ? '<br><span style="color:var(--rose);font-size:0.75rem;font-weight:600;">⚠ 취소요청</span>' : ''}</td>
-						<td>${o.customer || '비회원'}</td>
+						<td>
+							${memberBadge}<br>
+							<span style="font-size:.85rem;margin-top:.25rem;display:inline-block;">${o.customer || '비회원'}</span>
+						</td>
 						<td>₩${(o.total || 0).toLocaleString()}</td>
 						<td>
 							<select id="status-${o.id}" onchange="updateOrderStatus('${o.id}', this.value)" 
@@ -929,8 +1035,169 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			}
 		}
 
-		function viewOrderDetail(orderNumber) {
-			alert('주문 상세 기능은 준비 중입니다.\n주문번호: ' + orderNumber);
+		async function viewOrderDetail(orderNumber) {
+			try {
+				// 주문 상세 정보 가져오기
+				const orders = await API.getAdminOrders();
+				const order = orders.find(o => o.id === orderNumber);
+				
+				if (!order) {
+					alert('주문을 찾을 수 없습니다.');
+					return;
+				}
+
+				// 모달 생성
+				const modal = document.createElement('div');
+				modal.className = 'modal-overlay active';
+				modal.id = 'orderDetailModal';
+				modal.style.zIndex = '10000';
+				
+				// 상태 배지 스타일
+				const statusColors = {
+					'결제대기': 'var(--light)',
+					'결제완료': 'var(--sage)',
+					'배송준비중': '#c9b896',
+					'배송중': '#6b8cce',
+					'배송완료': 'var(--sage)',
+					'취소요청': 'var(--rose)',
+					'취소': 'var(--light)'
+				};
+				
+				const statusColor = statusColors[order.status] || 'var(--light)';
+				
+				modal.innerHTML = `
+					<div class="modal" style="max-width:800px;width:90%;max-height:90vh;overflow-y:auto;position:relative;background:#fff;border-radius:16px;padding:2rem;">
+						<button onclick="document.getElementById('orderDetailModal').remove();document.body.style.overflow='';" 
+						        style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:2rem;cursor:pointer;color:var(--light);line-height:1;">×</button>
+						
+						<h2 style="font-size:1.5rem;color:var(--sage);margin-bottom:1.5rem;padding-right:2rem;">주문 상세 정보</h2>
+						
+						<!-- 주문 기본 정보 -->
+						<div style="background:var(--sage-bg);padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;">
+							<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">주문번호</strong>
+									<span style="font-size:1.1rem;font-weight:600;color:var(--sage);">${order.id}</span>
+								</div>
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">주문 상태</strong>
+									<span class="badge" style="background:${statusColor};color:#fff;padding:.4rem .8rem;font-size:.9rem;">${order.status}</span>
+								</div>
+							</div>
+							<div>
+								<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">주문일시</strong>
+								<span style="font-size:.95rem;">${order.createdAt || order.orderedAt || '정보 없음'}</span>
+							</div>
+						</div>
+						
+						<!-- 고객 정보 -->
+						<div style="background:#f9f9f9;padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;">
+							<h3 style="font-size:1.1rem;color:var(--sage);margin-bottom:1rem;border-bottom:2px solid var(--sage);padding-bottom:.5rem;">고객 정보</h3>
+							<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">이름</strong>
+									<span style="font-size:.95rem;">${order.customer_name || order.customer || '정보 없음'}</span>
+								</div>
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">이메일</strong>
+									<span style="font-size:.95rem;">${order.email || '정보 없음'}</span>
+								</div>
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">전화번호</strong>
+									<span style="font-size:.95rem;">${order.customer_phone || '정보 없음'}</span>
+								</div>
+								<div>
+									<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">회원 여부</strong>
+									<span style="font-size:.95rem;font-weight:500;">${order.is_guest === true || order.is_guest === 1 ? '비회원' : '회원'}</span>
+								</div>
+							</div>
+						</div>
+						
+						<!-- 배송 정보 -->
+						<div style="background:#f9f9f9;padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;">
+							<h3 style="font-size:1.1rem;color:var(--sage);margin-bottom:1rem;border-bottom:2px solid var(--sage);padding-bottom:.5rem;">배송 정보</h3>
+							<div>
+								<strong style="color:var(--light);font-size:.85rem;display:block;margin-bottom:.25rem;">배송지 주소</strong>
+								<span style="font-size:.95rem;line-height:1.6;white-space:pre-wrap;">${order.customer_address || '정보 없음'}</span>
+							</div>
+						</div>
+						
+						<!-- 주문 상품 목록 -->
+						<div style="background:#f9f9f9;padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;">
+							<h3 style="font-size:1.1rem;color:var(--sage);margin-bottom:1rem;border-bottom:2px solid var(--sage);padding-bottom:.5rem;">주문 상품</h3>
+							${order.items && order.items.length > 0 ? `
+								<table style="width:100%;border-collapse:collapse;">
+									<thead>
+										<tr style="border-bottom:2px solid var(--border);">
+											<th style="padding:.75rem;text-align:left;font-size:.85rem;color:var(--light);">상품명</th>
+											<th style="padding:.75rem;text-align:center;font-size:.85rem;color:var(--light);">수량</th>
+											<th style="padding:.75rem;text-align:right;font-size:.85rem;color:var(--light);">가격</th>
+										</tr>
+									</thead>
+									<tbody>
+										${order.items.map(item => `
+											<tr style="border-bottom:1px solid var(--border);">
+												<td style="padding:.75rem;font-size:.9rem;">
+													${item.name || '상품명 없음'}
+													${item.variant_volume ? `<br><span style="color:var(--sage);font-size:.8rem;font-weight:500;">용량: ${item.variant_volume}</span>` : ''}
+													${item.imageUrl ? `<br><img src="${item.imageUrl}" style="max-width:60px;max-height:60px;border-radius:8px;margin-top:.5rem;object-fit:cover;" onerror="this.style.display='none';">` : ''}
+												</td>
+												<td style="padding:.75rem;text-align:center;font-size:.9rem;">${item.quantity || item.qty || 1}개</td>
+												<td style="padding:.75rem;text-align:right;font-size:.9rem;">₩${((item.price || 0) * (item.quantity || item.qty || 1)).toLocaleString()}</td>
+											</tr>
+										`).join('')}
+									</tbody>
+								</table>
+							` : '<p style="color:var(--light);text-align:center;padding:1rem;">주문 상품 정보가 없습니다.</p>'}
+						</div>
+						
+						<!-- 결제 정보 -->
+						<div style="background:var(--sage-bg);padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;">
+							<h3 style="font-size:1.1rem;color:var(--sage);margin-bottom:1rem;border-bottom:2px solid var(--sage);padding-bottom:.5rem;">결제 정보</h3>
+							<div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+								<span style="font-size:.9rem;color:var(--light);">상품 금액</span>
+								<span style="font-size:.9rem;">₩${((order.payment?.subtotal || order.total || 0) - 3000).toLocaleString()}</span>
+							</div>
+							<div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+								<span style="font-size:.9rem;color:var(--light);">배송비</span>
+								<span style="font-size:.9rem;">₩${(order.payment?.shipping || 3000).toLocaleString()}</span>
+							</div>
+							<div style="display:flex;justify-content:space-between;padding-top:1rem;border-top:2px solid var(--sage);margin-top:1rem;">
+								<strong style="font-size:1.1rem;color:var(--sage);">총 결제 금액</strong>
+								<strong style="font-size:1.1rem;color:var(--sage);">₩${(order.total || 0).toLocaleString()}</strong>
+							</div>
+						</div>
+						
+						<!-- 취소 사유 (있는 경우) -->
+						${order.cancelRequested && order.cancelReason ? `
+							<div style="background:#fff3cd;padding:1.5rem;border-radius:12px;margin-bottom:1.5rem;border-left:4px solid var(--rose);">
+								<h3 style="font-size:1.1rem;color:var(--rose);margin-bottom:1rem;">취소 요청 사유</h3>
+								<p style="font-size:.9rem;line-height:1.6;white-space:pre-wrap;">${order.cancelReason}</p>
+							</div>
+						` : ''}
+						
+						<!-- 액션 버튼 -->
+						<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem;">
+							${order.status === '결제대기' && !order.cancelRequested ? 
+								`<button onclick="confirmOrderPayment('${order.id}');document.getElementById('orderDetailModal').remove();document.body.style.overflow='';" 
+								        style="padding:.6rem 1.2rem;background:var(--sage);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:500;">결제 확인</button>` : ''}
+							${order.cancelRequested ? 
+								`<button onclick="approveOrderCancel('${order.id}');document.getElementById('orderDetailModal').remove();document.body.style.overflow='';" 
+								        style="padding:.6rem 1.2rem;background:var(--sage);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:500;margin-right:.5rem;">취소 승인</button>
+								 <button onclick="rejectOrderCancel('${order.id}');document.getElementById('orderDetailModal').remove();document.body.style.overflow='';" 
+								        style="padding:.6rem 1.2rem;background:var(--rose);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:500;">취소 거부</button>` : ''}
+							<button onclick="document.getElementById('orderDetailModal').remove();document.body.style.overflow='';" 
+							        style="padding:.6rem 1.2rem;background:var(--border);color:var(--mid);border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:500;">닫기</button>
+						</div>
+					</div>
+				`;
+				
+				document.body.appendChild(modal);
+				document.body.style.overflow = 'hidden';
+			} catch (err) {
+				console.error('주문 상세 정보 로드 오류:', err);
+				alert('주문 상세 정보를 불러오는 중 오류가 발생했습니다: ' + (err.message || '알 수 없는 오류'));
+			}
 		}
 
 		// ========== 상품 관리 ==========
@@ -948,9 +1215,9 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					<tr>
 						<td>${p.id}</td>
 						<td style="font-weight:500;">${p.name}</td>
-						<td>${p.category || '향수'}</td>
+						<td>${p.category || p.type || '향수'}</td>
 						<td>₩${(p.price || 0).toLocaleString()}</td>
-						<td>${p.stock ?? 0}</td>
+						<td>-</td>
 						<td><span class="status-badge ${p.status === '판매중' ? 'answered' : 'waiting'}">${p.status || ''}</span></td>
 						<td>${p.badge ? `<span class="badge" style="background:var(--sage);color:#fff;">${p.badge}</span>` : '-'}</td>
 						<td>
@@ -963,6 +1230,152 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		}
 
 
+		// 카테고리별 용량 옵션 정의
+		const volumeOptions = {
+			'향수': ['30ml', '50ml', '100ml'],
+			'헤어미스트': ['30ml', '50ml', '100ml'],
+			'바디미스트': ['50ml', '100ml'],
+			'디퓨저': ['80ml', '120ml'],
+			'룸스프레이': ['80ml', '120ml'],
+			'섬유유연제': ['800ml', '1L']
+		};
+
+		// 카테고리 변경 시 용량 옵션 업데이트
+		function updateVolumeOptions() {
+			const category = document.getElementById('prodCategory').value;
+			const container = document.getElementById('variantsContainer');
+			const addBtn = document.getElementById('addVariantBtn');
+			
+			// 기존 variants 초기화
+			container.innerHTML = '';
+			
+			// 카테고리에 해당하는 용량 옵션이 있으면 버튼 표시
+			if (volumeOptions[category]) {
+				addBtn.style.display = 'inline-block';
+				// 기본 용량 옵션 추가
+				volumeOptions[category].forEach(volume => {
+					addVariantRow({ volume, price: '', stock: 0 });
+				});
+			} else {
+				addBtn.style.display = 'none';
+			}
+		}
+
+		// 용량별 가격 행 추가
+		function addVariantRow(variant = null) {
+			const container = document.getElementById('variantsContainer');
+			const category = document.getElementById('prodCategory').value;
+			const availableVolumes = volumeOptions[category] || [];
+			
+			const row = document.createElement('div');
+			row.className = 'variant-row';
+			row.style.cssText = 'display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;padding:.5rem;background:white;border-radius:4px;border:1px solid #ddd;';
+			
+			// 용량 선택 드롭다운
+			let volumeSelect = '';
+			if (availableVolumes.length > 0) {
+				volumeSelect = `<select class="form-input variant-volume" style="width:100px;">
+					<option value="">선택</option>
+					${availableVolumes.map(v => `<option value="${v}" ${variant?.volume === v ? 'selected' : ''}>${v}</option>`).join('')}
+				</select>`;
+			} else {
+				volumeSelect = `<input type="text" class="form-input variant-volume" placeholder="용량 (예: 30ml)" value="${variant?.volume || ''}" style="width:100px;">`;
+			}
+			
+			row.innerHTML = `
+				${volumeSelect}
+				<input type="number" class="form-input variant-price" placeholder="가격" value="${variant?.price || ''}" style="width:120px;">
+				<input type="number" class="form-input variant-stock" placeholder="재고" value="${variant?.stock || 0}" style="width:100px;">
+				<label style="font-size:.75rem;display:flex;align-items:center;gap:.25rem;">
+					<input type="radio" name="defaultVariant" class="variant-default" ${variant?.is_default == 1 ? 'checked' : ''}> 기본
+				</label>
+				<button type="button" onclick="this.parentElement.remove()" style="background:var(--rose);color:#fff;border:none;border-radius:4px;padding:.25rem .5rem;cursor:pointer;font-size:.7rem;">삭제</button>
+			`;
+			container.appendChild(row);
+		}
+
+		// 폼에서 variants 데이터 가져오기
+		function getVariantsFromForm() {
+			const rows = document.querySelectorAll('.variant-row');
+			const variants = [];
+			rows.forEach((row, index) => {
+				const volume = row.querySelector('.variant-volume').value.trim();
+				const price = row.querySelector('.variant-price').value;
+				const stock = row.querySelector('.variant-stock').value;
+				const isDefault = row.querySelector('.variant-default').checked;
+				if (volume && price) {
+					variants.push({
+						volume,
+						price: parseInt(price),
+						stock: parseInt(stock) || 0,
+						is_default: isDefault ? 1 : 0,
+						sort_order: index
+					});
+				}
+			});
+			return variants;
+		}
+
+		// variants 로드
+		function loadVariants(variants) {
+			const container = document.getElementById('variantsContainer');
+			const addBtn = document.getElementById('addVariantBtn');
+			container.innerHTML = '';
+			
+			if (variants && variants.length > 0) {
+				variants.forEach(v => addVariantRow(v));
+				addBtn.style.display = 'inline-block';
+			} else {
+				// 카테고리에 맞는 기본 용량 옵션 표시
+				updateVolumeOptions();
+			}
+		}
+
+		// 감정 목록 로드 및 체크박스 생성
+		function loadEmotionCheckboxes(selectedEmotions = []) {
+			const container = document.getElementById('prodEmotionsContainer');
+			if (!container) {
+				console.warn('prodEmotionsContainer 요소를 찾을 수 없습니다');
+				return;
+			}
+			
+			let emotions = [];
+			if (typeof API !== 'undefined' && API.getActiveEmotions) {
+				try {
+					emotions = API.getActiveEmotions();
+				} catch (e) {
+					console.error('감정 목록 로드 실패:', e);
+					emotions = [];
+				}
+			}
+			
+			// API에서 가져온 감정이 없으면 기본값 사용
+			if (!emotions || emotions.length === 0) {
+				emotions = [
+					{ key: 'calm', title: '차분해지고 싶은 날' },
+					{ key: 'warm', title: '따뜻함이 필요한 순간' },
+					{ key: 'focus', title: '집중하고 싶은 시간' },
+					{ key: 'refresh', title: '상쾌하고 싶을 때' }
+				];
+			}
+			
+			container.innerHTML = emotions.map(emotion => {
+				const isChecked = Array.isArray(selectedEmotions) && selectedEmotions.includes(emotion.key);
+				return `
+					<label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.5rem;background:#fff;border:1px solid var(--border);border-radius:4px;">
+						<input type="checkbox" class="emotion-checkbox" value="${emotion.key}" ${isChecked ? 'checked' : ''}>
+						<span style="font-size:.85rem;">${emotion.title}</span>
+					</label>
+				`;
+			}).join('');
+		}
+		
+		// 선택된 감정 키들 가져오기
+		function getSelectedEmotions() {
+			const checkboxes = document.querySelectorAll('.emotion-checkbox:checked');
+			return Array.from(checkboxes).map(cb => cb.value);
+		}
+
 		// 상품 폼 열기 (등록)
 		function openProductForm() {
 			document.getElementById('productFormWrap').style.display = 'block';
@@ -970,13 +1383,22 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('productEditId').value = '';
 			// 폼 초기화
 			document.getElementById('prodName').value = '';
-			document.getElementById('prodPrice').value = '';
 			document.getElementById('prodCategory').value = '향수';
-			document.getElementById('prodStock').value = '0';
 			document.getElementById('prodStatus').value = '판매중';
 			document.getElementById('prodBadge').value = '';
 			document.getElementById('prodDesc').value = '';
 			document.getElementById('prodImageUrl').value = '';
+			document.getElementById('prodDetailImageUrl').value = '';
+			document.getElementById('prodImagePreview').style.display = 'none';
+			document.getElementById('prodImagePreview').src = '';
+			document.getElementById('prodDetailImagePreview').style.display = 'none';
+			document.getElementById('prodDetailImagePreview').src = '';
+			document.getElementById('clearImageBtn').style.display = 'none';
+			document.getElementById('clearDetailImageBtn').style.display = 'none';
+			// variants 초기화 및 카테고리별 용량 옵션 표시
+			updateVolumeOptions();
+			// 감정 체크박스 초기화
+			loadEmotionCheckboxes([]);
 		}
 
 		// 상품 폼 닫기
@@ -995,37 +1417,76 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('productFormTitle').textContent = '상품 수정';
 			document.getElementById('productEditId').value = id;
 			document.getElementById('prodName').value = product.name || '';
-			document.getElementById('prodPrice').value = product.price || '';
 			document.getElementById('prodCategory').value = product.category || product.type || '향수';
-			document.getElementById('prodStock').value = product.stock || 0;
+			document.getElementById('prodFragranceType').value = product.fragrance_type || product.fragranceType || '';
 			document.getElementById('prodStatus').value = product.status || '판매중';
 			document.getElementById('prodBadge').value = product.badge || '';
 			document.getElementById('prodDesc').value = product.desc || '';
 			document.getElementById('prodImageUrl').value = product.imageUrl || product.image || '';
+			document.getElementById('prodDetailImageUrl').value = product.detailImageUrl || product.detail_image || '';
 			// 이미지 미리보기
 			const preview = document.getElementById('prodImagePreview');
 			const imgUrl = product.imageUrl || product.image;
 			if (imgUrl) {
 				preview.src = imgUrl;
 				preview.style.display = 'block';
+				preview.onerror = function() {
+					console.error('이미지 미리보기 로드 실패:', imgUrl.substring(0, 50));
+					preview.style.display = 'none';
+				};
+				document.getElementById('clearImageBtn').style.display = 'inline-block';
 			} else {
 				preview.style.display = 'none';
 				preview.src = '';
+				document.getElementById('clearImageBtn').style.display = 'none';
 			}
+			const detailPreview = document.getElementById('prodDetailImagePreview');
+			const detailImgUrl = product.detailImageUrl || product.detail_image;
+			if (detailImgUrl) {
+				detailPreview.src = detailImgUrl;
+				detailPreview.style.display = 'block';
+				detailPreview.onerror = function() {
+					console.error('상세 이미지 미리보기 로드 실패:', detailImgUrl.substring(0, 50));
+					detailPreview.style.display = 'none';
+				};
+				document.getElementById('clearDetailImageBtn').style.display = 'inline-block';
+			} else {
+				detailPreview.style.display = 'none';
+				detailPreview.src = '';
+				document.getElementById('clearDetailImageBtn').style.display = 'none';
+			}
+			// variants 로드
+			loadVariants(product.variants || []);
+			// 감정 체크박스 로드
+			let emotionKeys = [];
+			if (product.emotion_keys) {
+				try {
+					emotionKeys = JSON.parse(product.emotion_keys);
+				} catch (e) {
+					// 문자열이면 그대로 사용
+					if (typeof product.emotion_keys === 'string') {
+						emotionKeys = product.emotion_keys.split(',').map(k => k.trim()).filter(Boolean);
+					}
+				}
+			} else if (product.emotionKeys) {
+				emotionKeys = Array.isArray(product.emotionKeys) ? product.emotionKeys : [product.emotionKeys];
+			}
+			loadEmotionCheckboxes(emotionKeys);
 		}
 
 		// 상품 저장 (등록/수정)
 		async function saveProduct() {
 			const editId = document.getElementById('productEditId').value;
 			const name = document.getElementById('prodName').value.trim();
-			const price = document.getElementById('prodPrice').value;
+			const variants = getVariantsFromForm();
 
 			if (!name) {
 				alert('상품명을 입력해주세요.');
 				return;
 			}
-			if (!price || parseInt(price) <= 0) {
-				alert('가격을 입력해주세요.');
+			// variants 필수 검증
+			if (variants.length === 0) {
+				alert('최소 하나의 용량별 가격을 설정해주세요.');
 				return;
 			}
 
@@ -1038,30 +1499,106 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				category = '향수'; // 기본값으로 설정
 			}
 
+			// variants의 기본 가격 또는 첫 번째 가격을 products 테이블의 price로 사용 (호환성)
+			const defaultPrice = variants.find(v => v.is_default)?.price || variants[0].price;
+			
+			// 향기 타입 가져오기
+			const fragranceType = document.getElementById('prodFragranceType').value.trim() || null;
+			
+			// 선택된 감정 키들 가져오기
+			const emotionKeys = getSelectedEmotions();
+
 			const data = {
 				name: name,
-				price: parseInt(price),
+				price: defaultPrice, // variants의 기본 가격 사용
 				category: category,
-				stock: parseInt(document.getElementById('prodStock').value) || 0,
+				fragranceType: fragranceType,
+				emotionKeys: emotionKeys.length > 0 ? emotionKeys : null,
 				status: document.getElementById('prodStatus').value,
 				badge: document.getElementById('prodBadge').value,
 				desc: document.getElementById('prodDesc').value.trim(),
 				imageUrl: document.getElementById('prodImageUrl').value.trim(),
+				detailImageUrl: document.getElementById('prodDetailImageUrl').value.trim(),
 			};
 
 			try {
+				let productId = editId;
+				console.log('상품 저장 시작:', { editId, data });
+				
 				if (editId) {
-					await API.updateProduct(parseInt(editId), data);
+					const result = await API.updateProduct(parseInt(editId), data);
+					console.log('상품 수정 결과:', result);
 				} else {
-					await API.createProduct(data);
+					const created = await API.createProduct(data);
+					productId = created.id;
+					console.log('상품 생성 결과:', created);
+				}
+
+				// variants 저장 (필수)
+				if (productId && variants.length > 0) {
+					console.log('variants 저장 시작:', { productId, variants });
+					await saveVariants(productId, variants);
+					console.log('variants 저장 완료');
+				} else {
+					throw new Error('상품 저장 후 variants 저장에 실패했습니다.');
 				}
 
 				alert(editId ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.');
 				closeProductForm();
 				renderProducts();
 			} catch (e) {
-				alert('오류가 발생했습니다: ' + e.message);
+				console.error('상품 저장 오류:', e);
+				console.error('오류 스택:', e.stack);
+				alert('오류가 발생했습니다: ' + (e.message || '알 수 없는 오류'));
 			}
+		}
+
+		// variants 저장 API 호출
+		async function saveVariants(productId, variants) {
+			try {
+				// POST 메서드 사용 (PUT이 405 오류 발생 시 대안)
+				// X-HTTP-Method-Override 헤더로 PUT 의미 전달
+				const baseUrl = window.DS_BASE_URL || '';
+				const response = await fetch(`${baseUrl}/api/variants.php?product_id=${productId}`, {
+					method: 'POST',
+					headers: { 
+						'Content-Type': 'application/json',
+						'X-HTTP-Method-Override': 'PUT'
+					},
+					credentials: 'include',
+					body: JSON.stringify({ variants, _method: 'PUT' })
+				});
+				
+				if (!response.ok) {
+					let errorMessage = '용량별 가격 저장 실패';
+					try {
+						const errorData = await response.json();
+						if (errorData.error) {
+							errorMessage = errorData.error;
+							if (errorData.details) {
+								errorMessage += ' (' + errorData.details + ')';
+							}
+						}
+					} catch (e) {
+						// JSON 파싱 실패 시 기본 메시지 사용
+					}
+					throw new Error(errorMessage);
+				}
+				return await response.json();
+			} catch (e) {
+				console.error('Variants save error:', e);
+				throw e;
+			}
+		}
+
+		// 모든 variants 삭제
+		async function deleteAllVariants(productId) {
+			const baseUrl = window.DS_BASE_URL || '';
+			const response = await fetch(`${baseUrl}/api/variants.php?product_id=${productId}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			return response.ok;
 		}
 
 		// 상품 삭제
@@ -1079,11 +1616,20 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		// 상품 미리보기
 		function previewProduct() {
 			const name = document.getElementById('prodName').value.trim() || '상품명';
-			const price = parseInt(document.getElementById('prodPrice').value) || 0;
+			const variants = getVariantsFromForm();
+			// variants의 기본 가격 또는 첫 번째 가격 사용
+			const price = variants.length > 0 ? (variants.find(v => v.is_default)?.price || variants[0].price) : 0;
 			const category = document.getElementById('prodCategory').value || '향수';
 			const badge = document.getElementById('prodBadge').value || '';
 			const desc = document.getElementById('prodDesc').value.trim() || '상품 설명';
-			const imageUrl = document.getElementById('prodImageUrl').value.trim() || '';
+			const rawImageUrl = document.getElementById('prodImageUrl').value.trim() || '';
+			
+			// Base64 이미지인 경우 따옴표 없이, 일반 URL은 따옴표로
+			let imageStyle = '';
+			if (rawImageUrl && rawImageUrl.length > 10) {
+				const imageUrl = rawImageUrl.startsWith('data:') ? rawImageUrl : `'${rawImageUrl}'`;
+				imageStyle = `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
+			}
 			
 			const previewHtml = `
 				<!DOCTYPE html>
@@ -1098,13 +1644,14 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						body { background: var(--sage-bg); min-height: 100vh; padding: 2rem; }
 						.preview-container { max-width: 350px; margin: 2rem auto; }
 						.preview-title { text-align: center; margin-bottom: 2rem; font-family: 'Cormorant Garamond', serif; color: var(--sage); }
+						.preview-product-image { background: transparent !important; }
 					</style>
 				</head>
 				<body>
 					<h1 class="preview-title">상품 미리보기</h1>
 					<div class="preview-container">
 						<div class="product-card">
-							<div class="product-image" style="${imageUrl ? 'background-image:url('+imageUrl+');background-size:cover;' : ''}">
+							<div class="product-image preview-product-image" style="position:relative;${imageStyle}">
 								${badge ? '<span class="product-badge">'+badge+'</span>' : ''}
 								<button class="product-wishlist">♡</button>
 							</div>
@@ -1877,6 +2424,9 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('settingHours').value = s.businessHours || '';
 			document.getElementById('settingKakao').value = s.kakaoChannel || '';
 			document.getElementById('settingInstagram').value = s.instagramUrl || '';
+			
+			// 향기 타입 렌더링
+			renderFragranceTypes();
 		}
 		function saveSiteSettings() {
 			const settings = {
@@ -1892,6 +2442,67 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			API.setSiteSettings(settings);
 			alert('저장되었습니다.');
 		}
+		
+		// ========== 향기 타입 관리 ==========
+		function getFragranceTypes() {
+			try {
+				const stored = localStorage.getItem('dewscent_fragrance_types');
+				if (stored) {
+					return JSON.parse(stored);
+				}
+			} catch (e) {
+				console.error('향기 타입 로드 실패:', e);
+			}
+			return ['시트러스', '플로럴', '우디', '머스크', '오리엔탈', '프레시'];
+		}
+		
+		function setFragranceTypes(types) {
+			localStorage.setItem('dewscent_fragrance_types', JSON.stringify(types));
+		}
+		
+		function renderFragranceTypes() {
+			const container = document.getElementById('fragranceTypesContainer');
+			if (!container) return;
+			
+			const types = getFragranceTypes();
+			container.innerHTML = types.map((type, index) => `
+				<div style="display:flex;gap:.5rem;align-items:center;padding:.5rem;background:var(--sage-bg);border-radius:8px;">
+					<input type="text" class="form-input fragrance-type-input" value="${type}" data-index="${index}" style="flex:1;">
+					<button class="badge" style="cursor:pointer;background:var(--rose);color:#fff;border:none;padding:.25rem .5rem;font-size:.7rem;" onclick="removeFragranceType(${index})">삭제</button>
+				</div>
+			`).join('');
+		}
+		
+		function addFragranceType() {
+			const types = getFragranceTypes();
+			types.push('새 향기 타입');
+			setFragranceTypes(types);
+			renderFragranceTypes();
+		}
+		
+		function removeFragranceType(index) {
+			const types = getFragranceTypes();
+			if (types.length <= 1) {
+				alert('최소 하나의 향기 타입이 필요합니다.');
+				return;
+			}
+			types.splice(index, 1);
+			setFragranceTypes(types);
+			renderFragranceTypes();
+		}
+		
+		function saveFragranceTypes() {
+			const inputs = document.querySelectorAll('.fragrance-type-input');
+			const types = Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+			
+			if (types.length === 0) {
+				alert('최소 하나의 향기 타입이 필요합니다.');
+				return;
+			}
+			
+			setFragranceTypes(types);
+			alert('향기 타입이 저장되었습니다. 메인 페이지를 새로고침하면 변경사항이 적용됩니다.');
+		}
 
 		// ========== 이미지 업로드 (Base64) ==========
 		function uploadProductImage(input) {
@@ -1904,12 +2515,63 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				}
 				const reader = new FileReader();
 				reader.onload = function(e) {
-					document.getElementById('prodImageUrl').value = e.target.result;
+					const base64Data = e.target.result;
+					document.getElementById('prodImageUrl').value = base64Data;
 					const preview = document.getElementById('prodImagePreview');
-					preview.src = e.target.result;
+					preview.src = base64Data;
 					preview.style.display = 'block';
+					preview.onerror = function() {
+						console.error('이미지 미리보기 로드 실패');
+						preview.style.display = 'none';
+					};
+					document.getElementById('clearImageBtn').style.display = 'inline-block';
 				};
 				reader.readAsDataURL(file);
+			}
+		}
+		
+		function uploadProductDetailImage(input) {
+			if (input.files && input.files[0]) {
+				const file = input.files[0];
+				if (file.size > 2 * 1024 * 1024) {
+					alert('이미지 크기는 2MB 이하로 제한됩니다.');
+					input.value = '';
+					return;
+				}
+				const reader = new FileReader();
+				reader.onload = function(e) {
+					const base64Data = e.target.result;
+					document.getElementById('prodDetailImageUrl').value = base64Data;
+					const preview = document.getElementById('prodDetailImagePreview');
+					preview.src = base64Data;
+					preview.style.display = 'block';
+					preview.onerror = function() {
+						console.error('상세 이미지 미리보기 로드 실패');
+						preview.style.display = 'none';
+					};
+					document.getElementById('clearDetailImageBtn').style.display = 'inline-block';
+				};
+				reader.readAsDataURL(file);
+			}
+		}
+		
+		function clearProductImage() {
+			if (confirm('이미지를 삭제하시겠습니까?')) {
+				document.getElementById('prodImageUrl').value = '';
+				document.getElementById('prodImageFile').value = '';
+				document.getElementById('prodImagePreview').style.display = 'none';
+				document.getElementById('prodImagePreview').src = '';
+				document.getElementById('clearImageBtn').style.display = 'none';
+			}
+		}
+		
+		function clearProductDetailImage() {
+			if (confirm('상세 이미지를 삭제하시겠습니까?')) {
+				document.getElementById('prodDetailImageUrl').value = '';
+				document.getElementById('prodDetailImageFile').value = '';
+				document.getElementById('prodDetailImagePreview').style.display = 'none';
+				document.getElementById('prodDetailImagePreview').src = '';
+				document.getElementById('clearDetailImageBtn').style.display = 'none';
 			}
 		}
 
@@ -2268,6 +2930,14 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					if (tab === 'mainproducts') renderMainProducts();
 					if (tab === 'reviews') renderAdminReviews();
 					if (tab === 'settings') renderSiteSettings();
+					// 상품 탭이 열릴 때마다 감정 체크박스 초기화 (폼이 열려있을 수 있으므로)
+					if (tab === 'products') {
+						// 폼이 열려있으면 감정 체크박스 로드
+						const formWrap = document.getElementById('productFormWrap');
+						if (formWrap && formWrap.style.display !== 'none') {
+							loadEmotionCheckboxes([]);
+						}
+					}
 					loaded[tab] = true;
 				}
 			});
@@ -2327,6 +2997,269 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			}
 		}
 		updateKPIs();
+		
+		// 통계 그래프 관련 변수
+		let ordersChart = null;
+		let revenueChart = null;
+		let signupsChart = null;
+		let statusChart = null;
+		
+		// 날짜 범위 초기화
+		function resetDateRange() {
+			const toDate = new Date();
+			const fromDate = new Date();
+			fromDate.setDate(fromDate.getDate() - 30);
+			
+			document.getElementById('statFromDate').value = fromDate.toISOString().split('T')[0];
+			document.getElementById('statToDate').value = toDate.toISOString().split('T')[0];
+			
+			loadStatistics();
+		}
+		
+		// 통계 데이터 로드
+		async function loadStatistics() {
+			const from = document.getElementById('statFromDate').value;
+			const to = document.getElementById('statToDate').value;
+			
+			if (!from || !to) {
+				alert('시작일과 종료일을 모두 선택해주세요.');
+				return;
+			}
+			
+			if (new Date(from) > new Date(to)) {
+				alert('시작일이 종료일보다 늦을 수 없습니다.');
+				return;
+			}
+			
+			try {
+				const baseUrl = window.DS_BASE_URL || '';
+				const response = await fetch(`${baseUrl}/api/admin/statistics.php?from=${from}&to=${to}`, {
+					credentials: 'include'
+				});
+				
+				if (!response.ok) {
+					throw new Error('통계 데이터를 불러올 수 없습니다.');
+				}
+				
+				const data = await response.json();
+				
+				if (!data.ok) {
+					throw new Error(data.message || '통계 데이터를 불러올 수 없습니다.');
+				}
+				
+				// 요약 정보 업데이트
+				updateSummary(data.summary);
+				
+				// 그래프 업데이트
+				updateCharts(data);
+				
+			} catch (error) {
+				console.error('통계 로드 오류:', error);
+				alert('통계 데이터를 불러오는 중 오류가 발생했습니다.');
+			}
+		}
+		
+		// 요약 정보 업데이트
+		function updateSummary(summary) {
+			document.getElementById('statTotalOrders').textContent = (summary.total_orders || 0).toLocaleString();
+			document.getElementById('statTotalRevenue').textContent = '₩' + (summary.total_revenue || 0).toLocaleString();
+			document.getElementById('statAvgOrder').textContent = '₩' + Math.round(summary.avg_order_value || 0).toLocaleString();
+			document.getElementById('statCustomers').textContent = (summary.unique_customers || 0).toLocaleString();
+		}
+		
+		// 그래프 업데이트
+		function updateCharts(data) {
+			const daily = data.daily || [];
+			const status = data.status || [];
+			
+			// 날짜 라벨
+			const labels = daily.map(d => {
+				const date = new Date(d.date);
+				return `${date.getMonth() + 1}/${date.getDate()}`;
+			});
+			
+			// 주문 수 그래프
+			const ordersCtx = document.getElementById('ordersChart');
+			if (ordersChart) {
+				ordersChart.destroy();
+			}
+			ordersChart = new Chart(ordersCtx, {
+				type: 'line',
+				data: {
+					labels: labels,
+					datasets: [{
+						label: '주문 수',
+						data: daily.map(d => d.orders),
+						borderColor: 'rgb(95, 113, 97)',
+						backgroundColor: 'rgba(95, 113, 97, 0.1)',
+						tension: 0.4,
+						fill: true
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: true,
+					plugins: {
+						legend: {
+							display: false
+						}
+					},
+					scales: {
+						y: {
+							beginAtZero: true,
+							ticks: {
+								stepSize: 1
+							}
+						}
+					}
+				}
+			});
+			
+			// 매출 그래프
+			const revenueCtx = document.getElementById('revenueChart');
+			if (revenueChart) {
+				revenueChart.destroy();
+			}
+			revenueChart = new Chart(revenueCtx, {
+				type: 'line',
+				data: {
+					labels: labels,
+					datasets: [{
+						label: '매출',
+						data: daily.map(d => d.paid_revenue),
+						borderColor: 'rgb(95, 113, 97)',
+						backgroundColor: 'rgba(95, 113, 97, 0.1)',
+						tension: 0.4,
+						fill: true
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: true,
+					plugins: {
+						legend: {
+							display: false
+						},
+						tooltip: {
+							callbacks: {
+								label: function(context) {
+									return '₩' + context.parsed.y.toLocaleString();
+								}
+							}
+						}
+					},
+					scales: {
+						y: {
+							beginAtZero: true,
+							ticks: {
+								callback: function(value) {
+									return '₩' + value.toLocaleString();
+								}
+							}
+						}
+					}
+				}
+			});
+			
+			// 가입자 그래프
+			const signupsCtx = document.getElementById('signupsChart');
+			if (signupsChart) {
+				signupsChart.destroy();
+			}
+			signupsChart = new Chart(signupsCtx, {
+				type: 'bar',
+				data: {
+					labels: labels,
+					datasets: [{
+						label: '가입자',
+						data: daily.map(d => d.signups),
+						backgroundColor: 'rgba(95, 113, 97, 0.6)',
+						borderColor: 'rgb(95, 113, 97)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: true,
+					plugins: {
+						legend: {
+							display: false
+						}
+					},
+					scales: {
+						y: {
+							beginAtZero: true,
+							ticks: {
+								stepSize: 1
+							}
+						}
+					}
+				}
+			});
+			
+			// 상태별 통계 그래프
+			const statusCtx = document.getElementById('statusChart');
+			if (statusChart) {
+				statusChart.destroy();
+			}
+			
+			const statusLabels = status.map(s => {
+				// 상태명 한글 변환
+				const statusMap = {
+					'결제대기': '결제대기',
+					'pending': '결제대기',
+					'결제완료': '결제완료',
+					'paid': '결제완료',
+					'배송준비중': '배송준비중',
+					'preparing': '배송준비중',
+					'배송중': '배송중',
+					'shipping': '배송중',
+					'배송완료': '배송완료',
+					'delivered': '배송완료',
+					'취소': '취소',
+					'cancelled': '취소',
+					'취소요청': '취소요청',
+					'cancel_requested': '취소요청'
+				};
+				return statusMap[s.status] || s.status;
+			});
+			
+			const statusColors = [
+				'rgba(95, 113, 97, 0.8)',
+				'rgba(201, 184, 150, 0.8)',
+				'rgba(107, 140, 206, 0.8)',
+				'rgba(200, 200, 200, 0.8)',
+				'rgba(150, 150, 150, 0.8)',
+				'rgba(180, 180, 180, 0.8)'
+			];
+			
+			statusChart = new Chart(statusCtx, {
+				type: 'doughnut',
+				data: {
+					labels: statusLabels,
+					datasets: [{
+						data: status.map(s => s.count),
+						backgroundColor: statusColors.slice(0, status.length),
+						borderWidth: 2,
+						borderColor: '#fff'
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: true,
+					plugins: {
+						legend: {
+							position: 'bottom'
+						}
+					}
+				}
+			});
+		}
+		
+		// 페이지 로드 시 날짜 초기화 및 통계 로드
+		document.addEventListener('DOMContentLoaded', function() {
+			resetDateRange();
+		});
 	</script>
 </body>
 </html>

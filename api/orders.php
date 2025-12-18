@@ -55,30 +55,70 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        // 주문 목록 조회
-        if (empty($_SESSION['user_id']) && !$isAdmin) {
-            http_response_code(401);
-            echo json_encode(['ok' => false, 'message' => '로그인이 필요합니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
+        // 주문 목록 조회 (회원/비회원 모두 허용)
         $from = $_GET['from'] ?? null;
         $to   = $_GET['to'] ?? null;
         $orderNumber = $_GET['orderNumber'] ?? null;
+        $guestEmail = trim($_GET['guestEmail'] ?? '');
+        $guestPhone = trim($_GET['guestPhone'] ?? '');
 
-        // 관리자는 모든 주문, 일반 사용자는 자신의 주문만
+        // 관리자는 모든 주문, 일반 사용자는 자신의 주문만, 비회원은 이메일/전화번호로 조회 (주문번호는 선택사항)
         $where = [];
         $params = [];
-
-        if (!$isAdmin) {
-            $where[] = 'o.user_id = ?';
-            $params[] = $_SESSION['user_id'];
-        }
+        $currentUserId = $_SESSION['user_id'] ?? null;
         
-        // orderNumber로 특정 주문 조회
-        if ($orderNumber) {
-            $where[] = 'o.order_number = ?';
-            $params[] = $orderNumber;
+        // 로그인한 사용자가 있으면 무조건 자신의 주문만 조회 (비회원 주문 제외)
+        if ($isAdmin) {
+            // 관리자는 모든 주문 조회
+            // 관리자도 이메일/전화번호로 필터링 가능
+            if ($guestEmail) {
+                $where[] = 'LOWER(TRIM(o.guest_email)) = LOWER(TRIM(?))';
+                $params[] = $guestEmail;
+            } else if ($guestPhone) {
+                $phoneDigits = preg_replace('/[^0-9]/', '', $guestPhone);
+                $where[] = 'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(o.shipping_phone, "-", ""), " ", ""), "(", ""), ")", ""), ".", "") = ?';
+                $params[] = $phoneDigits;
+            }
+        } else if (!empty($currentUserId)) {
+            // 회원: 자신의 주문만 조회 (user_id가 정확히 일치하는 주문만)
+            // 로그인한 사용자는 비회원 주문을 절대 볼 수 없음
+            // guestEmail이나 guestPhone 파라미터는 완전히 무시
+            $where[] = 'o.user_id = ?';
+            $params[] = (int)$currentUserId; // 정수형으로 명시적 변환
+            if ($orderNumber) {
+                $where[] = 'o.order_number = ?';
+                $params[] = $orderNumber;
+            }
+            // 추가 보안: user_id가 NULL이거나 다른 사용자의 주문은 절대 조회 불가
+            // SQL 쿼리에서 이미 필터링되지만, 명시적으로 확인
+        } else {
+            // 비회원 조회: 이메일 또는 전화번호로 조회 (주문번호는 선택사항)
+            $isGuestLookup = !empty($guestEmail) || !empty($guestPhone);
+            
+            if (!$isGuestLookup) {
+                // 비회원이지만 조회 조건이 없으면 접근 거부
+                http_response_code(401);
+                echo json_encode(['ok' => false, 'message' => '주문 조회를 위해 이메일 또는 전화번호가 필요합니다.'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            
+            // 비회원 조회: 이메일 또는 전화번호로 조회
+            if ($orderNumber) {
+                $where[] = 'o.order_number = ?';
+                $params[] = $orderNumber;
+            }
+            if ($guestEmail) {
+                // 이메일은 대소문자 구분 없이, 공백 제거하여 비교
+                $where[] = 'LOWER(TRIM(o.guest_email)) = LOWER(TRIM(?))';
+                $params[] = $guestEmail;
+            } else if ($guestPhone) {
+                // 전화번호는 숫자만 추출하여 비교 (하이픈, 공백, 괄호 제거)
+                $phoneDigits = preg_replace('/[^0-9]/', '', $guestPhone);
+                $where[] = 'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(o.shipping_phone, "-", ""), " ", ""), "(", ""), ")", ""), ".", "") = ?';
+                $params[] = $phoneDigits;
+            }
+            // 비회원 조회는 user_id가 NULL이어야 함
+            $where[] = 'o.user_id IS NULL';
         }
 
         if ($from) {
@@ -90,36 +130,136 @@ switch ($method) {
             $params[] = $to;
         }
 
-        $sql = "SELECT o.id, o.order_number, o.total_price, o.status, o.cancel_requested, o.cancel_reason, o.created_at, o.shipping_name, o.shipping_phone, o.shipping_address, o.user_id, u.name as user_name, u.email as user_email 
+        // 취소된 주문도 포함하여 조회 (상태 필터링 없음)
+        $sql = "SELECT o.id, o.order_number, o.total_price, o.status, o.cancel_requested, o.cancel_reason, o.created_at, o.shipping_name, o.shipping_phone, o.shipping_address, o.user_id, o.guest_email, o.guest_session_id, u.name as user_name, u.email as user_email 
                 FROM orders o 
                 LEFT JOIN users u ON o.user_id = u.id";
         if ($where) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
+        // 모든 상태의 주문 조회 (취소된 주문 포함)
         $sql .= ' ORDER BY o.created_at DESC, o.id DESC';
 
-        $rows = db()->fetchAll($sql, $params);
+        // 디버깅: 쿼리 로그
+        error_log("주문 조회 SQL: " . $sql);
+        error_log("주문 조회 파라미터: " . json_encode($params));
+        $currentUserId = $_SESSION['user_id'] ?? null;
+        error_log("주문 조회 조건 - isAdmin: " . ($isAdmin ? 'Y' : 'N') . ", user_id: " . ($currentUserId ?? 'NULL') . ", orderNumber: " . ($orderNumber ?? 'NULL') . ", guestEmail: " . ($guestEmail ?? 'NULL') . ", guestPhone: " . ($guestPhone ?? 'NULL') . ", WHERE 조건: " . (count($where) > 0 ? implode(' AND ', $where) : '없음'));
+        
+        try {
+            $rows = db()->fetchAll($sql, $params);
+        } catch (Exception $e) {
+            error_log("주문 조회 SQL 실행 오류: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'message' => '주문 조회 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         
         // 디버깅: 주문 조회 로그
-        if (!$isAdmin) {
-            error_log("주문 조회: user_id=" . $_SESSION['user_id'] . ", 조회된 주문 수=" . count($rows));
-            if (!empty($rows)) {
-                foreach ($rows as $row) {
-                    error_log("  - 주문번호: {$row['order_number']}, user_id: {$row['user_id']}, 상태: {$row['status']}");
+        error_log("주문 조회 결과: " . count($rows) . "건");
+        if (!empty($rows)) {
+            foreach ($rows as $row) {
+                error_log("  - 주문번호: {$row['order_number']}, user_id: " . ($row['user_id'] ?? 'NULL') . ", guest_email: " . ($row['guest_email'] ?? 'NULL') . ", shipping_phone: " . ($row['shipping_phone'] ?? 'NULL') . ", 상태: {$row['status']}");
+            }
+        } else {
+            error_log("주문 조회 결과 없음 - SQL: " . $sql . ", 파라미터: " . json_encode($params));
+            // 추가 디버깅: 실제 DB에 있는 데이터 확인
+            try {
+                $debugSql = "SELECT COUNT(*) as cnt FROM orders WHERE user_id IS NULL";
+                $debugResult = db()->fetchOne($debugSql);
+                error_log("  - DB에 저장된 비회원 주문 총 개수: " . ($debugResult['cnt'] ?? 0));
+                
+                // 실제 DB에 있는 비회원 주문 샘플 확인
+                $sampleSql = "SELECT id, order_number, guest_email, shipping_phone, user_id FROM orders WHERE user_id IS NULL ORDER BY created_at DESC LIMIT 5";
+                $samples = db()->fetchAll($sampleSql);
+                error_log("  - 비회원 주문 샘플 (최근 5개):");
+                foreach ($samples as $sample) {
+                    error_log("    * 주문번호: {$sample['order_number']}, guest_email: " . ($sample['guest_email'] ?? 'NULL') . ", shipping_phone: " . ($sample['shipping_phone'] ?? 'NULL'));
                 }
+                
+                if ($guestEmail) {
+                    $debugEmailSql = "SELECT COUNT(*) as cnt FROM orders WHERE LOWER(TRIM(guest_email)) = LOWER(TRIM(?)) AND user_id IS NULL";
+                    $debugEmailResult = db()->fetchOne($debugEmailSql, [$guestEmail]);
+                    error_log("  - 이메일 '{$guestEmail}'로 조회 가능한 비회원 주문 개수: " . ($debugEmailResult['cnt'] ?? 0));
+                    
+                    // 이메일로 실제 주문 확인
+                    $emailOrdersSql = "SELECT id, order_number, guest_email, shipping_phone FROM orders WHERE LOWER(TRIM(guest_email)) = LOWER(TRIM(?)) AND user_id IS NULL LIMIT 3";
+                    $emailOrders = db()->fetchAll($emailOrdersSql, [$guestEmail]);
+                    error_log("  - 이메일 '{$guestEmail}'로 찾은 주문:");
+                    foreach ($emailOrders as $eo) {
+                        error_log("    * 주문번호: {$eo['order_number']}, guest_email: " . ($eo['guest_email'] ?? 'NULL'));
+                    }
+                }
+                if ($guestPhone) {
+                    $phoneDigits = preg_replace('/[^0-9]/', '', $guestPhone);
+                    $debugPhoneSql = "SELECT COUNT(*) as cnt FROM orders WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(shipping_phone, '-', ''), ' ', ''), '(', ''), ')', ''), '.', '') = ? AND user_id IS NULL";
+                    $debugPhoneResult = db()->fetchOne($debugPhoneSql, [$phoneDigits]);
+                    error_log("  - 전화번호 '{$phoneDigits}'로 조회 가능한 비회원 주문 개수: " . ($debugPhoneResult['cnt'] ?? 0));
+                    
+                    // 전화번호로 실제 주문 확인
+                    $phoneOrdersSql = "SELECT id, order_number, guest_email, shipping_phone FROM orders WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(shipping_phone, '-', ''), ' ', ''), '(', ''), ')', ''), '.', '') = ? AND user_id IS NULL LIMIT 3";
+                    $phoneOrders = db()->fetchAll($phoneOrdersSql, [$phoneDigits]);
+                    error_log("  - 전화번호 '{$phoneDigits}'로 찾은 주문:");
+                    foreach ($phoneOrders as $po) {
+                        error_log("    * 주문번호: {$po['order_number']}, shipping_phone: " . ($po['shipping_phone'] ?? 'NULL'));
+                    }
+                }
+            } catch (Exception $debugE) {
+                error_log("  - 디버깅 쿼리 실행 오류: " . $debugE->getMessage());
             }
         }
 
-        $orders = array_map(function ($row) {
+        // 추가 보안: 로그인한 사용자의 경우 반환된 주문이 모두 자신의 것인지 확인
+        $currentUserId = $_SESSION['user_id'] ?? null;
+        if (!empty($currentUserId) && !$isAdmin) {
+            foreach ($rows as $row) {
+                $orderUserId = $row['user_id'] ?? null;
+                if ($orderUserId != $currentUserId) {
+                    error_log("보안 경고: 사용자 ID {$currentUserId}가 다른 사용자(ID: {$orderUserId})의 주문을 조회하려고 시도함. 주문번호: " . ($row['order_number'] ?? 'N/A'));
+                    // 다른 사용자의 주문은 제거
+                    $rows = array_filter($rows, function($r) use ($currentUserId) {
+                        return ($r['user_id'] ?? null) == $currentUserId;
+                    });
+                    $rows = array_values($rows); // 인덱스 재정렬
+                    break;
+                }
+            }
+        }
+        
+        $orders = array_map(function ($row) use ($currentUserId, $isAdmin) {
             $orderId = $row['id'];
-            // 주문 상품 정보 가져오기
-            $items = db()->fetchAll(
-                "SELECT oi.product_id, oi.product_name, oi.quantity, oi.price, p.image as product_image
-                 FROM order_items oi
-                 LEFT JOIN products p ON oi.product_id = p.id
-                 WHERE oi.order_id = ?",
-                [$orderId]
-            );
+            $orderUserId = $row['user_id'] ?? null;
+            
+            // 추가 보안 체크: 로그인한 사용자는 자신의 주문만 볼 수 있음
+            if (!empty($currentUserId) && !$isAdmin && $orderUserId != $currentUserId) {
+                error_log("보안: 사용자 ID {$currentUserId}가 다른 사용자(ID: {$orderUserId})의 주문 접근 시도 차단");
+                return null; // 이 주문은 반환하지 않음
+            }
+            
+            // 주문 상품 정보 가져오기 (variant 정보 포함)
+            try {
+                $items = db()->fetchAll(
+                    "SELECT oi.product_id, oi.product_name, oi.quantity, oi.price, oi.variant_id, 
+                            p.image as product_image,
+                            pv.volume as variant_volume
+                     FROM order_items oi
+                     LEFT JOIN products p ON oi.product_id = p.id
+                     LEFT JOIN product_variants pv ON oi.variant_id = pv.id
+                     WHERE oi.order_id = ?",
+                    [$orderId]
+                );
+                error_log("주문 ID {$orderId}의 상품 개수: " . count($items));
+                if (!empty($items)) {
+                    foreach ($items as $idx => $item) {
+                        error_log("  - 상품 {$idx}: " . ($item['product_name'] ?? '이름 없음') . ", 수량: " . ($item['quantity'] ?? 0));
+                    }
+                } else {
+                    error_log("  - 주문 ID {$orderId}에 상품이 없습니다.");
+                }
+            } catch (Exception $e) {
+                error_log("주문 상품 조회 오류 (주문 ID: {$orderId}): " . $e->getMessage());
+                $items = [];
+            }
             
             return [
                 'id' => $row['order_number'] ?: (string) $row['id'],
@@ -131,7 +271,8 @@ switch ($method) {
                 'customer_name' => $row['user_name'] ?? $row['shipping_name'] ?? '',
                 'customer_phone' => $row['shipping_phone'] ?? '',
                 'customer_address' => $row['shipping_address'] ?? '',
-                'email' => $row['user_email'] ?? null,
+                'email' => $row['user_email'] ?? $row['guest_email'] ?? null,
+                'is_guest' => empty($row['user_id']),
                 'cancelRequested' => (bool) ($row['cancel_requested'] ?? 0),
                 'cancelReason' => $row['cancel_reason'] ?? null,
                 'items' => array_map(function ($item) {
@@ -143,6 +284,8 @@ switch ($method) {
                         'price' => (int) $item['price'],
                         'image' => $item['product_image'] ?? null,
                         'imageUrl' => $item['product_image'] ?? null,
+                        'variant_id' => $item['variant_id'] ?? null,
+                        'variant_volume' => $item['variant_volume'] ?? null,
                     ];
                 }, $items),
                 'payment' => [
@@ -152,18 +295,18 @@ switch ($method) {
                 ],
             ];
         }, $rows ?: []);
+        
+        // null 값 제거 (보안 체크에서 필터링된 주문)
+        $orders = array_filter($orders, function($order) {
+            return $order !== null;
+        });
+        $orders = array_values($orders); // 인덱스 재정렬
 
         echo json_encode($orders, JSON_UNESCAPED_UNICODE);
         break;
 
     case 'POST':
-        // 주문 생성
-        if (empty($_SESSION['user_id'])) {
-            http_response_code(401);
-            echo json_encode(['ok' => false, 'message' => '로그인이 필요합니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
+        // 주문 생성 (회원/비회원 모두 허용)
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data)) {
             $data = $_POST;
@@ -181,6 +324,18 @@ switch ($method) {
             exit;
         }
 
+        // 비회원 주문인 경우 이메일 필수
+        $userId = $_SESSION['user_id'] ?? null;
+        $isGuest = empty($userId);
+        $guestEmail = $customer['email'] ?? '';
+        $guestSessionId = session_id();
+
+        if ($isGuest && empty($guestEmail)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'message' => '비회원 주문은 이메일이 필요합니다.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         try {
             $conn = db()->getConnection();
             $conn->beginTransaction();
@@ -191,25 +346,28 @@ switch ($method) {
             $orderStatus = ($paymentMethod === 'card') ? 'paid' : 'pending';
             
             $orderId = db()->insert(
-                "INSERT INTO orders (user_id, order_number, total_price, status, shipping_name, shipping_phone, shipping_address, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                "INSERT INTO orders (user_id, order_number, total_price, status, shipping_name, shipping_phone, shipping_address, guest_email, guest_session_id, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                 [
-                    $_SESSION['user_id'],
+                    $userId, // NULL이면 비회원
                     $orderNumber,
                     $total,
                     $orderStatus,
                     $customer['name'] ?? '',
                     $customer['phone'] ?? '',
-                    $customer['address'] ?? ''
+                    $customer['address'] ?? '',
+                    $isGuest ? $guestEmail : null,
+                    $isGuest ? $guestSessionId : null
                 ]
             );
 
-            // 주문 상품 저장
+            // 주문 상품 저장 및 재고 감소
             foreach ($items as $item) {
                 $productId = (int)($item['id'] ?? 0);
                 $productName = $item['name'] ?? '상품명 없음';
                 $quantity = (int)($item['qty'] ?? $item['quantity'] ?? 1);
                 $price = (int)($item['price'] ?? 0);
+                $variantId = isset($item['variantId']) ? (int)$item['variantId'] : null;
 
                 // product_id가 없으면 products 테이블에서 찾기
                 if ($productId <= 0) {
@@ -217,11 +375,27 @@ switch ($method) {
                     $productId = $product ? $product['id'] : 0;
                 }
 
+                // 주문 상품 저장
                 db()->insert(
-                    "INSERT INTO order_items (order_id, product_id, product_name, quantity, price, created_at)
-                     VALUES (?, ?, ?, ?, ?, NOW())",
-                    [$orderId, $productId, $productName, $quantity, $price]
+                    "INSERT INTO order_items (order_id, product_id, product_name, quantity, price, variant_id, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, NOW())",
+                    [$orderId, $productId, $productName, $quantity, $price, $variantId]
                 );
+
+                // 재고 감소 (variant가 있으면 variant 재고, 없으면 상품 재고)
+                if ($variantId) {
+                    // variant 재고 감소
+                    db()->execute(
+                        "UPDATE product_variants SET stock = stock - ? WHERE id = ? AND stock >= ?",
+                        [$quantity, $variantId, $quantity]
+                    );
+                } else {
+                    // 상품 재고 감소 (variants가 없는 경우)
+                    db()->execute(
+                        "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+                        [$quantity, $productId, $quantity]
+                    );
+                }
             }
 
             $conn->commit();
@@ -305,13 +479,7 @@ switch ($method) {
         break;
 
     case 'PATCH':
-        // 주문 취소 요청 또는 결제 확인
-        if (empty($_SESSION['user_id']) && !$isAdmin) {
-            http_response_code(401);
-            echo json_encode(['ok' => false, 'message' => '로그인이 필요합니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
+        // 주문 취소 요청 또는 결제 확인 (회원/비회원 모두 지원)
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data)) {
             $data = $_POST;
@@ -319,6 +487,8 @@ switch ($method) {
 
         $orderNumber = trim($data['orderNumber'] ?? $data['id'] ?? '');
         $action = trim($data['action'] ?? ''); // 'cancel_request', 'confirm_payment', 'approve_cancel', 'reject_cancel'
+        $guestEmail = trim($data['guestEmail'] ?? '');
+        $guestPhone = trim($data['guestPhone'] ?? '');
 
         if (!$orderNumber || !$action) {
             http_response_code(400);
@@ -328,7 +498,7 @@ switch ($method) {
 
         try {
             $order = db()->fetchOne(
-                "SELECT id, status, user_id FROM orders WHERE order_number = ?",
+                "SELECT id, status, user_id, guest_email, shipping_phone FROM orders WHERE order_number = ?",
                 [$orderNumber]
             );
 
@@ -340,11 +510,33 @@ switch ($method) {
 
             switch ($action) {
                 case 'cancel_request':
-                    // 사용자가 취소 요청
-                    if ($order['user_id'] != $_SESSION['user_id']) {
-                        http_response_code(403);
-                        echo json_encode(['ok' => false, 'message' => '본인의 주문만 취소할 수 있습니다.'], JSON_UNESCAPED_UNICODE);
-                        exit;
+                    // 사용자가 취소 요청 (회원/비회원 모두)
+                    $currentUserId = $_SESSION['user_id'] ?? null;
+                    $isGuestOrder = empty($order['user_id']);
+                    
+                    // 회원 주문인 경우: 본인 확인
+                    if (!$isGuestOrder) {
+                        if (empty($currentUserId) || $order['user_id'] != $currentUserId) {
+                            http_response_code(403);
+                            echo json_encode(['ok' => false, 'message' => '본인의 주문만 취소할 수 있습니다.'], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
+                    } else {
+                        // 비회원 주문인 경우: 이메일 또는 전화번호로 인증
+                        $isAuthorized = false;
+                        if ($guestEmail) {
+                            $isAuthorized = (strtolower(trim($order['guest_email'] ?? '')) === strtolower(trim($guestEmail)));
+                        } else if ($guestPhone) {
+                            $phoneDigits = preg_replace('/[^0-9]/', '', $guestPhone);
+                            $orderPhoneDigits = preg_replace('/[^0-9]/', '', $order['shipping_phone'] ?? '');
+                            $isAuthorized = ($orderPhoneDigits === $phoneDigits);
+                        }
+                        
+                        if (!$isAuthorized) {
+                            http_response_code(403);
+                            echo json_encode(['ok' => false, 'message' => '주문 시 입력한 이메일 또는 전화번호를 확인해주세요.'], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
                     }
 
                     // 취소 사유 가져오기

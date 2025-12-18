@@ -38,22 +38,79 @@ $pathParts = $path ? explode('/', $path) : [];
 // ID 추출 (있으면)
 $id = isset($pathParts[0]) && is_numeric($pathParts[0]) ? (int)$pathParts[0] : null;
 
+// 상품에 variants 추가하는 헬퍼 함수
+function addVariantsToProduct($product) {
+    if (!$product) return $product;
+    try {
+        $variants = db()->fetchAll(
+            "SELECT id, volume, price, stock, is_default, sort_order
+             FROM product_variants
+             WHERE product_id = ?
+             ORDER BY sort_order ASC, price ASC",
+            [$product['id']]
+        );
+        $product['variants'] = $variants ?: [];
+    } catch (Exception $e) {
+        // variants 테이블이 없으면 빈 배열 반환
+        $product['variants'] = [];
+    }
+    // type 필드를 category로도 매핑 (프론트엔드 호환성)
+    if (isset($product['type']) && !isset($product['category'])) {
+        $product['category'] = $product['type'];
+    }
+    // emotion_keys를 배열로 변환 (JSON 문자열인 경우)
+    if (isset($product['emotion_keys']) && is_string($product['emotion_keys']) && !empty($product['emotion_keys'])) {
+        try {
+            $product['emotionKeys'] = json_decode($product['emotion_keys'], true);
+            if (!is_array($product['emotionKeys'])) {
+                $product['emotionKeys'] = [];
+            }
+        } catch (Exception $e) {
+            $product['emotionKeys'] = [];
+        }
+    } else {
+        $product['emotionKeys'] = [];
+    }
+    // fragrance_type을 fragranceType으로도 매핑
+    if (isset($product['fragrance_type']) && !isset($product['fragranceType'])) {
+        $product['fragranceType'] = $product['fragrance_type'];
+    }
+    // image를 imageUrl로도 매핑 (프론트엔드 호환성) - NULL이나 빈 문자열이 아닐 때만
+    if (isset($product['image']) && $product['image'] !== null && $product['image'] !== '') {
+        $trimmedImage = trim($product['image']);
+        if ($trimmedImage !== '' && $trimmedImage !== 'null' && $trimmedImage !== 'NULL' && strlen($trimmedImage) > 10 && !isset($product['imageUrl'])) {
+            $product['imageUrl'] = $trimmedImage;
+        }
+    }
+    // detail_image를 detailImageUrl로도 매핑 (프론트엔드 호환성) - NULL이나 빈 문자열이 아닐 때만
+    if (isset($product['detail_image']) && $product['detail_image'] !== null && $product['detail_image'] !== '') {
+        $trimmedDetailImage = trim($product['detail_image']);
+        if ($trimmedDetailImage !== '' && $trimmedDetailImage !== 'null' && $trimmedDetailImage !== 'NULL' && strlen($trimmedDetailImage) > 10 && !isset($product['detailImageUrl'])) {
+            $product['detailImageUrl'] = $trimmedDetailImage;
+        }
+    }
+    return $product;
+}
 
 try {
     switch ($method) {
         case 'GET':
             if ($id) {
-                // 단일 상품 조회
+                // 단일 상품 조회 (variants 포함)
                 $product = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
                 if ($product) {
+                    $product = addVariantsToProduct($product);
                     echo json_encode($product);
                 } else {
                     http_response_code(404);
                     echo json_encode(['error' => '상품을 찾을 수 없습니다.']);
                 }
             } else {
-                // 전체 상품 목록
+                // 전체 상품 목록 (variants 포함)
                 $products = db()->fetchAll("SELECT * FROM products ORDER BY id DESC");
+                foreach ($products as &$p) {
+                    $p = addVariantsToProduct($p);
+                }
                 echo json_encode($products);
             }
             break;
@@ -67,9 +124,9 @@ try {
             // 상품 등록
             $data = json_decode(file_get_contents('php://input'), true);
 
-            if (empty($data['name']) || empty($data['price'])) {
+            if (empty($data['name'])) {
                 http_response_code(400);
-                echo json_encode(['error' => '상품명과 가격은 필수입니다.']);
+                echo json_encode(['error' => '상품명은 필수입니다.']);
                 exit;
             }
 
@@ -81,24 +138,56 @@ try {
                 $category = '향수';
             }
 
-            $sql = "INSERT INTO products (name, type, price, originalPrice, rating, reviews, badge, `desc`, image, stock, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            // price는 variants의 기본 가격이 있으면 사용, 없으면 0 (호환성 유지)
+            $price = isset($data['price']) && $data['price'] > 0 ? (int)$data['price'] : 0;
+
+            // 향기 타입 및 감정 키 처리
+            $fragranceType = !empty($data['fragranceType']) ? trim($data['fragranceType']) : null;
+            $emotionKeys = null;
+            if (!empty($data['emotionKeys']) && is_array($data['emotionKeys'])) {
+                $emotionKeys = json_encode($data['emotionKeys'], JSON_UNESCAPED_UNICODE);
+            } elseif (!empty($data['emotionKeys']) && is_string($data['emotionKeys'])) {
+                $emotionKeys = $data['emotionKeys'];
+            }
+
+            // 이미지 데이터 처리: 빈 문자열이면 NULL로
+            $imageData = $data['imageUrl'] ?? $data['image'] ?? null;
+            if ($imageData !== null) {
+                $imageData = trim($imageData);
+                if ($imageData === '' || $imageData === 'null' || $imageData === 'NULL') {
+                    $imageData = null;
+                }
+            }
+            
+            $detailImageData = $data['detailImageUrl'] ?? $data['detail_image'] ?? null;
+            if ($detailImageData !== null) {
+                $detailImageData = trim($detailImageData);
+                if ($detailImageData === '' || $detailImageData === 'null' || $detailImageData === 'NULL') {
+                    $detailImageData = null;
+                }
+            }
+
+            $sql = "INSERT INTO products (name, type, price, originalPrice, rating, reviews, badge, `desc`, image, detail_image, status, fragrance_type, emotion_keys)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $params = [
                 $data['name'],
                 $category,
-                (int)$data['price'],
+                $price,
                 isset($data['originalPrice']) ? (int)$data['originalPrice'] : null,
                 $data['rating'] ?? 0,
                 $data['reviews'] ?? 0,
                 $data['badge'] ?? null,
                 $data['desc'] ?? '',
-                $data['imageUrl'] ?? $data['image'] ?? null,
-                (int)($data['stock'] ?? 0),
-                $data['status'] ?? '판매중'
+                $imageData,
+                $detailImageData,
+                $data['status'] ?? '판매중',
+                $fragranceType,
+                $emotionKeys
             ];
 
             $newId = db()->insert($sql, $params);
             $newProduct = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$newId]);
+            $newProduct = addVariantsToProduct($newProduct);
 
             http_response_code(201);
             echo json_encode($newProduct);
@@ -136,6 +225,21 @@ try {
                 $category = $existing['type'] ?? '향수';
             }
 
+            // 향기 타입 및 감정 키 처리
+            $fragranceType = isset($data['fragranceType']) ? (!empty($data['fragranceType']) ? trim($data['fragranceType']) : null) : $existing['fragrance_type'];
+            $emotionKeys = null;
+            if (isset($data['emotionKeys'])) {
+                if (is_array($data['emotionKeys']) && count($data['emotionKeys']) > 0) {
+                    $emotionKeys = json_encode($data['emotionKeys'], JSON_UNESCAPED_UNICODE);
+                } elseif (is_string($data['emotionKeys']) && !empty($data['emotionKeys'])) {
+                    $emotionKeys = $data['emotionKeys'];
+                } else {
+                    $emotionKeys = null;
+                }
+            } else {
+                $emotionKeys = $existing['emotion_keys'] ?? null;
+            }
+
             $sql = "UPDATE products SET
                     name = ?,
                     type = ?,
@@ -146,27 +250,56 @@ try {
                     badge = ?,
                     `desc` = ?,
                     image = ?,
-                    stock = ?,
-                    status = ?
+                    detail_image = ?,
+                    status = ?,
+                    fragrance_type = ?,
+                    emotion_keys = ?
                     WHERE id = ?";
+            // price는 variants의 기본 가격이 있으면 사용, 없으면 기존 값 유지 (호환성)
+            $price = isset($data['price']) && $data['price'] > 0 ? (int)$data['price'] : ($existing['price'] ?? 0);
+
+            // 이미지 데이터 처리: 빈 문자열이면 NULL로, 아니면 trim
+            $imageData = $data['imageUrl'] ?? $data['image'] ?? null;
+            if ($imageData !== null) {
+                $imageData = trim($imageData);
+                if ($imageData === '' || $imageData === 'null' || $imageData === 'NULL') {
+                    $imageData = $existing['image'] ?? null;
+                }
+            } else {
+                $imageData = $existing['image'] ?? null;
+            }
+            
+            $detailImageData = $data['detailImageUrl'] ?? $data['detail_image'] ?? null;
+            if ($detailImageData !== null) {
+                $detailImageData = trim($detailImageData);
+                if ($detailImageData === '' || $detailImageData === 'null' || $detailImageData === 'NULL') {
+                    $detailImageData = $existing['detail_image'] ?? null;
+                }
+            } else {
+                $detailImageData = $existing['detail_image'] ?? null;
+            }
+
             $params = [
                 trim($data['name'] ?? $existing['name']),
                 $category,
-                (int)($data['price'] ?? $existing['price']),
+                $price,
                 isset($data['originalPrice']) ? (int)$data['originalPrice'] : $existing['originalPrice'],
                 $data['rating'] ?? $existing['rating'],
                 $data['reviews'] ?? $existing['reviews'],
                 $data['badge'] ?? $existing['badge'],
                 $data['desc'] ?? $existing['desc'],
-                trim($data['imageUrl'] ?? $data['image'] ?? $existing['image'] ?? ''),
-                (int)($data['stock'] ?? $existing['stock'] ?? 0),
+                $imageData,
+                $detailImageData,
                 $data['status'] ?? $existing['status'] ?? '판매중',
+                $fragranceType,
+                $emotionKeys,
                 $id
             ];
 
             try {
                 db()->execute($sql, $params);
                 $updated = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
+                $updated = addVariantsToProduct($updated);
                 echo json_encode($updated);
             } catch (Exception $e) {
                 error_log('Product update error: ' . $e->getMessage() . ' - SQL: ' . $sql . ' - Params: ' . json_encode($params));

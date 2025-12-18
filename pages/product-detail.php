@@ -167,7 +167,32 @@ async function renderProductDetail() {
 				
 				<!-- 액션 버튼 -->
 				<div style="display:flex;gap:.75rem;margin-top:auto;margin-bottom:1rem;">
-					${(product.stock !== undefined && product.stock <= 0) || product.status === '품절' 
+					${(() => {
+						// status가 "품절"이면 품절
+						if (product.status === '품절') return true;
+						
+						// variants가 있는 경우 variants의 재고만 확인 (products 테이블의 stock은 완전히 무시)
+						if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+							// variants 중 하나라도 재고가 있으면 판매 가능
+							const hasStock = product.variants.some(v => {
+								// stock이 null, undefined, 또는 숫자가 아니면 재고가 있다고 간주
+								if (v.stock == null || typeof v.stock !== 'number') return true;
+								// 숫자이고 0보다 크면 재고 있음
+								return v.stock > 0;
+							});
+							// 재고가 하나도 없으면 품절
+							return !hasStock;
+						}
+						
+						// variants가 없는 경우: status가 "판매중"이면 판매 가능으로 간주
+						// (variants가 없으면 재고 관리가 안 되므로 status만 확인)
+						if (product.status === "판매중") {
+							return false; // 판매 가능
+						}
+						
+						// status가 "판매중"이 아니면 품절로 간주
+						return true;
+					})()
 					  ? `<button class="form-btn secondary" style="flex:1;padding:.75rem;" disabled>품절</button>`
 					  : `<button class="form-btn primary" style="flex:1;padding:.75rem;" onclick="addProductToCartFromDetail(${product.id})">장바구니</button>
 				         <button class="form-btn ivory" style="flex:1;padding:.75rem;" onclick="buyProductNowFromDetail(${product.id})">바로 구매</button>

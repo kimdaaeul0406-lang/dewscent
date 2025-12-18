@@ -15,6 +15,15 @@ if (isset($_SESSION['user_id'])) {
 <script>
 (function syncAuthState() {
   const USER_KEY = "ds_current_user";
+  // 주문 조회 페이지에서 온 경우 localStorage를 정리하지 않음 (비회원 조회이므로)
+  const fromOrderLookup = sessionStorage.getItem('from_order_lookup');
+  if (fromOrderLookup === 'true') {
+    // 주문 조회 페이지에서 온 경우 localStorage 정리 및 플래그 제거
+    localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem('from_order_lookup');
+    return; // 세션 정보를 localStorage에 설정하지 않음
+  }
+  
   <?php if ($userInfo): ?>
   localStorage.setItem(USER_KEY, JSON.stringify(<?php echo json_encode($userInfo, JSON_UNESCAPED_UNICODE); ?>));
   <?php else: ?>
