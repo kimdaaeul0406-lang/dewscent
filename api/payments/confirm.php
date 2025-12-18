@@ -25,13 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $tossSecretKey = getenv('TOSS_SECRET_KEY') ?: ($_ENV['TOSS_SECRET_KEY'] ?? '');
 
 if (empty($tossSecretKey)) {
-    // 키 검증 (마스킹 처리)
-    $maskedSecretKey = strlen($tossSecretKey) > 6 
-        ? substr($tossSecretKey, 0, 6) . str_repeat('*', strlen($tossSecretKey) - 6)
-        : str_repeat('*', strlen($tossSecretKey));
-    
-    error_log('[Payment Confirm] TOSS_SECRET_KEY: ' . $maskedSecretKey);
-    
+    error_log('[Payment Confirm] TOSS_SECRET_KEY가 설정되지 않았습니다.');
+
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => '결제 설정이 올바르지 않습니다. .env 파일을 확인해주세요.']);
     exit;
