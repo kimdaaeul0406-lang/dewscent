@@ -130,7 +130,24 @@ function ensure_tables_exist() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
-        
+
+        // product_variants 테이블 (용량별 가격)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS product_variants (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL,
+                volume VARCHAR(20) NOT NULL COMMENT '용량 (예: 30ml, 50ml, 100ml)',
+                price INT NOT NULL COMMENT '해당 용량 가격',
+                stock INT DEFAULT 0 COMMENT '해당 용량 재고',
+                is_default TINYINT(1) DEFAULT 0 COMMENT '기본 선택 여부',
+                sort_order INT DEFAULT 0 COMMENT '정렬 순서',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                INDEX idx_product_id (product_id),
+                UNIQUE KEY unique_product_volume (product_id, volume)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
         // inquiries 테이블
         $conn->exec("
             CREATE TABLE IF NOT EXISTS inquiries (

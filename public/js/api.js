@@ -1045,51 +1045,94 @@
   // ========== 감정별 추천 상품 관리 ==========
   const EMOTION_RECOMMENDATIONS_KEY = "dewscent_emotion_recommendations";
 
-  // 감정별 추천 상품 가져오기 (7일 주기)
+  // 감정별 추천 상품 가져오기 (매번 랜덤)
   async function getEmotionRecommendations(emotionKey) {
-    if (USE_MOCK_API) {
-      await delay(50);
-
-      // 관리자가 설정한 추천 상품이 있으면 사용
-      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
-      if (stored) {
-        try {
-          const recommendations = JSON.parse(stored);
-          const emotionRecs = recommendations[emotionKey];
-          if (
-            emotionRecs &&
-            emotionRecs.productIds &&
-            emotionRecs.productIds.length > 0
-          ) {
-            const products = getStoredProducts();
-            // 중복 제거: Set을 사용하여 고유한 ID만 유지
-            const uniqueIds = [...new Set(emotionRecs.productIds)];
-            const recommendedProducts = uniqueIds
-              .map((id) => products.find((p) => p.id === id))
-              .filter((p) => p && p.status === "판매중")
-              .filter(
-                (p, index, self) =>
-                  // id 기준으로 중복 제거
-                  index === self.findIndex((prod) => prod.id === p.id)
-              );
-
-            if (recommendedProducts.length > 0) {
-              // 7일 주기로 다른 상품 추천
-              return getWeeklyRotatedProducts(recommendedProducts, emotionKey);
-            }
-          }
-        } catch (e) {
-          console.error("Error parsing recommendations:", e);
-        }
-      }
-
-      // 관리자 설정이 없으면 자동 추천
-      return getAutoEmotionRecommendations(emotionKey);
+    // 실제 DB에서 상품 목록 가져오기
+    let allProducts = [];
+    try {
+      allProducts = await getJSON("/products.php");
+      // DB에서 가져온 상품을 localStorage 형식에 맞게 변환
+      allProducts = allProducts.map(p => ({
+        ...p,
+        category: p.type || p.category || '향수',
+        imageUrl: p.image || p.imageUrl || ''
+      })).filter(p => p.status === "판매중");
+    } catch (e) {
+      console.error("상품 목록 로드 실패:", e);
+      // 실패하면 localStorage에서 가져오기
+      allProducts = getStoredProducts().filter(p => p.status === "판매중");
     }
-    return await getJSON(`/emotions/${emotionKey}/recommendations`);
+
+    if (allProducts.length === 0) {
+      return [];
+    }
+
+    // 관리자가 설정한 추천 상품이 있으면 사용
+    const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
+    if (stored) {
+      try {
+        const recommendations = JSON.parse(stored);
+        const emotionRecs = recommendations[emotionKey];
+        if (
+          emotionRecs &&
+          emotionRecs.productIds &&
+          emotionRecs.productIds.length > 0
+        ) {
+          // 중복 제거: Set을 사용하여 고유한 ID만 유지
+          const uniqueIds = [...new Set(emotionRecs.productIds)];
+          const recommendedProducts = uniqueIds
+            .map((id) => allProducts.find((p) => p.id === id || p.id === parseInt(id)))
+            .filter((p) => p && p.status === "판매중")
+            .filter(
+              (p, index, self) =>
+                index === self.findIndex((prod) => prod.id === p.id)
+            );
+
+          if (recommendedProducts.length > 0) {
+            // 랜덤으로 상품 추천
+            return getRandomProducts(recommendedProducts, emotionKey, 4);
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing recommendations:", e);
+      }
+    }
+
+    // 관리자 설정이 없으면 자동 추천
+    return getAutoEmotionRecommendationsFromDB(allProducts, emotionKey);
   }
 
-  // 7일 주기로 상품 순환 (중복 제거)
+  // 완전 랜덤으로 상품 선택 (중복 제거, 매번 다른 결과)
+  function getRandomProducts(products, emotionKey, count = 4) {
+    // 중복 제거: id 기준으로 고유한 상품만 유지
+    const uniqueProducts = products.filter(
+      (p, index, self) => index === self.findIndex((prod) => prod.id === p.id)
+    );
+
+    if (uniqueProducts.length <= count) return uniqueProducts;
+
+    // Fisher-Yates 셔플 알고리즘 (완전 랜덤)
+    const shuffled = [...uniqueProducts];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // 중복 없이 count개 반환
+    const result = [];
+    const seenIds = new Set();
+    for (const product of shuffled) {
+      if (!seenIds.has(product.id)) {
+        result.push(product);
+        seenIds.add(product.id);
+        if (result.length >= count) break;
+      }
+    }
+
+    return result;
+  }
+
+  // 7일 주기로 상품 순환 (중복 제거) - 이전 버전 호환용
   function getWeeklyRotatedProducts(products, emotionKey) {
     // 중복 제거: id 기준으로 고유한 상품만 유지
     const uniqueProducts = products.filter(
@@ -1123,7 +1166,37 @@
     return result;
   }
 
-  // 자동 추천 (관리자 설정이 없을 때)
+  // DB 상품 기반 자동 추천 (매번 랜덤)
+  function getAutoEmotionRecommendationsFromDB(allProducts, emotionKey) {
+    // 중복 제거: id 기준으로 고유한 상품만 유지
+    const uniqueProducts = allProducts.filter(
+      (p, index, self) => index === self.findIndex((prod) => prod.id === p.id)
+    );
+
+    // 감정별 카테고리 매핑
+    const emotionCategoryMap = {
+      calm: ["향수", "디퓨저"],
+      warm: ["향수", "바디미스트"],
+      fresh: ["바디미스트", "섬유유연제", "헤어미스트"],
+      romantic: ["향수", "바디미스트"],
+      focus: ["향수", "디퓨저"],
+      refresh: ["바디미스트", "섬유유연제", "룸스프레이"],
+    };
+
+    const categories = emotionCategoryMap[emotionKey] || ["향수"];
+    let filtered = uniqueProducts.filter((p) =>
+      categories.includes(p.category) || categories.includes(p.type)
+    );
+
+    // 카테고리 매칭이 안 되면 전체 상품에서 랜덤
+    if (filtered.length === 0) {
+      filtered = uniqueProducts;
+    }
+
+    return getRandomProducts(filtered, emotionKey, 4);
+  }
+
+  // 자동 추천 (관리자 설정이 없을 때) - 이전 버전 호환용
   function getAutoEmotionRecommendations(emotionKey) {
     const allProducts = getStoredProducts().filter(
       (p) => p.status === "판매중"
@@ -1153,7 +1226,7 @@
       filtered = uniqueProducts; // 카테고리 매칭 실패 시 전체 상품
     }
 
-    return getWeeklyRotatedProducts(filtered, emotionKey);
+    return getRandomProducts(filtered, emotionKey, 4);
   }
 
   // 감정별 추천 상품 설정 (관리자용)
