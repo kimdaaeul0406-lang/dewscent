@@ -19,10 +19,12 @@
             <p class="footer-title">SHOP</p>
             <div class="footer-links">
                 <a href="<?php echo $basePrefix; ?>products.php">전체 상품</a>
-                <a href="<?php echo $basePrefix; ?>products.php">향수</a>
-                <a href="<?php echo $basePrefix; ?>products.php">바디미스트</a>
-                <a href="<?php echo $basePrefix; ?>products.php">섬유유연제</a>
-                <a href="<?php echo $basePrefix; ?>products.php">디퓨저</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=향수">향수</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=바디미스트">바디미스트</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=헤어미스트">헤어미스트</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=디퓨저">디퓨저</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=섬유유연제">섬유유연제</a>
+                <a href="<?php echo $basePrefix; ?>products.php?category=룸스프레이">룸스프레이</a>
             </div>
         </div>
         <div>

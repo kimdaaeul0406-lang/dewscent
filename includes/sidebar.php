@@ -54,6 +54,7 @@ $sbPrefix = $sbInPages ? '' : 'pages/';
         </div>
 
         <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+            <div id="sbUserNameDisplay" style="display:none;margin-bottom:1rem;font-size:.9rem;color:var(--sage);font-weight:500;"></div>
             <div style="display:flex;gap:1rem;font-size:.85rem;align-items:center;flex-wrap:wrap">
                 <a href="#" id="sbLoginLink" onclick="toggleMenu();openModal('loginModal')" style="color:var(--mid);text-decoration:none">로그인</a>
                 <span id="sbDivider" style="color:var(--muted)">|</span>

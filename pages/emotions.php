@@ -148,7 +148,14 @@ async function loadEmotionProducts(emotionKey, emotionData) {
 	}
 
 	if (!recommendations || recommendations.length === 0) {
-		grid.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--light);">이 감정에 맞는 추천 상품이 아직 설정되지 않았습니다.<br>관리자 페이지에서 추천 상품을 설정해주세요.</p>';
+		grid.innerHTML = `
+			<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:400px;padding:4rem 2rem;">
+				<div style="text-align:center;max-width:500px;">
+					<p style="font-size:1.3rem;color:var(--sage);margin-bottom:.8rem;font-weight:500;font-family:'Cormorant Garamond',serif;">상품을 준비중 입니다</p>
+					<p style="font-size:.95rem;color:var(--light);line-height:1.6;">이 감정에 맞는 추천 상품이 아직 설정되지 않았습니다.<br>관리자 페이지에서 추천 상품을 설정해주세요.</p>
+				</div>
+			</div>
+		`;
 		return;
 	}
 

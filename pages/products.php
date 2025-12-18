@@ -217,9 +217,11 @@ function renderAllProducts() {
 	if (sorted.length === 0) {
 		container.className = 'products-grid';
 		container.innerHTML = `
-			<div style="grid-column:1/-1;text-align:center;padding:4rem 2rem;">
-				<p style="font-size:1.2rem;color:var(--mid);margin-bottom:.5rem;">상품 준비중입니다</p>
-				<p style="font-size:.9rem;color:var(--light);">곧 새로운 상품을 만나보실 수 있습니다.</p>
+			<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:400px;padding:4rem 2rem;">
+				<div style="text-align:center;max-width:500px;">
+					<p style="font-size:1.3rem;color:var(--sage);margin-bottom:.8rem;font-weight:500;font-family:'Cormorant Garamond',serif;">상품을 준비중 입니다</p>
+					<p style="font-size:.95rem;color:var(--light);line-height:1.6;">곧 새로운 상품을 만나보실 수 있습니다.</p>
+				</div>
 			</div>
 		`;
 		return;
