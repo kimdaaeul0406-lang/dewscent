@@ -34,7 +34,8 @@ $basePrefix = $inPages ? '../' : '';
         <a href="#" id="loginLink" onclick="openModal('loginModal'); return false;">로그인</a>
         <a href="#" id="signupLink" onclick="openModal('signupModal'); return false;">회원가입</a>
 
-        <!-- 나중에 백엔드 붙일 때 쓸 마이페이지/로그아웃 자리 -->
+        <!-- 비회원만 주문 조회 링크 표시 (로그인한 사용자는 마이페이지에서 확인) -->
+        <a href="<?php echo $basePrefix; ?>pages/order-lookup.php" id="orderLookupLink" style="color:var(--sage);">주문 조회</a>
         <a href="#" id="mypageLink" style="display:none;" onclick="openMypageTab('profile'); return false;">마이페이지</a>
         <a href="#" id="logoutLink" style="display:none;" onclick="logoutUser(); return false;">로그아웃</a>
 
@@ -48,4 +49,19 @@ $basePrefix = $inPages ? '../' : '';
     </div>
 </header>
 
-<?php include __DIR__ . '/auth_state.php'; ?>
+<?php 
+// 주문 조회 페이지에서는 auth_state.php를 실행하지 않음 (비회원 조회 페이지이므로)
+if (empty($isOrderLookupPage)) {
+    include __DIR__ . '/auth_state.php'; 
+} else {
+    // 주문 조회 페이지에서는 localStorage를 정리하는 스크립트만 실행
+?>
+<script>
+(function() {
+    // 주문 조회 페이지에서는 세션에 user_id가 있어도 비회원 조회이므로 localStorage 정리
+    localStorage.removeItem("ds_current_user");
+})();
+</script>
+<?php
+}
+?>

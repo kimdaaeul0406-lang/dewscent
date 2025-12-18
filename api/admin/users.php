@@ -19,13 +19,6 @@ ensure_tables_exist();
 $isAdmin = (!empty($_SESSION['role']) && $_SESSION['role'] === 'admin') || 
            !empty($_SESSION['admin_logged_in']);
 
-// 디버깅: 세션 정보 로그 (개발 환경에서만)
-if (defined('APP_DEBUG') && APP_DEBUG) {
-    error_log('Admin Users API - Session check: role=' . ($_SESSION['role'] ?? 'null') . ', admin_logged_in=' . (isset($_SESSION['admin_logged_in']) ? 'true' : 'false') . ', user_id=' . ($_SESSION['user_id'] ?? 'null'));
-    error_log('Admin Users API - Session ID: ' . session_id());
-    error_log('Admin Users API - All session vars: ' . print_r($_SESSION, true));
-}
-
 if (!$isAdmin) {
     http_response_code(401);
     $debugMsg = defined('APP_DEBUG') && APP_DEBUG ? ' (role: ' . ($_SESSION['role'] ?? 'null') . ', admin_logged_in: ' . (isset($_SESSION['admin_logged_in']) ? 'true' : 'false') . ')' : '';

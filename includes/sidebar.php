@@ -21,7 +21,8 @@ $sbPrefix = $sbInPages ? '' : 'pages/';
             </h3>
             <div class="menu-links">
                 <a href="#" onclick="toggleMenu();openModal('cartModal')">장바구니 보기</a>
-                <a href="#" onclick="toggleMenu();openMypageTab('orders');return false;">주문내역</a>
+                <a href="#" id="sbOrderHistoryLink" onclick="toggleMenu();openMypageTab('orders');return false;">주문내역</a>
+                <a href="<?php echo $sbPrefix; ?>order-lookup.php" id="sbOrderLookupLink" onclick="toggleMenu();">주문 조회</a>
                 <a href="#" onclick="toggleMenu();openWishlist();return false;">위시리스트</a>
                 <a href="#" onclick="toggleMenu();openModal('inquiryModal');return false;">1:1 문의하기</a>
                 <a href="#" onclick="toggleMenu();openInquiryList();return false;">내 문의내역</a>
@@ -38,31 +39,18 @@ $sbPrefix = $sbInPages ? '' : 'pages/';
         </div>
 
         <p class="menu-category">기분으로 향 찾기</p>
-        <div class="menu-sub-links">
-            <a href="#">차분해지고 싶은 날</a>
-            <a href="#">따뜻함이 필요한 순간</a>
-            <a href="#">설레고 싶은 아침</a>
-            <a href="#">집중하고 싶은 시간</a>
+        <div class="menu-sub-links" id="emotionMenuLinks">
+            <!-- JavaScript로 동적 로드 -->
         </div>
 
         <p class="menu-category">향으로 찾기</p>
-        <div class="menu-sub-links">
-            <a href="#">시트러스</a>
-            <a href="#">플로럴</a>
-            <a href="#">우디</a>
-            <a href="#">머스크</a>
-            <a href="#">오리엔탈</a>
-            <a href="#">프레시</a>
+        <div class="menu-sub-links" id="fragranceMenuLinks">
+            <!-- JavaScript로 동적 로드 -->
         </div>
 
         <p class="menu-category">제품으로 찾기</p>
-        <div class="menu-sub-links">
-            <a href="#">향수</a>
-            <a href="#">바디미스트</a>
-            <a href="#">헤어미스트</a>
-            <a href="#">디퓨저</a>
-            <a href="#">섬유유연제</a>
-            <a href="#">룸스프레이</a>
+        <div class="menu-sub-links" id="categoryMenuLinks">
+            <!-- JavaScript로 동적 로드 -->
         </div>
 
         <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)">

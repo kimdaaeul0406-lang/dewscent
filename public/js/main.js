@@ -660,40 +660,19 @@ function loadEmotionSection() {
   const grid = document.getElementById("emotionGrid");
   if (!grid) return;
 
-  // 기본 감정 데이터
-  let emotions = [
-    {
-      id: 1,
-      key: "calm",
-      title: "차분해지고 싶은 날",
-      desc: "마음이 고요해지는 향",
-    },
-    {
-      id: 2,
-      key: "warm",
-      title: "따뜻함이 필요한 순간",
-      desc: "포근한 온기를 담은 향",
-    },
-    {
-      id: 3,
-      key: "focus",
-      title: "집중하고 싶은 시간",
-      desc: "맑고 깨끗한 향",
-    },
-    {
-      id: 4,
-      key: "refresh",
-      title: "상쾌하고 싶을 때",
-      desc: "활력을 주는 향",
-    },
-  ];
-
-  // 관리자 감정 데이터
+  // 관리자에서 설정한 활성 감정만 가져오기
+  let emotions = [];
   if (typeof API !== "undefined" && API.getActiveEmotions) {
-    const adminEmotions = API.getActiveEmotions();
-    if (adminEmotions.length > 0) {
-      emotions = adminEmotions;
-    }
+    emotions = API.getActiveEmotions();
+    // order 순서대로 정렬
+    emotions = emotions.sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+
+  // 관리자에서 설정한 감정이 없으면 빈 상태로 표시
+  if (emotions.length === 0) {
+    grid.innerHTML =
+      '<p style="text-align:center;color:var(--light);padding:2rem;">관리자에서 감정 카드를 등록해주세요.</p>';
+    return;
   }
 
   grid.innerHTML = emotions
@@ -720,31 +699,48 @@ function loadEmotionSection() {
 
 // 감정별 향수 추천 모달 열기
 async function openEmotionRecommendation(emotionKey, emotionData) {
-  // 7일 주기로 추천 상품 가져오기
-  const recommendations = await getEmotionRecommendations(emotionKey);
+  // 상품 데이터가 로드되지 않았으면 먼저 로드
+  if (typeof products === "undefined" || products.length === 0) {
+    if (typeof loadProducts === "function") {
+      await loadProducts();
+    }
+  }
 
+  // 추천 상품 가져오기 - 관리자에서 설정한 것만 사용
+  let recommendations = [];
+  if (typeof API !== "undefined" && API.getEmotionRecommendations) {
+    recommendations = await API.getEmotionRecommendations(emotionKey);
+  }
+
+  // 관리자에서 설정한 추천 상품이 없으면 안내 메시지
   if (!recommendations || recommendations.length === 0) {
-    alert("이 감정에 맞는 추천 상품이 아직 없습니다.");
+    alert(
+      "이 감정에 맞는 추천 상품이 아직 설정되지 않았습니다.관리자 페이지에서 추천 상품을 설정해주세요."
+    );
     return;
   }
 
-  // 모달 생성
+  // 최대 4개만 표시
+  const displayRecommendations = recommendations.slice(0, 4);
+
+  // 모달 생성 (팝업처럼 배경이 보이도록, 작은 크기)
   const modal = document.createElement("div");
   modal.className = "modal-overlay active";
   modal.id = "emotionRecommendationModal";
   modal.innerHTML = `
-    <div class="modal-content" style="max-width:1200px;width:95%;max-height:90vh;overflow-y:auto;">
-      <button class="modal-close" onclick="closeEmotionRecommendation()">×</button>
-      <div style="text-align:center;margin-bottom:2rem;">
-        <h2 style="font-family:'Cormorant Garamond',serif;font-size:2rem;color:var(--sage);margin-bottom:.5rem;">${
+    <div class="modal" style="max-width:900px;width:90%;max-height:85vh;overflow-y:auto;position:relative;">
+      <button class="modal-close" onclick="closeEmotionRecommendation()" style="position:absolute;top:1rem;right:1rem;z-index:10;">×</button>
+      <div class="modal-header" style="text-align:center;padding:1.5rem 2rem 1rem;">
+        <p class="modal-logo" style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--sage);margin-bottom:.4rem;">${
           emotionData?.title || "추천 향수"
-        }</h2>
-        <p style="color:var(--mid);font-size:.95rem;">${
+        }</p>
+        <p class="modal-subtitle" style="color:var(--mid);font-size:.85rem;">${
           emotionData?.desc || "이 기분에 어울리는 향기를 추천해드려요"
         }</p>
       </div>
-      <div style="display:flex;flex-wrap:nowrap;gap:1.5rem;justify-content:center;align-items:stretch;padding:0.5rem 0;margin-bottom:1.5rem;overflow-x:auto;scrollbar-width:thin;">
-        ${recommendations
+      <div class="modal-body" style="padding:1rem 2rem 2rem;">
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:1rem;margin-bottom:1.5rem;" id="emotionProductsGridModal">
+        ${displayRecommendations
           .map((product, idx) => {
             const productIndex =
               typeof products !== "undefined"
@@ -755,47 +751,102 @@ async function openEmotionRecommendation(emotionKey, emotionData) {
                 ? `openProductModal(${productIndex});closeEmotionRecommendation();`
                 : `window.location.href='pages/products.php';`;
             return `
-          <div class="product-card" style="cursor:pointer;flex:0 0 auto;width:220px;min-width:200px;max-width:220px;" onclick="${onClickHandler}">
-            <div class="product-image" style="height:220px;background:${
-              product.imageUrl
-                ? `url(${product.imageUrl})`
-                : "linear-gradient(135deg,var(--sage-lighter),var(--sage))"
-            };background-size:cover;background-position:center;border-radius:12px;">
+          <div class="product-card" style="cursor:pointer;" onclick="${onClickHandler}">
+            <div class="product-image" style="position:relative;${(() => {
+              const img = product.imageUrl || product.image || "";
+              if (
+                img &&
+                img.trim() &&
+                img !== "null" &&
+                img !== "NULL" &&
+                img.length > 10
+              ) {
+                const imageUrl = img.startsWith("data:") ? img : `'${img}'`;
+                return `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
+              }
+              return "";
+            })()}">
               ${
                 product.badge
                   ? `<span class="product-badge">${product.badge}</span>`
                   : ""
               }
+              <button class="product-wishlist" data-id="${
+                product.id
+              }" onclick="event.stopPropagation();toggleWishlist(this)">
+                ${
+                  typeof inWishlist !== "undefined" && inWishlist(product.id)
+                    ? "♥"
+                    : "♡"
+                }
+              </button>
             </div>
-            <div class="product-info" style="padding:1rem 0;">
-              <p class="product-brand" style="font-size:.8rem;">DewScent</p>
-              <p class="product-name" style="font-size:.95rem;margin:.5rem 0;">${
+            <div class="product-info" style="padding:.8rem;">
+              <p class="product-brand" style="font-size:.7rem;margin-bottom:.2rem;">DewScent</p>
+              ${
+                product.category || product.type
+                  ? `<p class="product-category" style="font-size:.7rem;color:var(--sage);margin-bottom:.2rem;font-weight:500;">${
+                      product.category || product.type
+                    }</p>`
+                  : ""
+              }
+              <p class="product-name" style="font-size:.85rem;margin-bottom:.3rem;font-weight:500;">${
                 product.name
               }</p>
-              <div class="product-rating" style="margin:.5rem 0;">
-                <span class="stars">${"★".repeat(
-                  Math.round(product.rating || 4)
+              <div class="product-rating" style="margin-bottom:.3rem;">
+                <span class="stars" style="font-size:.75rem;">${"★".repeat(
+                  Math.round(product.rating || 0)
                 )}</span>
-                <span class="rating-count" style="font-size:.8rem;">(${
+                <span class="rating-count" style="font-size:.7rem;">(${
                   product.reviews || 0
                 })</span>
               </div>
-              <p class="product-price" style="font-size:1rem;font-weight:600;color:var(--sage);">₩${(
-                product.price || 0
-              ).toLocaleString()}</p>
+              <p class="product-price" style="font-size:.9rem;font-weight:600;color:var(--sage);">
+                ${
+                  product.variants && product.variants.length > 0
+                    ? `₩${(
+                        product.variants.find((v) => v.is_default)?.price ||
+                        product.variants[0].price ||
+                        product.price
+                      ).toLocaleString()}부터`
+                    : `₩${(product.price || 0).toLocaleString()}`
+                }
+              </p>
+              ${
+                product.variants && product.variants.length > 0
+                  ? `<p style="font-size:.65rem;color:var(--light);margin-top:.2rem;">${product.variants.length}가지 용량</p>`
+                  : ""
+              }
             </div>
           </div>
         `;
           })
           .join("")}
-      </div>
-      <div style="text-align:center;padding-top:1rem;border-top:1px solid var(--border);">
-        <p style="font-size:.85rem;color:var(--light);">이 추천은 7일마다 새로운 향기로 업데이트됩니다.</p>
+        </div>
+        <div style="text-align:center;padding-top:1rem;border-top:1px solid var(--border);">
+          <a href="pages/emotions.php?emotion=${emotionKey}" style="display:inline-block;padding:.6rem 1.5rem;background:var(--sage);color:#fff;border-radius:8px;text-decoration:none;font-weight:500;font-size:.85rem;transition:all 0.3s;" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">전체보기</a>
+        </div>
       </div>
     </div>
   `;
   document.body.appendChild(modal);
   document.body.style.overflow = "hidden";
+
+  // 반응형 그리드 조정
+  const grid = document.getElementById("emotionProductsGridModal");
+  if (grid) {
+    const updateGrid = () => {
+      if (window.innerWidth <= 768) {
+        grid.style.gridTemplateColumns = "repeat(2, 1fr)";
+      } else if (window.innerWidth <= 480) {
+        grid.style.gridTemplateColumns = "1fr";
+      } else {
+        grid.style.gridTemplateColumns = "repeat(4, 1fr)";
+      }
+    };
+    updateGrid();
+    window.addEventListener("resize", updateGrid);
+  }
 }
 
 // 감정별 추천 닫기
@@ -804,22 +855,47 @@ function closeEmotionRecommendation() {
   if (modal) {
     modal.remove();
     document.body.style.overflow = "";
+    // 리사이즈 이벤트 리스너 제거
+    window.removeEventListener("resize", () => {});
   }
 }
 
 // 감정별 추천 상품 가져오기 (7일 주기)
 async function getEmotionRecommendations(emotionKey) {
-  if (typeof API === "undefined" || !API.getEmotionRecommendations) {
-    // API가 없으면 기본 추천 로직
-    return getDefaultEmotionRecommendations(emotionKey);
+  // 상품 데이터가 로드되지 않았으면 먼저 로드
+  if (typeof products === "undefined" || products.length === 0) {
+    if (typeof loadProducts === "function") {
+      await loadProducts();
+    }
   }
 
-  return await API.getEmotionRecommendations(emotionKey);
+  if (typeof API !== "undefined" && API.getEmotionRecommendations) {
+    try {
+      const recommendations = await API.getEmotionRecommendations(emotionKey);
+      if (recommendations && recommendations.length > 0) {
+        return recommendations;
+      }
+    } catch (e) {
+      console.error("API에서 추천 상품 가져오기 실패:", e);
+    }
+  }
+
+  // API가 없거나 실패하면 기본 추천 로직
+  return getDefaultEmotionRecommendations(emotionKey);
 }
 
 // 기본 감정별 추천 (관리자 설정이 없을 때)
 function getDefaultEmotionRecommendations(emotionKey) {
+  // products 배열이 없거나 비어있으면 빈 배열 반환
+  if (typeof products === "undefined" || !products || products.length === 0) {
+    return [];
+  }
+
   const allProducts = products.filter((p) => p.status === "판매중");
+
+  if (allProducts.length === 0) {
+    return [];
+  }
 
   // 감정별 카테고리 매핑
   const emotionCategoryMap = {
@@ -832,19 +908,22 @@ function getDefaultEmotionRecommendations(emotionKey) {
   };
 
   const categories = emotionCategoryMap[emotionKey] || ["향수"];
-  let filtered = allProducts.filter((p) => categories.includes(p.category));
-
-  // 7일 주기로 다른 상품 추천 (날짜 기반 랜덤)
-  const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-  const weekCycle = Math.floor(daysSinceEpoch / 7);
-  const seed = weekCycle + emotionKey.charCodeAt(0);
-
-  // 시드 기반 셔플
-  const shuffled = [...filtered].sort((a, b) => {
-    const hashA = (a.id * seed) % 1000;
-    const hashB = (b.id * seed) % 1000;
-    return hashA - hashB;
+  let filtered = allProducts.filter((p) => {
+    const pCategory = p.category || p.type || "";
+    return categories.includes(pCategory);
   });
+
+  // 카테고리 매칭이 없으면 전체 상품에서 랜덤 선택
+  if (filtered.length === 0) {
+    filtered = allProducts;
+  }
+
+  // 완전 랜덤 셔플 (매번 다른 결과)
+  const shuffled = [...filtered];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
 
   return shuffled.slice(0, 4);
 }
@@ -918,15 +997,61 @@ function renderProducts() {
     .map(
       (product, index) => `
         <div class="product-card" onclick="openProductModal(${index})">
-          <div class="product-image" style="position:relative;">
+          <div class="product-image" style="position:relative;${(() => {
+            const img = product.imageUrl || product.image || "";
+            if (
+              img &&
+              img.trim() &&
+              img !== "null" &&
+              img !== "NULL" &&
+              img.length > 10
+            ) {
+              // Base64 이미지인 경우 따옴표 없이, 일반 URL은 따옴표로
+              const imageUrl = img.startsWith("data:") ? img : `'${img}'`;
+              return `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
+            }
+            return "";
+          })()}">
             ${
               product.badge
                 ? `<span class="product-badge">${product.badge}</span>`
                 : ""
             }
             ${
-              (product.stock !== undefined && product.stock <= 0) ||
-              product.status === "품절"
+              (() => {
+                // status가 "품절"이면 품절
+                if (product.status === "품절") {
+                  return true;
+                }
+
+                // variants가 있는 경우 variants의 재고만 확인 (products 테이블의 stock은 완전히 무시)
+                if (
+                  product.variants &&
+                  Array.isArray(product.variants) &&
+                  product.variants.length > 0
+                ) {
+                  // variants 중 하나라도 재고가 있으면 판매 가능
+                  const hasStock = product.variants.some((v) => {
+                    // stock이 null, undefined, 또는 숫자가 아니면 재고가 있다고 간주
+                    if (v.stock == null || typeof v.stock !== "number") {
+                      return true;
+                    }
+                    // 숫자이고 0보다 크면 재고 있음
+                    return v.stock > 0;
+                  });
+                  // 재고가 하나도 없으면 품절
+                  return !hasStock;
+                }
+
+                // variants가 없는 경우: status가 "판매중"이면 판매 가능으로 간주
+                // (variants가 없으면 재고 관리가 안 되므로 status만 확인)
+                if (product.status === "판매중") {
+                  return false; // 판매 가능
+                }
+
+                // status가 "판매중"이 아니면 품절로 간주
+                return true;
+              })()
                 ? `<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:12px;z-index:1;">
                    <span style="background:var(--rose);color:#fff;padding:.5rem 1rem;border-radius:8px;font-weight:600;font-size:.9rem;">품절</span>
                  </div>`
@@ -940,6 +1065,13 @@ function renderProducts() {
           </div>
           <div class="product-info">
             <p class="product-brand">DewScent</p>
+            ${
+              product.category || product.type
+                ? `<p class="product-category">${
+                    product.category || product.type
+                  }</p>`
+                : ""
+            }
             <p class="product-name">${product.name}</p>
             <div class="product-rating">
               <span class="stars">${"★".repeat(
@@ -948,13 +1080,26 @@ function renderProducts() {
               <span class="rating-count">(${product.reviews})</span>
             </div>
             <p class="product-price">
-              ₩${product.price.toLocaleString()}
+              ${
+                product.variants && product.variants.length > 0
+                  ? `₩${(
+                      product.variants.find((v) => v.is_default)?.price ||
+                      product.variants[0].price ||
+                      product.price
+                    ).toLocaleString()}부터`
+                  : `₩${product.price.toLocaleString()}`
+              }
               ${
                 product.originalPrice
                   ? `<span class="original">₩${product.originalPrice.toLocaleString()}</span>`
                   : ""
               }
             </p>
+            ${
+              product.variants && product.variants.length > 0
+                ? `<p style="font-size:.75rem;color:var(--light);margin-top:.25rem;">${product.variants.length}가지 용량</p>`
+                : ""
+            }
           </div>
         </div>
       `
@@ -1017,14 +1162,247 @@ function loadNotices() {
   `;
 }
 
+// sbPrefix 변수 설정 (sidebar.php에서 설정된 값 사용)
+function getSbPrefix() {
+  return window.location.pathname.includes("/pages/") ? "" : "pages/";
+}
+
+// 햄버거 메뉴 동적 로드
+function loadSidebarMenu() {
+  console.log("loadSidebarMenu 실행됨");
+  const sbPrefix = getSbPrefix();
+
+  // 요소 존재 여부 확인
+  const emotionLinks = document.getElementById("emotionMenuLinks");
+  const fragranceLinks = document.getElementById("fragranceMenuLinks");
+  const categoryLinks = document.getElementById("categoryMenuLinks");
+
+  console.log("요소 확인:", {
+    emotionLinks: !!emotionLinks,
+    fragranceLinks: !!fragranceLinks,
+    categoryLinks: !!categoryLinks,
+  });
+
+  // 기분으로 향 찾기 (감정 카드) - 관리자에서 선택한 활성 감정만 표시
+  if (emotionLinks) {
+    if (typeof API !== "undefined" && API.getActiveEmotions) {
+      try {
+        const emotions = API.getActiveEmotions();
+        // order 순서대로 정렬
+        const sortedEmotions = emotions.sort(
+          (a, b) => (a.order || 0) - (b.order || 0)
+        );
+        if (sortedEmotions && sortedEmotions.length > 0) {
+          // 햄버거 메뉴에서는 페이지로 이동
+          const sbPrefix = getSbPrefix();
+          emotionLinks.innerHTML = sortedEmotions
+            .map(
+              (emotion) =>
+                `<a href="${sbPrefix}emotions.php?emotion=${emotion.key}" onclick="toggleMenu();">${emotion.title}</a>`
+            )
+            .join("");
+        } else {
+          // 관리자에서 설정한 감정이 없으면 빈 상태
+          emotionLinks.innerHTML =
+            '<p style="color:var(--light);font-size:.85rem;padding:.5rem;">관리자에서 감정 카드를 등록해주세요.</p>';
+        }
+      } catch (e) {
+        console.error("감정 카드 로드 실패:", e);
+        emotionLinks.innerHTML =
+          '<p style="color:var(--light);font-size:.85rem;padding:.5rem;">감정 카드를 불러올 수 없습니다.</p>';
+      }
+    } else {
+      // API가 없으면 빈 상태
+      emotionLinks.innerHTML =
+        '<p style="color:var(--light);font-size:.85rem;padding:.5rem;">감정 카드를 불러올 수 없습니다.</p>';
+    }
+  }
+
+  // 향으로 찾기 (향기 타입) - 관리자에서 관리 가능하도록
+  if (fragranceLinks) {
+    // 향기 타입 목록 (localStorage에서 가져오거나 기본값 사용)
+    let fragranceTypes = [
+      "시트러스",
+      "플로럴",
+      "우디",
+      "머스크",
+      "오리엔탈",
+      "프레시",
+    ];
+    try {
+      const stored = localStorage.getItem("dewscent_fragrance_types");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          fragranceTypes = parsed;
+        }
+      }
+    } catch (e) {
+      console.error("향기 타입 로드 실패:", e);
+    }
+    fragranceLinks.innerHTML = fragranceTypes
+      .map(
+        (type) =>
+          `<a href="${sbPrefix}products.php?fragrance=${encodeURIComponent(
+            type
+          )}" onclick="toggleMenu();">${type}</a>`
+      )
+      .join("");
+  } else {
+    console.warn("fragranceMenuLinks 요소를 찾을 수 없습니다");
+  }
+
+  // 제품으로 찾기 (카테고리) - 항상 모든 카테고리 표시 (상품 유무와 관계없이)
+  if (categoryLinks) {
+    const defaultCategories = [
+      "향수",
+      "바디미스트",
+      "헤어미스트",
+      "디퓨저",
+      "섬유유연제",
+      "룸스프레이",
+    ];
+
+    // 항상 모든 카테고리 표시 (상품이 없어도 카테고리는 표시)
+    categoryLinks.innerHTML = defaultCategories
+      .map(
+        (category) =>
+          `<a href="${sbPrefix}products.php?category=${encodeURIComponent(
+            category
+          )}" onclick="toggleMenu();">${category}</a>`
+      )
+      .join("");
+  } else {
+    console.warn("categoryMenuLinks 요소를 찾을 수 없습니다");
+  }
+
+  // 각 섹션의 innerHTML이 비어있는지 확인
+  const emotionContent = emotionLinks ? emotionLinks.innerHTML.trim() : "";
+  const fragranceContent = fragranceLinks
+    ? fragranceLinks.innerHTML.trim()
+    : "";
+  const categoryContent = categoryLinks ? categoryLinks.innerHTML.trim() : "";
+
+  console.log("햄버거 메뉴 로드 완료:", {
+    emotionLinks: !!emotionLinks,
+    emotionContent: emotionContent.length > 0,
+    fragranceLinks: !!fragranceLinks,
+    fragranceContent: fragranceContent.length > 0,
+    categoryLinks: !!categoryLinks,
+    categoryContent: categoryContent.length > 0,
+  });
+
+  // 내용이 비어있으면 강제로 기본값 채우기
+  // 관리자에서 설정한 감정이 없으면 빈 상태 유지 (기본값으로 채우지 않음)
+  if (emotionLinks && !emotionContent) {
+    console.log("관리자에서 감정 카드를 등록해주세요.");
+  }
+
+  if (fragranceLinks && !fragranceContent) {
+    console.warn("향기 링크가 비어있어 기본값으로 채웁니다");
+    const defaultFragrances = [
+      "시트러스",
+      "플로럴",
+      "우디",
+      "머스크",
+      "오리엔탈",
+      "프레시",
+    ];
+    fragranceLinks.innerHTML = defaultFragrances
+      .map(
+        (type) =>
+          `<a href="${sbPrefix}products.php?fragrance=${encodeURIComponent(
+            type
+          )}" onclick="toggleMenu();">${type}</a>`
+      )
+      .join("");
+  }
+
+  if (categoryLinks && !categoryContent) {
+    console.warn("카테고리 링크가 비어있어 기본값으로 채웁니다");
+    const defaultCategories = [
+      "향수",
+      "바디미스트",
+      "헤어미스트",
+      "디퓨저",
+      "섬유유연제",
+      "룸스프레이",
+    ];
+    categoryLinks.innerHTML = defaultCategories
+      .map(
+        (category) =>
+          `<a href="${sbPrefix}products.php?category=${encodeURIComponent(
+            category
+          )}" onclick="toggleMenu();">${category}</a>`
+      )
+      .join("");
+  }
+}
+
 // 처음 로드 시 상품 렌더링 (API에서 상품 로드 후)
 (async function initProducts() {
   await loadProducts();
   renderProducts();
+  loadSidebarMenu(); // 햄버거 메뉴 동적 로드
   initSearch();
   loadNotices();
   if (typeof renderRecentProducts === "function") {
     renderRecentProducts();
+  }
+})();
+
+// DOM 로드 완료 후에도 햄버거 메뉴 로드 (안전장치)
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(() => {
+      loadSidebarMenu();
+    }, 100);
+  });
+} else {
+  // 이미 로드 완료된 경우 즉시 실행
+  setTimeout(() => {
+    loadSidebarMenu();
+  }, 100);
+}
+
+// 페이지 로드 완료 후에도 실행 (추가 안전장치)
+window.addEventListener("load", function () {
+  setTimeout(() => {
+    loadSidebarMenu();
+  }, 300);
+});
+
+// 즉시 실행 (스크립트 로드 직후) - 여러 번 시도
+(function tryLoadSidebarMenu() {
+  function checkAndLoad() {
+    const emotionLinks = document.getElementById("emotionMenuLinks");
+    const fragranceLinks = document.getElementById("fragranceMenuLinks");
+    const categoryLinks = document.getElementById("categoryMenuLinks");
+
+    if (emotionLinks && fragranceLinks && categoryLinks) {
+      console.log("햄버거 메뉴 요소 발견, 로드 시작");
+      loadSidebarMenu();
+      return true;
+    }
+    return false;
+  }
+
+  // 즉시 시도
+  if (!checkAndLoad()) {
+    // 요소가 아직 없으면 50ms마다 시도 (최대 20번 = 1초)
+    let attempts = 0;
+    const maxAttempts = 20;
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkAndLoad() || attempts >= maxAttempts) {
+        clearInterval(interval);
+        if (attempts >= maxAttempts) {
+          console.error(
+            "햄버거 메뉴 요소를 찾을 수 없습니다 (최대 시도 횟수 초과)"
+          );
+        }
+      }
+    }, 50);
   }
 })();
 
@@ -1180,14 +1558,38 @@ function openModal(id) {
 
   // 결제 모달이 열릴 때 쿠폰 정보 초기화 및 내 쿠폰 목록 로드, 저장된 주소/결제 정보 불러오기
   if (id === "checkoutModal") {
+    // 회원/비회원에 따라 이메일 필수 표시 조정
+    const currentUser = getCurrentUser();
+    const emailRequiredSpan = document.getElementById("checkoutEmailRequired");
+    const emailInput = document.getElementById("checkoutEmail");
+    if (emailRequiredSpan) {
+      emailRequiredSpan.style.display = currentUser ? "none" : "inline";
+    }
+    if (emailInput) {
+      emailInput.required = !currentUser; // 비회원만 필수
+    }
     appliedCoupon = null;
     const couponInfo = document.getElementById("couponInfo");
     const couponCode = document.getElementById("couponCode");
     if (couponInfo) couponInfo.style.display = "none";
     if (couponCode) couponCode.value = "";
 
-    // 저장된 주소/결제 정보 불러오기
-    loadSavedCheckoutInfo();
+    // 비회원인 경우 입력 필드 초기화
+    if (!currentUser || !currentUser.id) {
+      const nameInput = document.getElementById("checkoutName");
+      const phoneInput = document.getElementById("checkoutPhone");
+      const addressInput = document.getElementById("checkoutAddress");
+
+      if (nameInput) nameInput.value = "";
+      if (emailInput) emailInput.value = "";
+      if (phoneInput) phoneInput.value = "";
+      if (addressInput) addressInput.value = "";
+
+      console.log("[체크아웃] 비회원 - 입력 필드 초기화");
+    } else {
+      // 로그인한 사용자만 저장된 주소/결제 정보 불러오기
+      loadSavedCheckoutInfo();
+    }
 
     // 내 쿠폰 목록 로드
     setTimeout(() => {
@@ -1362,13 +1764,107 @@ function openProductModal(index) {
   const priceEl = document.getElementById("productModalPrice");
   const ratingEl = document.getElementById("productModalRating");
   const descEl = document.getElementById("productModalDesc");
+  const categoryEl = document.getElementById("productModalCategory");
+  const modalImageEl = document.querySelector(".product-modal-image");
+  const volumeContainer = document.getElementById(
+    "productVolumeOptionsContainer"
+  );
+  const volumeOptions = document.getElementById("productVolumeOptions");
 
   if (!currentProduct || !nameEl || !priceEl || !ratingEl || !descEl) return;
 
   nameEl.textContent = currentProduct.name;
-  priceEl.textContent = "₩" + currentProduct.price.toLocaleString();
+
+  // 카테고리 표시
+  if (categoryEl) {
+    const category = currentProduct.category || currentProduct.type || "";
+    categoryEl.textContent = category;
+    categoryEl.style.display = category ? "block" : "none";
+  }
+
+  // 용량별 가격 표시 및 용량 선택 UI 생성
+  if (currentProduct.variants && currentProduct.variants.length > 0) {
+    const defaultVariant =
+      currentProduct.variants.find((v) => v.is_default == 1) ||
+      currentProduct.variants[0];
+    priceEl.textContent = `₩${defaultVariant.price.toLocaleString()}부터`;
+
+    // 용량 선택 버튼 생성
+    if (volumeContainer && volumeOptions) {
+      volumeContainer.style.display = "block";
+      volumeOptions.innerHTML = currentProduct.variants
+        .map((v, i) => {
+          const isSelected = i === 0 || v.is_default == 1;
+          return `
+          <button class="option-btn ${isSelected ? "selected" : ""}" 
+                  data-variant-id="${v.id}"
+                  data-volume="${v.volume}"
+                  data-price="${v.price}"
+                  data-stock="${v.stock || 0}"
+                  onclick="selectProductVariant(this, ${v.id}, '${v.volume}', ${
+            v.price
+          }, ${v.stock || 0})"
+                  style="padding:.6rem 1.2rem;border:1px solid ${
+                    isSelected ? "var(--sage)" : "var(--border)"
+                  };background:${
+            isSelected ? "var(--sage-bg)" : "#fff"
+          };border-radius:8px;font-size:.85rem;cursor:pointer;${
+            isSelected ? "color:var(--sage);" : ""
+          }transition:all 0.3s;">
+            ${v.volume} - ₩${v.price.toLocaleString()}
+          </button>
+        `;
+        })
+        .join("");
+
+      // 기본 variant 선택
+      window.selectedVariantId = defaultVariant.id;
+      window.selectedVariantVolume = defaultVariant.volume;
+      window.selectedVariantPrice = defaultVariant.price;
+      window.selectedVariantStock = defaultVariant.stock || 0;
+    }
+  } else {
+    priceEl.textContent = "₩" + currentProduct.price.toLocaleString();
+    if (volumeContainer) volumeContainer.style.display = "none";
+    window.selectedVariantId = null;
+    window.selectedVariantVolume = "";
+    window.selectedVariantPrice = currentProduct.price;
+    window.selectedVariantStock = currentProduct.stock || 0;
+  }
+
   ratingEl.textContent = `${currentProduct.rating} (${currentProduct.reviews}개 리뷰)`;
   descEl.textContent = currentProduct.desc;
+
+  // 상세 이미지 설정 (없으면 카드 이미지 사용)
+  if (modalImageEl) {
+    const detailImage =
+      currentProduct.detailImageUrl ||
+      currentProduct.detail_image ||
+      currentProduct.imageUrl ||
+      currentProduct.image ||
+      "";
+    if (
+      detailImage &&
+      detailImage.trim() &&
+      detailImage !== "null" &&
+      detailImage !== "NULL" &&
+      detailImage.length > 10
+    ) {
+      // Base64 이미지인 경우 따옴표 처리
+      const imageUrl = detailImage.startsWith("data:")
+        ? detailImage
+        : `'${detailImage}'`;
+      modalImageEl.setAttribute(
+        "style",
+        `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`
+      );
+    } else {
+      modalImageEl.setAttribute(
+        "style",
+        "background:linear-gradient(135deg,var(--sage-lighter),var(--sage-light)) !important;"
+      );
+    }
+  }
 
   renderReviews();
   // 상세 모달 위시리스트 버튼 상태 동기화
@@ -1509,11 +2005,43 @@ function openReviewModal() {
   openModal("reviewModal");
 }
 
-// 옵션(사이즈/타입) 선택
+// 용량 선택 함수
+function selectProductVariant(btn, variantId, volume, price, stock) {
+  // 모든 버튼에서 selected 제거
+  document
+    .querySelectorAll("#productVolumeOptions .option-btn")
+    .forEach((b) => {
+      b.classList.remove("selected");
+      b.style.border = "1px solid var(--border)";
+      b.style.background = "#fff";
+      b.style.color = "";
+    });
+
+  // 선택된 버튼 스타일 적용
+  btn.classList.add("selected");
+  btn.style.border = "1px solid var(--sage)";
+  btn.style.background = "var(--sage-bg)";
+  btn.style.color = "var(--sage)";
+
+  // 전역 변수에 선택된 variant 정보 저장
+  window.selectedVariantId = variantId;
+  window.selectedVariantVolume = volume;
+  window.selectedVariantPrice = price;
+  window.selectedVariantStock = stock;
+
+  // 가격 업데이트
+  const priceEl = document.getElementById("productModalPrice");
+  if (priceEl) {
+    priceEl.textContent = `₩${price.toLocaleString()}`;
+  }
+}
+
+// 옵션(사이즈/타입) 선택 (기존 코드 유지 - 다른 곳에서 사용할 수 있음)
 document.addEventListener("click", (e) => {
   if (
     e.target.classList.contains("option-btn") &&
-    e.target.closest(".product-options")
+    e.target.closest(".product-options") &&
+    !e.target.closest("#productVolumeOptions")
   ) {
     const container = e.target.closest(".option-btns");
     if (!container) return;
@@ -1529,74 +2057,143 @@ document.addEventListener("click", (e) => {
 // 8. 장바구니 / 결제 로직
 // ───────────────────────────
 function addToCart() {
-  // 재고 확인
-  if (currentProduct.stock !== undefined && currentProduct.stock <= 0) {
-    alert("품절된 상품입니다.");
-    return;
-  }
-
-  const selectedSize =
-    document.querySelector(".option-btn.selected.size")?.textContent || "";
-  const selectedType =
-    document.querySelector(".option-btn.selected.type")?.textContent || "";
-
-  // 재고 부족 확인
-  if (currentProduct.stock !== undefined && currentProduct.stock < 1) {
-    alert(`재고가 부족합니다. (현재 재고: ${currentProduct.stock}개)`);
-    return;
-  }
   if (!currentProduct) return;
 
-  const size =
-    document.querySelector("#productSizeOptions .option-btn.selected")?.dataset
-      .size || "30";
-  const type =
-    document.querySelector("#productTypeOptions .option-btn.selected")?.dataset
-      .type || "perfume";
+  // variants가 있는 경우 선택된 variant 확인
+  let variantId = null;
+  let volume = "";
+  let price = currentProduct.price;
+  let stock = currentProduct.stock || 0;
+
+  if (currentProduct.variants && currentProduct.variants.length > 0) {
+    // 선택된 variant 확인
+    if (window.selectedVariantId) {
+      variantId = window.selectedVariantId;
+      volume = window.selectedVariantVolume || "";
+      price = window.selectedVariantPrice || price;
+      stock = window.selectedVariantStock || 0;
+    } else {
+      // 선택되지 않았으면 기본 variant 사용
+      const defaultVariant =
+        currentProduct.variants.find((v) => v.is_default == 1) ||
+        currentProduct.variants[0];
+      variantId = defaultVariant.id;
+      volume = defaultVariant.volume;
+      price = defaultVariant.price;
+      stock = defaultVariant.stock || 0;
+    }
+
+    // 재고 확인
+    if (typeof stock === "number" && stock <= 0) {
+      alert("선택한 용량이 품절되었습니다.");
+      return;
+    }
+  } else {
+    // variants가 없는 경우
+    if (typeof currentProduct.stock === "number" && currentProduct.stock <= 0) {
+      alert("품절된 상품입니다.");
+      return;
+    }
+  }
+
+  // 장바구니에 추가
+  const cartItem = {
+    id: currentProduct.id,
+    name: currentProduct.name + (volume ? ` (${volume})` : ""),
+    price: price,
+    imageUrl: currentProduct.imageUrl || currentProduct.image || "",
+    variantId: variantId,
+    volume: volume,
+    qty: 1,
+  };
 
   const existing = cart.find(
     (item) =>
-      item.id === currentProduct.id && item.size === size && item.type === type
+      item.id === currentProduct.id &&
+      (variantId ? item.variantId === variantId : !item.variantId)
   );
 
   if (existing) {
     existing.qty++;
   } else {
-    cart.push({ ...currentProduct, size, type, qty: 1 });
+    cart.push(cartItem);
   }
 
   updateCartCount();
   closeModal("productModal");
   renderCart();
-  alert(currentProduct.name + "이(가) 장바구니에 담겼습니다!");
+  alert(
+    currentProduct.name +
+      (volume ? ` (${volume})` : "") +
+      "이(가) 장바구니에 담겼습니다!"
+  );
 }
 
 function buyNow() {
-  // 재고 확인
-  if (currentProduct.stock !== undefined && currentProduct.stock <= 0) {
-    alert("품절된 상품입니다.");
-    return;
+  // variant 정보 가져오기
+  let variantId = window.selectedVariantId || null;
+  let volume = window.selectedVariantVolume || "";
+  let price = window.selectedVariantPrice || currentProduct.price || 0;
+  let stock = window.selectedVariantStock || currentProduct.stock || 0;
+
+  // variants가 있는 경우 선택된 variant 확인
+  if (currentProduct.variants && currentProduct.variants.length > 0) {
+    if (!variantId) {
+      // variant가 선택되지 않았으면 기본 variant 선택
+      const defaultVariant =
+        currentProduct.variants.find((v) => v.is_default) ||
+        currentProduct.variants[0];
+      if (defaultVariant) {
+        variantId = defaultVariant.id;
+        volume = defaultVariant.volume || "";
+        price = defaultVariant.price || price;
+        stock = defaultVariant.stock || 0;
+      }
+    }
+
+    // 재고 확인
+    if (stock !== undefined && stock <= 0) {
+      alert("품절된 상품입니다.");
+      return;
+    }
+
+    const totalStock = currentProduct.variants.reduce(
+      (sum, v) => sum + (v.stock || 0),
+      0
+    );
+    if (totalStock <= 0) {
+      alert("품절된 상품입니다.");
+      return;
+    }
+  } else {
+    // variants가 없는 경우
+    if (typeof currentProduct.stock === "number" && currentProduct.stock <= 0) {
+      alert("품절된 상품입니다.");
+      return;
+    }
   }
 
-  if (!currentProduct) return;
-
-  const size =
-    document.querySelector("#productSizeOptions .option-btn.selected")?.dataset
-      .size || "30";
-  const type =
-    document.querySelector("#productTypeOptions .option-btn.selected")?.dataset
-      .type || "perfume";
-
   // 장바구니에 추가 (alert 없이)
+  const cartItem = {
+    id: currentProduct.id,
+    name: currentProduct.name + (volume ? ` (${volume})` : ""),
+    price: price,
+    imageUrl: currentProduct.imageUrl || currentProduct.image || "",
+    variantId: variantId,
+    volume: volume,
+    qty: 1,
+  };
+
   const existing = cart.find(
     (item) =>
-      item.id === currentProduct.id && item.size === size && item.type === type
+      item.id === currentProduct.id &&
+      (variantId ? item.variantId === variantId : !item.variantId)
   );
 
   if (existing) {
     existing.qty++;
   } else {
-    cart.push({ ...currentProduct, size, type, qty: 1 });
+    cart.push(cartItem);
   }
 
   updateCartCount();
@@ -1640,10 +2237,16 @@ function renderCart() {
           .map(
             (item, index) => `
           <div class="cart-item">
-            <div class="cart-item-image"></div>
+            <div class="cart-item-image" style="background-image:url('${
+              item.imageUrl || ""
+            }');background-size:cover;background-position:center;"></div>
             <div class="cart-item-info">
               <p class="cart-item-name">${item.name}</p>
-              <p class="cart-item-option">${item.size}ml / ${item.type}</p>
+              ${
+                item.volume
+                  ? `<p class="cart-item-option">${item.volume}</p>`
+                  : ""
+              }
               <p class="cart-item-price">₩${(
                 item.price * item.qty
               ).toLocaleString()}</p>
@@ -2205,15 +2808,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function completeOrder() {
   // 주문 정보 수집
-  const name = document
-    .querySelector('#checkoutModal input[placeholder*="받으시는 분 이름"]')
-    ?.value.trim();
-  const phone = document
-    .querySelector('#checkoutModal input[placeholder*="010"]')
-    ?.value.trim();
-  const address = document
-    .querySelector('#checkoutModal input[placeholder*="배송"]')
-    ?.value.trim();
+  const name =
+    document.getElementById("checkoutName")?.value.trim() ||
+    document
+      .querySelector('#checkoutModal input[placeholder*="받으시는 분 이름"]')
+      ?.value.trim();
+  const email = document.getElementById("checkoutEmail")?.value.trim() || "";
+  const phone =
+    document.getElementById("checkoutPhone")?.value.trim() ||
+    document
+      .querySelector('#checkoutModal input[placeholder*="010"]')
+      ?.value.trim();
+  const address =
+    document.getElementById("checkoutAddress")?.value.trim() ||
+    document
+      .querySelector('#checkoutModal input[placeholder*="배송"]')
+      ?.value.trim();
   const paymentMethod =
     document.querySelector('#checkoutModal input[name="payment"]:checked')
       ?.value || "bank";
@@ -2223,8 +2833,35 @@ async function completeOrder() {
     return;
   }
 
-  // 주소/결제 정보 저장
-  saveCheckoutInfo(name, phone, address, paymentMethod);
+  // 비회원 주문인 경우 이메일 필수
+  const currentUser = getCurrentUser();
+  if (!currentUser && !email) {
+    alert(
+      "비회원 주문은 이메일이 필요합니다.\n주문 조회를 위해 이메일을 입력해주세요."
+    );
+    return;
+  }
+
+  // 주소/결제 정보 저장 (로그인한 사용자만 저장)
+  // 비회원은 주문 후 정보를 저장하지 않음
+  saveCheckoutInfo(name, email, phone, address, paymentMethod);
+
+  // 비회원 주문 완료 후 입력 필드 초기화
+  if (!currentUser) {
+    setTimeout(() => {
+      const nameInput = document.getElementById("checkoutName");
+      const emailInput = document.getElementById("checkoutEmail");
+      const phoneInput = document.getElementById("checkoutPhone");
+      const addressInput = document.getElementById("checkoutAddress");
+
+      if (nameInput) nameInput.value = "";
+      if (emailInput) emailInput.value = "";
+      if (phoneInput) phoneInput.value = "";
+      if (addressInput) addressInput.value = "";
+
+      console.log("[체크아웃] 비회원 주문 완료 - 입력 필드 초기화");
+    }, 1000);
+  }
 
   // 주문번호 생성 (ORD-YYYYMMDD-HHMMSS)
   const now = new Date();
@@ -2253,9 +2890,11 @@ async function completeOrder() {
       size: item.size,
       type: item.type,
       imageUrl: item.imageUrl,
+      variantId: item.variantId || null,
     })),
     customer: {
       name: name,
+      email: email || currentUser?.email || "",
       phone: phone,
       address: address,
     },
@@ -2287,10 +2926,11 @@ async function completeOrder() {
   // 카드 결제인 경우 토스페이먼츠 결제위젯 사용
   if (paymentMethod === "card") {
     try {
-      // 사용자 이메일 가져오기
-      const currentUser = getCurrentUser();
+      // 사용자 이메일 가져오기 (비회원인 경우 입력한 이메일 사용)
       const customerEmail =
-        currentUser?.email || `${name.replace(/\s+/g, "")}@dewscent.local`;
+        email ||
+        currentUser?.email ||
+        `${name.replace(/\s+/g, "")}@dewscent.local`;
 
       // 주문명 생성 (상품명들 조합)
       const orderName =
@@ -2691,48 +3331,107 @@ async function completeOrder() {
   showOrderCompleteModal(order);
 }
 
-// 주소/결제 정보 저장
-function saveCheckoutInfo(name, phone, address, paymentMethod) {
+// 주소/결제 정보 저장 (로그인한 사용자만 저장)
+function saveCheckoutInfo(name, email, phone, address, paymentMethod) {
+  const currentUser = getCurrentUser();
+
+  // 로그인한 사용자만 정보 저장 (비회원은 저장하지 않음)
+  if (!currentUser || !currentUser.id) {
+    console.log("[체크아웃] 비회원 주문 - 정보 저장하지 않음");
+    return;
+  }
+
   const CHECKOUT_INFO_KEY = "dewscent_checkout_info";
   const info = {
     name: name,
+    email: email || "",
     phone: phone,
     address: address,
     paymentMethod: paymentMethod,
     savedAt: new Date().toISOString(),
+    userId: currentUser.id, // 사용자 ID도 함께 저장
   };
   localStorage.setItem(CHECKOUT_INFO_KEY, JSON.stringify(info));
+  console.log("[체크아웃] 로그인 사용자 정보 저장됨:", currentUser.id);
 }
 
-// 저장된 주소/결제 정보 불러오기
+// 저장된 주소/결제 정보 불러오기 (로그인한 사용자만)
 function loadSavedCheckoutInfo() {
+  const currentUser = getCurrentUser();
+
+  // 로그인하지 않은 경우 저장된 정보를 불러오지 않음
+  if (!currentUser || !currentUser.id) {
+    console.log("[체크아웃] 비회원 - 저장된 정보 불러오지 않음");
+    // 비회원이지만 이메일 입력 필드가 있으면 비워두기
+    const emailInput = document.getElementById("checkoutEmail");
+    if (emailInput) {
+      emailInput.value = "";
+    }
+    return;
+  }
+
   const CHECKOUT_INFO_KEY = "dewscent_checkout_info";
   try {
     const stored = localStorage.getItem(CHECKOUT_INFO_KEY);
-    if (!stored) return;
+    if (!stored) {
+      // 저장된 정보가 없으면 현재 사용자 정보로 채우기
+      const emailInput = document.getElementById("checkoutEmail");
+      if (emailInput && currentUser.email) {
+        emailInput.value = currentUser.email;
+      }
+      return;
+    }
 
     const info = JSON.parse(stored);
 
+    // 저장된 정보가 현재 로그인한 사용자의 것인지 확인
+    if (info.userId && info.userId !== currentUser.id) {
+      console.log(
+        "[체크아웃] 다른 사용자의 정보 - 삭제하고 현재 사용자 정보 사용"
+      );
+      localStorage.removeItem(CHECKOUT_INFO_KEY);
+      // 현재 사용자 정보로 채우기
+      const emailInput = document.getElementById("checkoutEmail");
+      if (emailInput && currentUser.email) {
+        emailInput.value = currentUser.email;
+      }
+      return;
+    }
+
     // 이름 입력
-    const nameInput = document.querySelector(
-      '#checkoutModal input[placeholder*="받으시는 분 이름"]'
-    );
+    const nameInput =
+      document.getElementById("checkoutName") ||
+      document.querySelector(
+        '#checkoutModal input[placeholder*="받으시는 분 이름"]'
+      );
     if (nameInput && info.name) {
       nameInput.value = info.name;
     }
 
+    // 이메일 입력
+    const emailInput = document.getElementById("checkoutEmail");
+    if (emailInput && info.email) {
+      emailInput.value = info.email;
+    } else if (emailInput && !info.email) {
+      // 저장된 이메일이 없으면 현재 사용자 이메일 사용
+      const currentUser = getCurrentUser();
+      if (currentUser && currentUser.email) {
+        emailInput.value = currentUser.email;
+      }
+    }
+
     // 연락처 입력
-    const phoneInput = document.querySelector(
-      '#checkoutModal input[placeholder*="010"]'
-    );
+    const phoneInput =
+      document.getElementById("checkoutPhone") ||
+      document.querySelector('#checkoutModal input[placeholder*="010"]');
     if (phoneInput && info.phone) {
       phoneInput.value = info.phone;
     }
 
     // 주소 입력
-    const addressInput = document.querySelector(
-      '#checkoutModal input[placeholder*="배송"]'
-    );
+    const addressInput =
+      document.getElementById("checkoutAddress") ||
+      document.querySelector('#checkoutModal input[placeholder*="배송"]');
     if (addressInput && info.address) {
       addressInput.value = info.address;
     }
@@ -3376,7 +4075,11 @@ function showOrderCompleteModal(order) {
     }
     
     <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
-      <button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');openMypageTab('orders');">주문내역 보기</button>
+      ${
+        getCurrentUser()
+          ? `<button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');openMypageTab('orders');">주문내역 보기</button>`
+          : `<button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');window.location.href='pages/order-lookup.php';">주문 조회하기</button>`
+      }
       <button class="form-btn primary" style="flex:1;" onclick="closeModal('orderCompleteModal');window.location.href='index.php';">쇼핑 계속하기</button>
     </div>
   `;
@@ -3786,6 +4489,12 @@ function mergeProfileWithOverrides(profile) {
 }
 
 function openMypageTab(tab) {
+  const user = getCurrentUser();
+  if (!user) {
+    alert("마이페이지는 로그인 후 이용할 수 있습니다.");
+    openModal("loginModal");
+    return;
+  }
   mypageCurrentTab = tab || "profile";
   renderMyPage();
 }
@@ -3856,24 +4565,34 @@ function updateAuthUI() {
   const signupLink = document.getElementById("signupLink");
   const mypageLink = document.getElementById("mypageLink");
   const logoutLink = document.getElementById("logoutLink");
+  const orderLookupLink = document.getElementById("orderLookupLink");
   // 사이드바
   const sbLoginLink = document.getElementById("sbLoginLink");
   const sbSignupLink = document.getElementById("sbSignupLink");
   const sbMypageLink = document.getElementById("sbMypageLink");
   const sbLogoutLink = document.getElementById("sbLogoutLink");
   const sbDivider = document.getElementById("sbDivider");
+  const sbOrderHistoryLink = document.getElementById("sbOrderHistoryLink");
+  const sbOrderLookupLink = document.getElementById("sbOrderLookupLink");
 
   const isLoggedIn = !!user;
   if (loginLink) loginLink.style.display = isLoggedIn ? "none" : "";
   if (signupLink) signupLink.style.display = isLoggedIn ? "none" : "";
   if (mypageLink) mypageLink.style.display = isLoggedIn ? "" : "none";
   if (logoutLink) logoutLink.style.display = isLoggedIn ? "" : "none";
+  // 로그인한 사용자는 주문 조회 링크 숨기기 (마이페이지에서 확인)
+  if (orderLookupLink) orderLookupLink.style.display = isLoggedIn ? "none" : "";
 
   if (sbLoginLink) sbLoginLink.style.display = isLoggedIn ? "none" : "";
   if (sbSignupLink) sbSignupLink.style.display = isLoggedIn ? "none" : "";
   if (sbDivider) sbDivider.style.display = isLoggedIn ? "none" : "";
   if (sbMypageLink) sbMypageLink.style.display = isLoggedIn ? "" : "none";
   if (sbLogoutLink) sbLogoutLink.style.display = isLoggedIn ? "" : "none";
+  // 사이드바: 로그인한 사용자는 "주문 조회" 숨기고 "주문내역"만 표시
+  if (sbOrderHistoryLink)
+    sbOrderHistoryLink.style.display = isLoggedIn ? "" : "none";
+  if (sbOrderLookupLink)
+    sbOrderLookupLink.style.display = isLoggedIn ? "none" : "";
 }
 
 function login() {
@@ -4115,6 +4834,8 @@ function logoutUser() {
       localStorage.removeItem(ORDER_ADDS_KEY);
       localStorage.removeItem(ORDER_REMOVES_KEY);
       localStorage.removeItem("dewscent_order_details");
+      // 체크아웃 정보 삭제 (이메일, 주소 등)
+      localStorage.removeItem("dewscent_checkout_info");
       sessionStorage.removeItem("pending_order");
       updateAuthUI();
       const mypage = document.getElementById("mypageModal");

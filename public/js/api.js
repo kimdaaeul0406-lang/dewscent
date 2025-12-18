@@ -343,27 +343,29 @@
       body: JSON.stringify(data),
       ...opts,
     });
-    
+
     // 응답 본문 확인
     const text = await res.text();
     let jsonData;
-    
+
     try {
       jsonData = text ? JSON.parse(text) : {};
     } catch (e) {
       console.error("[API] JSON 파싱 실패:", text, e);
-      const error = new Error("서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      const error = new Error(
+        "서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+      );
       error.status = res.status;
       throw error;
     }
-    
+
     if (!res.ok) {
       let errorMessage = jsonData.message || `API Error: ${res.status}`;
       const error = new Error(errorMessage);
       error.status = res.status;
       throw error;
     }
-    
+
     return jsonData;
   }
 
@@ -512,41 +514,54 @@
   async function updateOrderStatus(orderNumber, status) {
     if (USE_MOCK_API) {
       await delay(200);
-      return { ok: true, message: '주문 상태가 변경되었습니다.' };
+      return { ok: true, message: "주문 상태가 변경되었습니다." };
     }
     return await putJSON("/orders.php", { orderNumber, status });
   }
 
-  async function requestOrderCancel(orderNumber, reason = '') {
+  async function requestOrderCancel(orderNumber, reason = "") {
     if (USE_MOCK_API) {
       await delay(200);
-      return { ok: true, message: '취소 요청이 접수되었습니다.' };
+      return { ok: true, message: "취소 요청이 접수되었습니다." };
     }
-    return await patchJSON("/orders.php", { orderNumber, action: 'cancel_request', reason });
+    return await patchJSON("/orders.php", {
+      orderNumber,
+      action: "cancel_request",
+      reason,
+    });
   }
 
   async function confirmPayment(orderNumber) {
     if (USE_MOCK_API) {
       await delay(200);
-      return { ok: true, message: '결제가 확인되었습니다.' };
+      return { ok: true, message: "결제가 확인되었습니다." };
     }
-    return await patchJSON("/orders.php", { orderNumber, action: 'confirm_payment' });
+    return await patchJSON("/orders.php", {
+      orderNumber,
+      action: "confirm_payment",
+    });
   }
 
   async function approveCancel(orderNumber) {
     if (USE_MOCK_API) {
       await delay(200);
-      return { ok: true, message: '주문 취소가 승인되었습니다.' };
+      return { ok: true, message: "주문 취소가 승인되었습니다." };
     }
-    return await patchJSON("/orders.php", { orderNumber, action: 'approve_cancel' });
+    return await patchJSON("/orders.php", {
+      orderNumber,
+      action: "approve_cancel",
+    });
   }
 
   async function rejectCancel(orderNumber) {
     if (USE_MOCK_API) {
       await delay(200);
-      return { ok: true, message: '취소 요청이 거부되었습니다.' };
+      return { ok: true, message: "취소 요청이 거부되었습니다." };
     }
-    return await patchJSON("/orders.php", { orderNumber, action: 'reject_cancel' });
+    return await patchJSON("/orders.php", {
+      orderNumber,
+      action: "reject_cancel",
+    });
   }
 
   // ========== 상품 CRUD ==========
@@ -775,16 +790,16 @@
   async function getCoupons() {
     try {
       const now = Date.now();
-      if (couponsCache && (now - couponsCacheTime) < CACHE_DURATION) {
+      if (couponsCache && now - couponsCacheTime < CACHE_DURATION) {
         return couponsCache;
       }
-      
+
       const response = await fetch(`${BASE_URL}/coupons.php`);
       const data = await response.json();
-      
+
       if (data.success && data.coupons) {
         // DB 필드명을 JavaScript 필드명으로 변환
-        couponsCache = data.coupons.map(c => ({
+        couponsCache = data.coupons.map((c) => ({
           id: c.id,
           code: c.code,
           name: c.name,
@@ -797,30 +812,30 @@
           active: c.active == 1,
           usageLimit: c.usage_limit,
           usedCount: c.used_count,
-          createdAt: c.created_at ? c.created_at.split(' ')[0] : ""
+          createdAt: c.created_at ? c.created_at.split(" ")[0] : "",
         }));
         couponsCacheTime = now;
         return couponsCache;
       }
       return [];
     } catch (error) {
-      console.error('쿠폰 목록 조회 실패:', error);
+      console.error("쿠폰 목록 조회 실패:", error);
       return [];
     }
   }
-  
+
   function setCoupons(coupons) {
     // DB에 저장되므로 더 이상 localStorage 사용 안 함
     // 캐시만 업데이트
     couponsCache = coupons;
     couponsCacheTime = Date.now();
   }
-  
+
   function clearCouponsCache() {
     couponsCache = null;
     couponsCacheTime = 0;
   }
-  
+
   async function getActiveCoupons() {
     const coupons = await getCoupons();
     const now = new Date().toISOString().split("T")[0];
@@ -832,18 +847,18 @@
       return true;
     });
   }
-  
+
   async function validateCoupon(code, amount) {
     try {
       const response = await fetch(`${BASE_URL}/coupons.php?action=validate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ code, amount })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code, amount }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success && data.valid) {
         // DB 필드명 변환
         const coupon = data.coupon;
@@ -861,21 +876,21 @@
             endDate: coupon.end_date || "",
             active: coupon.active == 1,
             usageLimit: coupon.usage_limit,
-            usedCount: coupon.used_count
-          }
+            usedCount: coupon.used_count,
+          },
         };
       }
-      
+
       return {
         valid: false,
-        message: data.message || "유효하지 않은 쿠폰입니다."
+        message: data.message || "유효하지 않은 쿠폰입니다.",
       };
     } catch (error) {
-      console.error('쿠폰 검증 실패:', error);
+      console.error("쿠폰 검증 실패:", error);
       return { valid: false, message: "쿠폰 검증 중 오류가 발생했습니다." };
+    }
   }
-  }
-  
+
   function applyCoupon(coupon, amount) {
     let discount = 0;
     if (coupon.type === "percent") {
@@ -1052,15 +1067,69 @@
     try {
       allProducts = await getJSON("/products.php");
       // DB에서 가져온 상품을 localStorage 형식에 맞게 변환
-      allProducts = allProducts.map(p => ({
-        ...p,
-        category: p.type || p.category || '향수',
-        imageUrl: p.image || p.imageUrl || ''
-      })).filter(p => p.status === "판매중");
+      allProducts = allProducts
+        .map((p) => {
+          // emotion_keys를 배열로 변환
+          let emotionKeys = [];
+          if (p.emotion_keys) {
+            try {
+              emotionKeys =
+                typeof p.emotion_keys === "string"
+                  ? JSON.parse(p.emotion_keys)
+                  : p.emotion_keys;
+              if (!Array.isArray(emotionKeys)) emotionKeys = [];
+            } catch (e) {
+              emotionKeys = [];
+            }
+          } else if (p.emotionKeys) {
+            emotionKeys = Array.isArray(p.emotionKeys)
+              ? p.emotionKeys
+              : [p.emotionKeys];
+          }
+
+          // 이미지 URL 정리 (null, 빈 문자열, 'null' 문자열 제외)
+          let imageUrl = "";
+          const rawImage = p.image || p.imageUrl || "";
+          if (
+            rawImage &&
+            rawImage !== null &&
+            rawImage !== "" &&
+            rawImage !== "null" &&
+            rawImage !== "NULL" &&
+            typeof rawImage === "string" &&
+            rawImage.trim().length > 10
+          ) {
+            imageUrl = rawImage.trim();
+          }
+
+          let detailImageUrl = "";
+          const rawDetailImage = p.detail_image || p.detailImageUrl || "";
+          if (
+            rawDetailImage &&
+            rawDetailImage !== null &&
+            rawDetailImage !== "" &&
+            rawDetailImage !== "null" &&
+            rawDetailImage !== "NULL" &&
+            typeof rawDetailImage === "string" &&
+            rawDetailImage.trim().length > 10
+          ) {
+            detailImageUrl = rawDetailImage.trim();
+          }
+
+          return {
+            ...p,
+            category: p.type || p.category || "향수",
+            imageUrl: imageUrl,
+            detailImageUrl: detailImageUrl,
+            fragranceType: p.fragrance_type || p.fragranceType || null,
+            emotionKeys: emotionKeys,
+          };
+        })
+        .filter((p) => p.status === "판매중");
     } catch (e) {
       console.error("상품 목록 로드 실패:", e);
       // 실패하면 localStorage에서 가져오기
-      allProducts = getStoredProducts().filter(p => p.status === "판매중");
+      allProducts = getStoredProducts().filter((p) => p.status === "판매중");
     }
 
     if (allProducts.length === 0) {
@@ -1081,7 +1150,9 @@
           // 중복 제거: Set을 사용하여 고유한 ID만 유지
           const uniqueIds = [...new Set(emotionRecs.productIds)];
           const recommendedProducts = uniqueIds
-            .map((id) => allProducts.find((p) => p.id === id || p.id === parseInt(id)))
+            .map((id) =>
+              allProducts.find((p) => p.id === id || p.id === parseInt(id))
+            )
             .filter((p) => p && p.status === "판매중")
             .filter(
               (p, index, self) =>
@@ -1089,8 +1160,8 @@
             );
 
           if (recommendedProducts.length > 0) {
-            // 랜덤으로 상품 추천
-            return getRandomProducts(recommendedProducts, emotionKey, 4);
+            // 관리자에서 선택한 순서대로 반환 (최대 4개)
+            return recommendedProducts.slice(0, 4);
           }
         }
       } catch (e) {
@@ -1098,8 +1169,27 @@
       }
     }
 
-    // 관리자 설정이 없으면 자동 추천
-    return getAutoEmotionRecommendationsFromDB(allProducts, emotionKey);
+    // 관리자 설정이 없으면 상품의 emotion_keys를 기반으로 필터링
+    // 상품에 설정된 emotion_keys에 해당 감정이 포함된 상품만 반환
+    const emotionMatchedProducts = allProducts.filter((p) => {
+      if (
+        !p.emotionKeys ||
+        !Array.isArray(p.emotionKeys) ||
+        p.emotionKeys.length === 0
+      ) {
+        return false;
+      }
+      // emotion_keys 배열에 해당 감정이 포함되어 있는지 확인
+      return p.emotionKeys.includes(emotionKey);
+    });
+
+    if (emotionMatchedProducts.length > 0) {
+      // emotion_keys에 매칭된 상품이 있으면 순서대로 반환 (최대 4개, 랜덤 제거)
+      return emotionMatchedProducts.slice(0, 4);
+    }
+
+    // emotion_keys 매칭도 없으면 빈 배열 반환
+    return [];
   }
 
   // 완전 랜덤으로 상품 선택 (중복 제거, 매번 다른 결과)
@@ -1184,8 +1274,8 @@
     };
 
     const categories = emotionCategoryMap[emotionKey] || ["향수"];
-    let filtered = uniqueProducts.filter((p) =>
-      categories.includes(p.category) || categories.includes(p.type)
+    let filtered = uniqueProducts.filter(
+      (p) => categories.includes(p.category) || categories.includes(p.type)
     );
 
     // 카테고리 매칭이 안 되면 전체 상품에서 랜덤

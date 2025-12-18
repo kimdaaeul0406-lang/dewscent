@@ -196,6 +196,7 @@ $naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_C
         <div class="product-modal-content">
             <button class="product-modal-close" onclick="closeModal('productModal')">×</button>
             <p class="product-modal-brand">DewScent</p>
+            <p class="product-modal-category" id="productModalCategory"></p>
             <h3 class="product-modal-name" id="productModalName"></h3>
             <div class="product-modal-rating">
                 <span class="stars">★★★★★</span>
@@ -204,21 +205,10 @@ $naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_C
             <p class="product-modal-price" id="productModalPrice"></p>
             <p class="product-modal-desc" id="productModalDesc"></p>
 
-            <div class="product-options">
+            <div class="product-options" id="productVolumeOptionsContainer" style="display:none;">
                 <p class="option-label">용량 선택</p>
-                <div class="option-btns" id="productSizeOptions">
-                    <button class="option-btn selected" data-size="30">30ml</button>
-                    <button class="option-btn" data-size="50">50ml</button>
-                    <button class="option-btn" data-size="100">100ml</button>
-                </div>
-            </div>
-
-            <div class="product-options">
-                <p class="option-label">타입 선택</p>
-                <div class="option-btns" id="productTypeOptions">
-                    <button class="option-btn selected" data-type="perfume">향수</button>
-                    <button class="option-btn" data-type="mist">바디미스트</button>
-                    <button class="option-btn" data-type="diffuser">디퓨저</button>
+                <div class="option-btns" id="productVolumeOptions">
+                    <!-- JavaScript로 동적 생성 -->
                 </div>
             </div>
 
@@ -319,15 +309,19 @@ $naverLoginUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' . NAVER_C
                 <p class="checkout-section-title">주문자 정보</p>
                 <div class="form-group">
                     <label class="form-label">이름</label>
-                    <input type="text" class="form-input" placeholder="받으시는 분 이름">
+                    <input type="text" class="form-input" placeholder="받으시는 분 이름" id="checkoutName">
+                </div>
+                <div class="form-group" id="checkoutEmailGroup">
+                    <label class="form-label">이메일 <span id="checkoutEmailRequired" style="color:var(--rose);font-size:.8rem;display:none;">(비회원 주문 필수)</span></label>
+                    <input type="email" class="form-input" placeholder="email@example.com" id="checkoutEmail">
                 </div>
                 <div class="form-group">
                     <label class="form-label">연락처</label>
-                    <input type="text" class="form-input" placeholder="010-0000-0000">
+                    <input type="text" class="form-input" placeholder="010-0000-0000" id="checkoutPhone">
                 </div>
                 <div class="form-group">
                     <label class="form-label">주소</label>
-                    <input type="text" class="form-input" placeholder="배송 받으실 주소">
+                    <input type="text" class="form-input" placeholder="배송 받으실 주소" id="checkoutAddress">
                 </div>
             </div>
 
