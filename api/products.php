@@ -38,21 +38,39 @@ $pathParts = $path ? explode('/', $path) : [];
 // ID 추출 (있으면)
 $id = isset($pathParts[0]) && is_numeric($pathParts[0]) ? (int)$pathParts[0] : null;
 
+// 상품에 variants 추가하는 헬퍼 함수
+function addVariantsToProduct($product) {
+    if (!$product) return $product;
+    $variants = db()->fetchAll(
+        "SELECT id, volume, price, stock, is_default, sort_order
+         FROM product_variants
+         WHERE product_id = ?
+         ORDER BY sort_order ASC, price ASC",
+        [$product['id']]
+    );
+    $product['variants'] = $variants ?: [];
+    return $product;
+}
+
 try {
     switch ($method) {
         case 'GET':
             if ($id) {
-                // 단일 상품 조회
+                // 단일 상품 조회 (variants 포함)
                 $product = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
                 if ($product) {
+                    $product = addVariantsToProduct($product);
                     echo json_encode($product);
                 } else {
                     http_response_code(404);
                     echo json_encode(['error' => '상품을 찾을 수 없습니다.']);
                 }
             } else {
-                // 전체 상품 목록
+                // 전체 상품 목록 (variants 포함)
                 $products = db()->fetchAll("SELECT * FROM products ORDER BY id DESC");
+                foreach ($products as &$p) {
+                    $p = addVariantsToProduct($p);
+                }
                 echo json_encode($products);
             }
             break;

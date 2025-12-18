@@ -97,57 +97,73 @@ async function renderProductDetail() {
 		addRecentlyViewed(product.id);
 	}
 	
+	// variants가 있으면 기본 선택 가격, 없으면 상품 가격
+	const variants = product.variants || [];
+	const hasVariants = variants.length > 0;
+	const defaultVariant = variants.find(v => v.is_default == 1) || variants[0];
+	const displayPrice = hasVariants ? defaultVariant.price : product.price;
+
 	// 상품 상세 정보 렌더링
 	const productIndex = typeof products !== 'undefined' ? products.findIndex(p => p.id === product.id) : -1;
-	
+
 	container.innerHTML = `
 		<div style="display:flex;gap:0;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
 			<!-- 상품 이미지 -->
-			<div style="width:45%;min-height:500px;background:${product.imageUrl ? `url(${product.imageUrl})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage-light))'};background-size:cover;background-position:center;position:relative;">
+			<div style="width:45%;min-height:500px;background:${product.imageUrl || product.image ? `url(${product.imageUrl || product.image})` : 'linear-gradient(135deg,var(--sage-lighter),var(--sage-light))'};background-size:cover;background-position:center;position:relative;">
 				${product.badge ? `<span class="product-badge" style="position:absolute;top:1rem;left:1rem;">${product.badge}</span>` : ''}
 				<button class="product-wishlist" data-id="${product.id}" onclick="toggleWishlist(this)" style="position:absolute;top:1rem;right:1rem;">
 					${typeof inWishlist === 'function' && inWishlist(product.id) ? '♥' : '♡'}
 				</button>
 			</div>
-			
+
 			<!-- 상품 정보 -->
 			<div style="width:55%;padding:2rem;display:flex;flex-direction:column;position:relative;">
 				<p style="font-size:.8rem;color:var(--light);margin-bottom:.3rem;">DewScent</p>
 				<h1 style="font-size:1.5rem;font-weight:500;color:var(--dark);margin-bottom:.5rem;">${product.name}</h1>
-				
+
 				<div class="product-modal-rating" style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
 					<span class="stars" style="color:var(--ivory);">${'★'.repeat(Math.round(product.rating || 4))}</span>
 					<span style="font-size:.8rem;color:var(--light);">${product.rating || 4} (${product.reviews || 0}개 리뷰)</span>
 				</div>
-				
-				<p style="font-size:1.4rem;font-weight:600;color:var(--sage);margin-bottom:1.5rem;">
-					₩${product.price.toLocaleString()}
+
+				<p id="productPrice" style="font-size:1.4rem;font-weight:600;color:var(--sage);margin-bottom:1.5rem;">
+					₩${displayPrice.toLocaleString()}
 					${product.originalPrice ? `<span style="font-size:1rem;color:var(--light);text-decoration:line-through;margin-left:.5rem;">₩${product.originalPrice.toLocaleString()}</span>` : ''}
 				</p>
-				
+
 				${product.desc ? `
 				<p style="font-size:.9rem;color:var(--mid);line-height:1.8;margin-bottom:1.5rem;">${product.desc}</p>
 				` : ''}
-				
+
 				<!-- 용량 선택 -->
+				${hasVariants ? `
 				<div class="product-options" style="margin-bottom:1.5rem;">
 					<p class="option-label" style="font-size:.85rem;font-weight:500;margin-bottom:.8rem;">용량 선택</p>
-					<div class="option-btns" style="display:flex;gap:.5rem;flex-wrap:wrap;">
-						<button class="option-btn selected" data-size="30" onclick="selectProductSize(this, 30)" style="padding:.6rem 1.2rem;border:1px solid var(--sage);background:var(--sage-bg);border-radius:8px;font-size:.85rem;cursor:pointer;color:var(--sage);">30ml</button>
-						<button class="option-btn" data-size="50" onclick="selectProductSize(this, 50)" style="padding:.6rem 1.2rem;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:.85rem;cursor:pointer;transition:all 0.3s;">50ml</button>
-						<button class="option-btn" data-size="100" onclick="selectProductSize(this, 100)" style="padding:.6rem 1.2rem;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:.85rem;cursor:pointer;transition:all 0.3s;">100ml</button>
+					<div class="option-btns" id="volumeButtons" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+						${variants.map((v, i) => `
+							<button class="option-btn ${(defaultVariant.id === v.id) ? 'selected' : ''}"
+								data-variant-id="${v.id}"
+								data-volume="${v.volume}"
+								data-price="${v.price}"
+								data-stock="${v.stock}"
+								onclick="selectVariant(this, ${v.id}, ${v.price}, '${v.volume}', ${v.stock})"
+								style="padding:.6rem 1.2rem;border:1px solid ${(defaultVariant.id === v.id) ? 'var(--sage)' : 'var(--border)'};background:${(defaultVariant.id === v.id) ? 'var(--sage-bg)' : '#fff'};border-radius:8px;font-size:.85rem;cursor:pointer;${(defaultVariant.id === v.id) ? 'color:var(--sage);' : ''}transition:all 0.3s;">
+								${v.volume} (₩${v.price.toLocaleString()})
+							</button>
+						`).join('')}
 					</div>
 				</div>
-				
-				<!-- 타입 선택 -->
+				` : ''}
+
+				<!-- 타입 선택 (variants가 없을 때만 표시) -->
+				${!hasVariants ? `
 				<div class="product-options" style="margin-bottom:1.5rem;">
-					<p class="option-label" style="font-size:.85rem;font-weight:500;margin-bottom:.8rem;">타입 선택</p>
+					<p class="option-label" style="font-size:.85rem;font-weight:500;margin-bottom:.8rem;">타입</p>
 					<div class="option-btns" style="display:flex;gap:.5rem;flex-wrap:wrap;">
-						<button class="option-btn selected" data-type="perfume" onclick="selectProductType(this, 'perfume')" style="padding:.6rem 1.2rem;border:1px solid var(--sage);background:var(--sage-bg);border-radius:8px;font-size:.85rem;cursor:pointer;color:var(--sage);">향수</button>
-						<button class="option-btn" data-type="mist" onclick="selectProductType(this, 'mist')" style="padding:.6rem 1.2rem;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:.85rem;cursor:pointer;transition:all 0.3s;">바디미스트</button>
-						<button class="option-btn" data-type="diffuser" onclick="selectProductType(this, 'diffuser')" style="padding:.6rem 1.2rem;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:.85rem;cursor:pointer;transition:all 0.3s;">디퓨저</button>
+						<span style="padding:.6rem 1.2rem;border:1px solid var(--sage);background:var(--sage-bg);border-radius:8px;font-size:.85rem;color:var(--sage);">${product.type || product.category || '향수'}</span>
 					</div>
 				</div>
+				` : ''}
 				
 				<!-- 액션 버튼 -->
 				<div style="display:flex;gap:.75rem;margin-top:auto;margin-bottom:1rem;">
@@ -177,7 +193,35 @@ async function renderProductDetail() {
 	}
 }
 
-// 용량 선택
+// 용량(variant) 선택
+function selectVariant(btn, variantId, price, volume, stock) {
+	document.querySelectorAll('[data-variant-id]').forEach(b => {
+		b.classList.remove('selected');
+		b.style.border = '1px solid var(--border)';
+		b.style.background = '#fff';
+		b.style.color = '';
+	});
+	btn.classList.add('selected');
+	btn.style.border = '1px solid var(--sage)';
+	btn.style.background = 'var(--sage-bg)';
+	btn.style.color = 'var(--sage)';
+
+	// 가격 업데이트
+	const priceEl = document.getElementById('productPrice');
+	if (priceEl) {
+		priceEl.innerHTML = `₩${price.toLocaleString()}`;
+	}
+
+	// 선택된 variant 저장
+	if (typeof window !== 'undefined') {
+		window.selectedVariantId = variantId;
+		window.selectedVariantPrice = price;
+		window.selectedVariantVolume = volume;
+		window.selectedVariantStock = stock;
+	}
+}
+
+// 용량 선택 (이전 버전 호환)
 function selectProductSize(btn, size) {
 	document.querySelectorAll('[data-size]').forEach(b => {
 		b.classList.remove('selected');
@@ -217,40 +261,45 @@ function addProductToCartFromDetail(productId) {
 		alert('상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
 		return;
 	}
-	
+
 	const product = products.find(p => p.id === productId);
 	if (!product) {
 		alert('상품을 찾을 수 없습니다.');
 		return;
 	}
-	
+
+	// variant가 있는 경우 variant 재고 체크
+	const hasVariants = product.variants && product.variants.length > 0;
+	if (hasVariants && window.selectedVariantStock !== undefined && window.selectedVariantStock <= 0) {
+		alert('선택한 용량은 품절되었습니다.');
+		return;
+	}
+
 	if ((product.stock !== undefined && product.stock <= 0) || product.status === '품절') {
 		alert('품절된 상품입니다.');
 		return;
 	}
-	
-	const size = window.currentProductSize || 30;
-	const type = window.currentProductType || 'perfume';
-	
-	if (typeof addToCart === 'function') {
-		// addToCart 함수가 객체를 받는지 확인
-		if (typeof cart !== 'undefined') {
-			cart.push({
-				id: product.id,
-				name: product.name,
-				price: product.price,
-				imageUrl: product.imageUrl,
-				size: size + 'ml',
-				type: type === 'perfume' ? '향수' : type === 'mist' ? '바디미스트' : '디퓨저',
-				qty: 1
-			});
-			if (typeof updateCartCount === 'function') {
-				updateCartCount();
-			}
-			alert('장바구니에 추가되었습니다.');
-		} else {
-			alert('장바구니 기능을 사용할 수 없습니다. 메인 페이지에서 이용해주세요.');
+
+	// variant 정보 가져오기
+	const variantPrice = window.selectedVariantPrice || product.price;
+	const variantVolume = window.selectedVariantVolume || '';
+	const variantId = window.selectedVariantId || null;
+
+	if (typeof cart !== 'undefined') {
+		cart.push({
+			id: product.id,
+			name: product.name + (variantVolume ? ` (${variantVolume})` : ''),
+			price: variantPrice,
+			imageUrl: product.imageUrl || product.image,
+			size: variantVolume || '',
+			variantId: variantId,
+			type: product.type || product.category || '향수',
+			qty: 1
+		});
+		if (typeof updateCartCount === 'function') {
+			updateCartCount();
 		}
+		alert('장바구니에 추가되었습니다.');
 	} else {
 		alert('장바구니 기능을 사용할 수 없습니다. 메인 페이지에서 이용해주세요.');
 	}
@@ -262,30 +311,40 @@ function buyProductNowFromDetail(productId) {
 		alert('상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
 		return;
 	}
-	
+
 	const product = products.find(p => p.id === productId);
 	if (!product) {
 		alert('상품을 찾을 수 없습니다.');
 		return;
 	}
-	
+
+	// variant가 있는 경우 variant 재고 체크
+	const hasVariants = product.variants && product.variants.length > 0;
+	if (hasVariants && window.selectedVariantStock !== undefined && window.selectedVariantStock <= 0) {
+		alert('선택한 용량은 품절되었습니다.');
+		return;
+	}
+
 	if ((product.stock !== undefined && product.stock <= 0) || product.status === '품절') {
 		alert('품절된 상품입니다.');
 		return;
 	}
-	
-	const size = window.currentProductSize || 30;
-	const type = window.currentProductType || 'perfume';
-	
+
+	// variant 정보 가져오기
+	const variantPrice = window.selectedVariantPrice || product.price;
+	const variantVolume = window.selectedVariantVolume || '';
+	const variantId = window.selectedVariantId || null;
+
 	if (typeof cart !== 'undefined' && typeof openModal === 'function') {
 		// 장바구니에 추가 (alert 없이)
 		cart.push({
 			id: product.id,
-			name: product.name,
-			price: product.price,
-			imageUrl: product.imageUrl,
-			size: size + 'ml',
-			type: type === 'perfume' ? '향수' : type === 'mist' ? '바디미스트' : '디퓨저',
+			name: product.name + (variantVolume ? ` (${variantVolume})` : ''),
+			price: variantPrice,
+			imageUrl: product.imageUrl || product.image,
+			size: variantVolume || '',
+			variantId: variantId,
+			type: product.type || product.category || '향수',
 			qty: 1
 		});
 		if (typeof updateCartCount === 'function') {
