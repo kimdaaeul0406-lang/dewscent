@@ -662,17 +662,17 @@
   const defaultBanners = [
     {
       id: 1,
-      title: "새로운 향기의 시작",
-      subtitle: "DewScent 2025 컬렉션",
-      link: "pages/products.php",
+      title: "나에게 맞는 향기 찾기",
+      subtitle: "3분 향기 테스트로 나만의 향을 발견하세요",
+      link: "#fragrance-test",
       imageUrl: "",
       order: 1,
       active: true,
     },
     {
       id: 2,
-      title: "봄의 향기를 담다",
-      subtitle: "벚꽃 에디션 출시",
+      title: "새로운 향기의 시작",
+      subtitle: "DewScent 2025 컬렉션",
       link: "pages/products.php",
       imageUrl: "",
       order: 2,
@@ -680,8 +680,8 @@
     },
     {
       id: 3,
-      title: "특별한 선물",
-      subtitle: "기프트 세트 20% 할인",
+      title: "봄의 향기를 담다",
+      subtitle: "벚꽃 에디션 출시",
       link: "pages/products.php",
       imageUrl: "",
       order: 3,
@@ -689,8 +689,8 @@
     },
     {
       id: 4,
-      title: "시그니처 향기",
-      subtitle: "베스트셀러 모음",
+      title: "특별한 선물",
+      subtitle: "기프트 세트 20% 할인",
       link: "pages/products.php",
       imageUrl: "",
       order: 4,
@@ -698,8 +698,8 @@
     },
     {
       id: 5,
-      title: "신상품 출시",
-      subtitle: "한정판 특가",
+      title: "시그니처 향기",
+      subtitle: "베스트셀러 모음",
       link: "pages/products.php",
       imageUrl: "",
       order: 5,
@@ -1059,9 +1059,52 @@
 
   // ========== 감정별 추천 상품 관리 ==========
   const EMOTION_RECOMMENDATIONS_KEY = "dewscent_emotion_recommendations";
+  const WEEKLY_RECOMMENDATIONS_KEY = "dewscent_weekly_recommendations";
 
-  // 감정별 추천 상품 가져오기 (매번 랜덤)
-  async function getEmotionRecommendations(emotionKey) {
+  // 7일 주기 랜덤 추천 시드 생성
+  function getWeeklySeed() {
+    const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    const weekNumber = Math.floor(daysSinceEpoch / 7);
+    return weekNumber;
+  }
+
+  // 7일 주기 랜덤 추천 가져오기/저장
+  function getWeeklyRecommendations() {
+    try {
+      const stored = localStorage.getItem(WEEKLY_RECOMMENDATIONS_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        // 주간 시드가 동일하면 캐시된 데이터 사용
+        if (data.weekSeed === getWeeklySeed()) {
+          return data.recommendations;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading weekly recommendations:", e);
+    }
+    return null;
+  }
+
+  function setWeeklyRecommendations(emotionKey, productIds) {
+    try {
+      const stored = localStorage.getItem(WEEKLY_RECOMMENDATIONS_KEY);
+      let data = stored ? JSON.parse(stored) : { weekSeed: getWeeklySeed(), recommendations: {} };
+
+      // 주간 시드가 다르면 리셋
+      if (data.weekSeed !== getWeeklySeed()) {
+        data = { weekSeed: getWeeklySeed(), recommendations: {} };
+      }
+
+      data.recommendations[emotionKey] = productIds;
+      localStorage.setItem(WEEKLY_RECOMMENDATIONS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Error saving weekly recommendations:", e);
+    }
+  }
+
+  // 감정별 추천 상품 가져오기
+  // limit: 메인 팝업에서는 4개, 전체보기에서는 10개
+  async function getEmotionRecommendations(emotionKey, limit = 4) {
     // 실제 DB에서 상품 목록 가져오기
     let allProducts = [];
     try {
@@ -1160,8 +1203,8 @@
             );
 
           if (recommendedProducts.length > 0) {
-            // 관리자에서 선택한 순서대로 반환 (최대 4개)
-            return recommendedProducts.slice(0, 4);
+            // 관리자에서 선택한 순서대로 반환 (limit 적용)
+            return recommendedProducts.slice(0, limit);
           }
         }
       } catch (e) {
@@ -1169,7 +1212,7 @@
       }
     }
 
-    // 관리자 설정이 없으면 상품의 emotion_keys를 기반으로 필터링
+    // 관리자 설정이 없으면 7일 주기 랜덤 추천 사용
     // 상품에 설정된 emotion_keys에 해당 감정이 포함된 상품만 반환
     const emotionMatchedProducts = allProducts.filter((p) => {
       if (
@@ -1184,11 +1227,72 @@
     });
 
     if (emotionMatchedProducts.length > 0) {
-      // emotion_keys에 매칭된 상품이 있으면 순서대로 반환 (최대 4개, 랜덤 제거)
-      return emotionMatchedProducts.slice(0, 4);
+      // 7일 주기 랜덤 추천: 같은 주에는 같은 순서 유지
+      const weeklyRecs = getWeeklyRecommendations();
+      if (weeklyRecs && weeklyRecs[emotionKey]) {
+        // 캐시된 주간 추천이 있으면 사용
+        const cachedIds = weeklyRecs[emotionKey];
+        const cachedProducts = cachedIds
+          .map((id) => emotionMatchedProducts.find((p) => p.id === id))
+          .filter((p) => p);
+
+        // 캐시된 상품이 limit 이상 있으면 반환
+        if (cachedProducts.length >= limit) {
+          return cachedProducts.slice(0, limit);
+        }
+      }
+
+      // 7일 주기 시드 기반 셔플
+      const weeklySeed = getWeeklySeed();
+      const emotionSeed = emotionKey.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const combinedSeed = weeklySeed * 1000 + emotionSeed;
+
+      const shuffled = [...emotionMatchedProducts].sort((a, b) => {
+        const hashA = ((a.id * combinedSeed) % 10000);
+        const hashB = ((b.id * combinedSeed) % 10000);
+        return hashA - hashB;
+      });
+
+      // 주간 추천 캐시 저장
+      const productIds = shuffled.slice(0, Math.max(limit, 10)).map((p) => p.id);
+      setWeeklyRecommendations(emotionKey, productIds);
+
+      return shuffled.slice(0, limit);
     }
 
-    // emotion_keys 매칭도 없으면 빈 배열 반환
+    // emotion_keys 매칭도 없으면 카테고리 기반 7일 주기 랜덤 추천
+    const emotionCategoryMap = {
+      calm: ["향수", "디퓨저"],
+      warm: ["향수", "바디미스트"],
+      fresh: ["바디미스트", "섬유유연제", "헤어미스트"],
+      romantic: ["향수", "바디미스트"],
+      focus: ["향수", "디퓨저"],
+      refresh: ["바디미스트", "섬유유연제", "룸스프레이"],
+    };
+
+    const categories = emotionCategoryMap[emotionKey] || ["향수"];
+    let filtered = allProducts.filter(
+      (p) => categories.includes(p.category) || categories.includes(p.type)
+    );
+
+    if (filtered.length === 0) {
+      filtered = allProducts;
+    }
+
+    if (filtered.length > 0) {
+      const weeklySeed = getWeeklySeed();
+      const emotionSeed = emotionKey.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const combinedSeed = weeklySeed * 1000 + emotionSeed;
+
+      const shuffled = [...filtered].sort((a, b) => {
+        const hashA = ((a.id * combinedSeed) % 10000);
+        const hashB = ((b.id * combinedSeed) % 10000);
+        return hashA - hashB;
+      });
+
+      return shuffled.slice(0, limit);
+    }
+
     return [];
   }
 
