@@ -671,6 +671,12 @@ function handleBannerClick(link) {
       openModal("testModal");
       return;
     }
+    // 쿠폰 받기 (마이페이지 쿠폰 탭 열기)
+    if (link === "#coupon" || link === "#coupons") {
+      openModal("mypageModal");
+      setTimeout(() => openMypageTab("coupons"), 100);
+      return;
+    }
     // 상대 경로 처리
     if (link.startsWith("http://") || link.startsWith("https://")) {
       window.location.href = link;
