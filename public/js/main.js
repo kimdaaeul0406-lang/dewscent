@@ -1053,9 +1053,12 @@ function renderProducts() {
   }
 
   grid.innerHTML = displayProducts
-    .map(
-      (product, index) => `
-        <div class="product-card" onclick="openProductModal(${index})">
+    .map((product, index) => {
+      // products 배열에서 실제 인덱스 찾기 (메인상품 설정 시 올바른 상품 열기)
+      const actualIndex = products.findIndex((p) => p.id === product.id);
+      const productIndex = actualIndex >= 0 ? actualIndex : index;
+      return `
+        <div class="product-card" onclick="openProductModal(${productIndex})">
           <div class="product-image" style="position:relative;${(() => {
             const img = product.imageUrl || product.image || "";
             if (
@@ -1161,8 +1164,8 @@ function renderProducts() {
             }
           </div>
         </div>
-      `
-    )
+      `;
+    })
     .join("");
 }
 
