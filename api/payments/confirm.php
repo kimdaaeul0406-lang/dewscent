@@ -99,12 +99,47 @@ try {
         exit;
     }
     
-    // READY 상태가 아니면 실패
+    // READY 상태가 아니면 실패 (PROCESSING 상태도 처리 중이므로 거부)
     if ($orderData['status'] !== 'READY') {
-    http_response_code(400);
-        echo json_encode(['success' => false, 'message' => '새로고침/뒤로가기 등으로 결제 진행 정보가 만료되었습니다. 다시 결제해주세요.']);
-    exit;
-}
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => '이미 처리 중이거나 완료된 결제입니다. 잠시 후 다시 시도해주세요.']);
+        exit;
+    }
+    
+    // 동시 요청 방지: 상태를 READY에서 PROCESSING으로 변경 (원자적 연산)
+    $updateResult = db()->execute(
+        "UPDATE payment_orders SET status = 'PROCESSING', updated_at = NOW() 
+         WHERE order_id = ? AND status = 'READY'",
+        [$orderId]
+    );
+    
+    // 업데이트된 행이 없으면 다른 요청이 이미 처리 중
+    if ($updateResult === 0) {
+        // 다시 조회하여 현재 상태 확인
+        $currentStatus = db()->fetchOne(
+            "SELECT status FROM payment_orders WHERE order_id = ?",
+            [$orderId]
+        );
+        
+        if ($currentStatus && $currentStatus['status'] === 'DONE') {
+            // 이미 완료된 경우
+            http_response_code(200);
+            echo json_encode([
+                'success' => true,
+                'status' => 'DONE',
+                'orderId' => $orderId,
+                'orderName' => $orderData['order_name'],
+                'totalAmount' => (int)$orderData['amount'],
+                'message' => '이미 완료된 결제입니다.'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        } else {
+            // 처리 중인 경우
+            http_response_code(409); // Conflict
+            echo json_encode(['success' => false, 'message' => '결제가 이미 처리 중입니다. 잠시 후 다시 시도해주세요.']);
+            exit;
+        }
+    }
 
     // DB에서 복구한 amount 사용 (프론트엔드에서 받은 amount는 절대 사용하지 않음)
     $dbAmount = (int)$orderData['amount'];

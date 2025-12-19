@@ -332,6 +332,8 @@ function hideIntro() {
       main.classList.add("visible");
       document.body.style.overflow = "";
     }
+    // 상단으로 스크롤
+    window.scrollTo(0, 0);
     return;
   }
 
@@ -340,6 +342,8 @@ function hideIntro() {
     // 인트로만 숨기기
     intro.classList.add("hidden");
     document.body.style.overflow = "";
+    // 상단으로 스크롤
+    window.scrollTo(0, 0);
     return;
   }
 
@@ -358,6 +362,21 @@ function hideIntro() {
   }, 1000);
 }
 
+// 스크롤 복원 비활성화 (새로고침 시 항상 상단으로)
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
+// 페이지 로드 시 항상 상단으로 스크롤
+window.addEventListener("load", function () {
+  window.scrollTo(0, 0);
+});
+
+// DOMContentLoaded 시에도 상단으로 스크롤
+document.addEventListener("DOMContentLoaded", function () {
+  window.scrollTo(0, 0);
+});
+
 // 뒤로가기로 돌아온 경우 감지
 window.addEventListener("pageshow", function (event) {
   // persisted가 true면 뒤로가기/앞으로가기로 돌아온 경우
@@ -371,6 +390,8 @@ window.addEventListener("pageshow", function (event) {
       document.body.style.overflow = "";
     }
   }
+  // 새로고침이든 뒤로가기든 항상 상단으로 스크롤
+  window.scrollTo(0, 0);
 });
 
 // 인트로 표시 (첫 방문 또는 새로고침 시에만)
@@ -386,9 +407,10 @@ function initIntro() {
   // 주문 완료 후에는 인트로를 표시하지 않음
   const urlParams = new URLSearchParams(window.location.search);
   const orderId = urlParams.get("order");
+  const noIntro = urlParams.get("noIntro");
 
-  if (orderId) {
-    // 주문 완료 페이지인 경우 인트로를 즉시 숨김
+  if (orderId || noIntro === "1") {
+    // 주문 완료 페이지이거나 noIntro 파라미터가 있는 경우 인트로를 즉시 숨김
     const introEl = document.getElementById("intro");
     const mainEl = document.getElementById("main");
 
@@ -408,9 +430,14 @@ function initIntro() {
   if (introEl && !introEl.classList.contains("hidden")) {
     document.body.style.overflow = "hidden";
 
+    // 페이지 상단으로 스크롤
+    window.scrollTo(0, 0);
+
     // 2.5초 후 인트로 자동으로 숨기기
     setTimeout(() => {
       hideIntro();
+      // 인트로가 숨겨진 후에도 상단으로 스크롤 유지
+      window.scrollTo(0, 0);
     }, 2500);
   } else if (!introEl) {
     // 인트로 요소가 없으면 메인을 바로 표시
@@ -712,11 +739,38 @@ async function openEmotionRecommendation(emotionKey, emotionData) {
     recommendations = await API.getEmotionRecommendations(emotionKey);
   }
 
-  // 관리자에서 설정한 추천 상품이 없으면 안내 메시지
+  // 관리자에서 설정한 추천 상품이 없으면 안내 모달 표시
   if (!recommendations || recommendations.length === 0) {
-    alert(
-      "이 감정에 맞는 추천 상품이 아직 설정되지 않았습니다.관리자 페이지에서 추천 상품을 설정해주세요."
-    );
+    const modal = document.createElement("div");
+    modal.className = "modal-overlay active";
+    modal.id = "emotionRecommendationModal";
+    modal.innerHTML = `
+      <div class="modal" style="max-width:500px;width:90%;">
+        <button class="modal-close" onclick="closeEmotionRecommendation()" style="position:absolute;top:1rem;right:1rem;z-index:10;">×</button>
+        <div class="modal-header" style="text-align:center;padding:2rem 2rem 1rem;">
+          <p class="modal-logo" style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--sage);margin-bottom:.5rem;">
+            ${emotionData?.title || "추천 향수"}
+          </p>
+          <p class="modal-subtitle" style="color:var(--mid);font-size:.85rem;">
+            ${emotionData?.desc || "이 기분에 어울리는 향기를 추천해드려요"}
+          </p>
+        </div>
+        <div class="modal-body" style="padding:2rem;text-align:center;">
+          <div style="padding:3rem 2rem;">
+            <p style="font-size:1.1rem;color:var(--mid);margin-bottom:.5rem;line-height:1.6;">
+              상품을 준비중 입니다
+            </p>
+            <p style="font-size:.9rem;color:var(--light);line-height:1.6;">
+              이 감정에 맞는 추천 상품이 아직 설정되지 않았습니다.<br>
+              관리자 페이지에서 추천 상품을 설정해주세요.
+            </p>
+          </div>
+          <button onclick="closeEmotionRecommendation()" style="padding:.7rem 2rem;background:var(--sage);color:#fff;border:none;border-radius:8px;font-weight:500;font-size:.9rem;cursor:pointer;transition:all 0.3s;" onmouseover="this.style.background='var(--sage-hover)';this.style.transform='scale(1.05)'" onmouseout="this.style.background='var(--sage)';this.style.transform='scale(1)'">확인</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.style.overflow = "hidden";
     return;
   }
 
@@ -1795,24 +1849,55 @@ function openProductModal(index) {
       volumeOptions.innerHTML = currentProduct.variants
         .map((v, i) => {
           const isSelected = i === 0 || v.is_default == 1;
+          const stock = v.stock || 0;
+          const isOutOfStock = stock <= 0;
+          const isLowStock = stock > 0 && stock <= 5;
+
+          // 재고 메시지 생성
+          let stockMessage = "";
+          if (isOutOfStock) {
+            stockMessage =
+              '<span style="font-size:.7rem;color:#e74c3c;margin-top:.25rem;display:block;">품절</span>';
+          } else if (isLowStock) {
+            stockMessage = `<span style="font-size:.7rem;color:#f39c12;margin-top:.25rem;display:block;">${stock}개 남았습니다</span>`;
+          }
+
           return `
-          <button class="option-btn ${isSelected ? "selected" : ""}" 
-                  data-variant-id="${v.id}"
-                  data-volume="${v.volume}"
-                  data-price="${v.price}"
-                  data-stock="${v.stock || 0}"
-                  onclick="selectProductVariant(this, ${v.id}, '${v.volume}', ${
-            v.price
-          }, ${v.stock || 0})"
-                  style="padding:.6rem 1.2rem;border:1px solid ${
-                    isSelected ? "var(--sage)" : "var(--border)"
-                  };background:${
-            isSelected ? "var(--sage-bg)" : "#fff"
-          };border-radius:8px;font-size:.85rem;cursor:pointer;${
-            isSelected ? "color:var(--sage);" : ""
-          }transition:all 0.3s;">
-            ${v.volume} - ₩${v.price.toLocaleString()}
-          </button>
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <button class="option-btn ${isSelected ? "selected" : ""} ${
+            isOutOfStock ? "disabled" : ""
+          }" 
+                    data-variant-id="${v.id}"
+                    data-volume="${v.volume}"
+                    data-price="${v.price}"
+                    data-stock="${stock}"
+                    onclick="${
+                      isOutOfStock
+                        ? ""
+                        : `selectProductVariant(this, ${v.id}, '${v.volume}', ${v.price}, ${stock})`
+                    }"
+                    ${isOutOfStock ? "disabled" : ""}
+                    style="padding:.6rem 1.2rem;border:1px solid ${
+                      isOutOfStock
+                        ? "#ccc"
+                        : isSelected
+                        ? "var(--sage)"
+                        : "var(--border)"
+                    };background:${
+            isOutOfStock ? "#f5f5f5" : isSelected ? "var(--sage-bg)" : "#fff"
+          };border-radius:8px;font-size:.85rem;cursor:${
+            isOutOfStock ? "not-allowed" : "pointer"
+          };${
+            isSelected && !isOutOfStock
+              ? "color:var(--sage);"
+              : isOutOfStock
+              ? "color:#999;"
+              : ""
+          }transition:all 0.3s;opacity:${isOutOfStock ? "0.6" : "1"};">
+              ${v.volume} - ₩${v.price.toLocaleString()}
+            </button>
+            ${stockMessage}
+          </div>
         `;
         })
         .join("");
@@ -2923,6 +3008,51 @@ async function completeOrder() {
     },
   };
 
+  // 카드 결제인 경우 쿠폰 사용 처리 먼저 수행
+  if (paymentMethod === "card" && appliedCoupon) {
+    try {
+      const discount = API.applyCoupon(appliedCoupon, subtotal);
+      const couponUseResponse = await fetch(
+        apiUrl("/api/coupons.php?action=use"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            couponId: appliedCoupon.id,
+            orderId: null, // 주문 ID는 아직 없음 (결제 완료 후 생성됨)
+            orderNumber: orderId,
+            discountAmount: discount,
+          }),
+        }
+      );
+
+      const couponUseData = await couponUseResponse.json();
+      if (!couponUseData.success) {
+        console.error("쿠폰 사용 실패:", couponUseData.message);
+        alert(
+          "쿠폰 사용에 실패했습니다: " +
+            (couponUseData.message || "알 수 없는 오류")
+        );
+        return; // 쿠폰 사용 실패 시 주문 중단
+      } else {
+        console.log("쿠폰 사용 성공:", couponUseData.message);
+        // 캐시 초기화
+        clearUserCouponsCache();
+        if (
+          typeof API !== "undefined" &&
+          typeof API.clearCouponsCache === "function"
+        ) {
+          API.clearCouponsCache();
+        }
+      }
+    } catch (error) {
+      console.error("쿠폰 사용 처리 실패:", error);
+      alert("쿠폰 사용 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+      return; // 쿠폰 사용 실패 시 주문 중단
+    }
+  }
+
   // 카드 결제인 경우 토스페이먼츠 결제위젯 사용
   if (paymentMethod === "card") {
     try {
@@ -3252,47 +3382,41 @@ async function completeOrder() {
     }
   }
 
-  // 무통장 입금인 경우 기존 플로우 계속 진행
-  // 쿠폰 사용 처리 (DB에 저장)
-  if (appliedCoupon) {
-    try {
-      const discount = API.applyCoupon(appliedCoupon, subtotal);
-      await fetch(apiUrl("/api/coupons.php?action=use"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          couponId: appliedCoupon.id,
-          orderId: result.ok ? result.orderId : null,
-          orderNumber: orderId,
-          discountAmount: discount,
-        }),
-      });
-
-      // 캐시 초기화
-      clearUserCouponsCache();
-    } catch (error) {
-      console.error("쿠폰 사용 처리 실패:", error);
-      // 쿠폰 사용 실패해도 주문은 계속 진행
-    }
-  }
-
-  // DB에 주문 저장
+  // DB에 주문 저장 (쿠폰 사용 처리는 주문 저장 API에서 함께 처리됨)
   try {
     const orderData = {
       id: orderId,
       orderNumber: orderId,
       items: order.items,
       customer: order.customer,
-      payment: order.payment,
+      payment: order.payment, // 쿠폰 정보 포함 (coupon, discount)
       total: total,
     };
+
+    console.log("[Order] 주문 저장 시작:", {
+      orderId: orderId,
+      coupon: order.payment.coupon,
+      discount: order.payment.discount,
+    });
 
     const result = await API.createOrder(orderData);
     if (!result.ok) {
       console.error("주문 저장 실패:", result.message);
       alert("주문 저장 중 오류가 발생했습니다. 다시 시도해주세요.");
       return;
+    }
+
+    console.log("[Order] 주문 저장 성공:", result);
+
+    // 쿠폰 사용 처리 완료 후 캐시 초기화
+    if (appliedCoupon) {
+      clearUserCouponsCache();
+      if (
+        typeof API !== "undefined" &&
+        typeof API.clearCouponsCache === "function"
+      ) {
+        API.clearCouponsCache();
+      }
     }
   } catch (error) {
     console.error("주문 저장 오류:", error);
@@ -4080,11 +4204,45 @@ function showOrderCompleteModal(order) {
           ? `<button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');openMypageTab('orders');">주문내역 보기</button>`
           : `<button class="form-btn ivory" style="flex:1;" onclick="closeModal('orderCompleteModal');window.location.href='pages/order-lookup.php';">주문 조회하기</button>`
       }
-      <button class="form-btn primary" style="flex:1;" onclick="closeModal('orderCompleteModal');window.location.href='index.php';">쇼핑 계속하기</button>
+      <button class="form-btn primary" style="flex:1;" onclick="closeModal('orderCompleteModal');continueShopping();">쇼핑 계속하기</button>
     </div>
   `;
 
   openModal("orderCompleteModal");
+
+  // 주문 완료 후 상품 목록 새로고침하여 재고 업데이트
+  if (typeof loadProducts === "function") {
+    loadProducts()
+      .then(() => {
+        if (typeof renderProducts === "function") {
+          renderProducts();
+        }
+      })
+      .catch((err) => {
+        console.error("주문 완료 후 상품 목록 새로고침 실패:", err);
+      });
+  }
+}
+
+// 계속 쇼핑하기 함수 (인트로 없이 이동)
+function continueShopping() {
+  // 상품 목록 새로고침
+  if (typeof loadProducts === "function") {
+    loadProducts()
+      .then(() => {
+        if (typeof renderProducts === "function") {
+          renderProducts();
+        }
+      })
+      .catch((err) => {
+        console.error("상품 목록 새로고침 실패:", err);
+      });
+  }
+
+  // 인트로 없이 메인 페이지로 이동
+  const url = new URL(window.location.origin + "/dewscent/index.php");
+  url.searchParams.set("noIntro", "1");
+  window.location.href = url.toString();
 }
 
 // 결제 수단 선택
@@ -4566,6 +4724,7 @@ function updateAuthUI() {
   const mypageLink = document.getElementById("mypageLink");
   const logoutLink = document.getElementById("logoutLink");
   const orderLookupLink = document.getElementById("orderLookupLink");
+  const userNameDisplay = document.getElementById("userNameDisplay");
   // 사이드바
   const sbLoginLink = document.getElementById("sbLoginLink");
   const sbSignupLink = document.getElementById("sbSignupLink");
@@ -4574,6 +4733,7 @@ function updateAuthUI() {
   const sbDivider = document.getElementById("sbDivider");
   const sbOrderHistoryLink = document.getElementById("sbOrderHistoryLink");
   const sbOrderLookupLink = document.getElementById("sbOrderLookupLink");
+  const sbUserNameDisplay = document.getElementById("sbUserNameDisplay");
 
   const isLoggedIn = !!user;
   if (loginLink) loginLink.style.display = isLoggedIn ? "none" : "";
@@ -4582,6 +4742,16 @@ function updateAuthUI() {
   if (logoutLink) logoutLink.style.display = isLoggedIn ? "" : "none";
   // 로그인한 사용자는 주문 조회 링크 숨기기 (마이페이지에서 확인)
   if (orderLookupLink) orderLookupLink.style.display = isLoggedIn ? "none" : "";
+
+  // 사용자 이름 표시
+  if (userNameDisplay) {
+    if (isLoggedIn && user.name) {
+      userNameDisplay.textContent = user.name + "님";
+      userNameDisplay.style.display = "";
+    } else {
+      userNameDisplay.style.display = "none";
+    }
+  }
 
   if (sbLoginLink) sbLoginLink.style.display = isLoggedIn ? "none" : "";
   if (sbSignupLink) sbSignupLink.style.display = isLoggedIn ? "none" : "";
@@ -4593,6 +4763,16 @@ function updateAuthUI() {
     sbOrderHistoryLink.style.display = isLoggedIn ? "" : "none";
   if (sbOrderLookupLink)
     sbOrderLookupLink.style.display = isLoggedIn ? "none" : "";
+
+  // 사이드바 사용자 이름 표시
+  if (sbUserNameDisplay) {
+    if (isLoggedIn && user.name) {
+      sbUserNameDisplay.textContent = user.name + "님";
+      sbUserNameDisplay.style.display = "";
+    } else {
+      sbUserNameDisplay.style.display = "none";
+    }
+  }
 }
 
 function login() {
@@ -4847,7 +5027,7 @@ function logoutUser() {
 }
 
 // 회원 탈퇴
-function withdrawUser() {
+async function withdrawUser() {
   const user = getCurrentUser();
   if (!user) {
     alert("로그인이 필요합니다.");
@@ -4869,12 +5049,40 @@ function withdrawUser() {
   }
 
   // MySQL DB에서 회원 탈퇴 처리 (API 호출)
-  // TODO: 회원 탈퇴 API 엔드포인트 구현 필요
-  // 현재는 로컬 스토리지만 삭제
-  // 관련 데이터 삭제
-  localStorage.removeItem(USER_PROFILE_OVERRIDES_KEY);
-  localStorage.removeItem(PAYMENT_METHOD_KEY);
-  localStorage.removeItem(WISHLIST_KEY);
+  try {
+    const password = prompt("회원 탈퇴를 위해 비밀번호를 입력해주세요:");
+    if (!password) {
+      return; // 취소
+    }
+
+    const response = await fetch(apiUrl("/api/users.php"), {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        password: password,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.ok) {
+      alert("회원 탈퇴가 완료되었습니다.");
+      // 관련 데이터 삭제
+      localStorage.removeItem(USER_PROFILE_OVERRIDES_KEY);
+      localStorage.removeItem(PAYMENT_METHOD_KEY);
+      localStorage.removeItem(WISHLIST_KEY);
+      // 로그아웃 및 메인 페이지로 이동
+      window.location.href = apiUrl("/index.php");
+    } else {
+      alert(result.message || "회원 탈퇴에 실패했습니다.");
+    }
+  } catch (error) {
+    console.error("회원 탈퇴 오류:", error);
+    alert("회원 탈퇴 중 오류가 발생했습니다.");
+  }
 
   // 문의 내역에서 해당 사용자 문의 삭제
   const inquiries = JSON.parse(
@@ -5133,7 +5341,7 @@ function renderMyPage() {
         body.innerHTML = `${tabs}<div style="text-align:center;color:var(--light);padding:1rem">쿠폰을 불러오는 중...</div>`;
         Promise.all([
           API.getActiveCoupons().catch(() => []),
-          getUserCoupons().catch(() => []),
+          getUserCoupons(true).catch(() => []), // 사용한 쿠폰 포함
         ]).then(([allCoupons, userCoupons]) => {
           renderCouponsTab(allCoupons || [], userCoupons || [], body, tabs);
         });
@@ -5421,9 +5629,46 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// 페이지 로드 시 기본 장바구니 상태 렌더링
+// 세션 상태 확인 및 동기화
+async function syncSessionState() {
+  try {
+    // /api/me.php를 호출하여 실제 세션 상태 확인
+    const response = await fetch(apiUrl("/api/me.php"), {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      const userData = await response.json();
+      // 세션에 유효한 사용자가 있으면 localStorage 업데이트
+      if (userData && userData.name) {
+        setCurrentUser({
+          id: userData.id || 0,
+          name: userData.name || "",
+          email: userData.email || "",
+          role: "user", // /api/me.php에서는 role을 반환하지 않으므로 기본값 사용
+        });
+      } else {
+        // 세션이 없거나 유효하지 않으면 localStorage 정리
+        clearCurrentUser();
+      }
+    } else {
+      // 401 등 에러가 발생하면 로그인되지 않은 상태
+      clearCurrentUser();
+    }
+  } catch (error) {
+    // 네트워크 에러 등으로 확인 불가능할 경우, localStorage는 유지
+    // (이미 auth_state.php에서 설정했을 수 있으므로)
+    console.log("[Session Sync] Failed to verify session:", error);
+  }
+
+  // UI 업데이트
+  updateAuthUI();
+}
+
+// 페이지 로드 시 세션 상태 확인 및 기본 장바구니 상태 렌더링
+syncSessionState();
 renderCart();
-updateAuthUI();
 
 // ───────────────────────────
 // 15. 문의하기 기능
@@ -5773,11 +6018,12 @@ function renderCouponsTab(allCoupons, userCoupons, body, tabs) {
   console.log("All coupons length:", allCoupons.length);
   console.log("User coupons length:", userCoupons.length);
 
-  // 사용 가능한 쿠폰 목록
+  // 사용 가능한 쿠폰 목록 (받지 않았거나 사용한 쿠폰만 제외)
   const availableCoupons = allCoupons.filter((c) => {
     if (!c || !c.id) return false;
-    // 이미 받은 쿠폰은 제외
-    return !userCoupons.some((uc) => uc && uc.couponId === c.id);
+    // 이미 받은 쿠폰은 제외 (사용 여부와 관계없이)
+    const userCoupon = userCoupons.find((uc) => uc && uc.couponId === c.id);
+    return !userCoupon; // 받지 않은 쿠폰만 표시
   });
 
   console.log("Available coupons:", availableCoupons);
@@ -6015,17 +6261,21 @@ function renderCouponsTab(allCoupons, userCoupons, body, tabs) {
   body.innerHTML = `${tabs}${content}<button class="form-btn ivory" onclick="closeModal('mypageModal')">닫기</button>`;
 }
 
-async function getUserCoupons() {
+async function getUserCoupons(includeUsed = false) {
   try {
     const now = Date.now();
+    // 사용한 쿠폰 포함 여부에 따라 캐시 키 분리
+    const cacheKey = includeUsed ? "all" : "available";
     if (
       userCouponsCache &&
+      userCouponsCache._cacheKey === cacheKey &&
       now - userCouponsCacheTime < USER_COUPONS_CACHE_DURATION
     ) {
       return userCouponsCache;
     }
 
-    const response = await fetch(apiUrl("/api/coupons.php?action=my"), {
+    const action = includeUsed ? "my_all" : "my";
+    const response = await fetch(apiUrl(`/api/coupons.php?action=${action}`), {
       credentials: "include",
     });
 
@@ -6047,6 +6297,7 @@ async function getUserCoupons() {
         endDate: uc.end_date || "",
         active: uc.active == 1,
       }));
+      userCouponsCache._cacheKey = cacheKey;
       userCouponsCacheTime = now;
       return userCouponsCache;
     }

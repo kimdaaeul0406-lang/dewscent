@@ -73,6 +73,8 @@ $amount = isset($input['amount']) ? (int)$input['amount'] : 0;
 $customerName = trim($input['customerName'] ?? '');
 $customerEmail = trim($input['customerEmail'] ?? '');
 $paymentMethod = $input['paymentMethod'] ?? 'card';
+// 주문 상세 정보 (결제 승인 후 주문 저장용)
+$orderData = $input['orderData'] ?? null; // items, customer, payment 등 전체 주문 정보
 
 error_log('[Payment Ready] 🔍 검증 전 값: orderName=' . $orderName . ', amount=' . $amount . ', customerName=' . $customerName . ', customerEmail=' . $customerEmail);
 
@@ -182,6 +184,9 @@ try {
         [$orderId]
     );
     
+    // 주문 상세 정보를 JSON으로 저장
+    $orderDataJson = $orderData ? json_encode($orderData, JSON_UNESCAPED_UNICODE) : null;
+    
     if ($existing) {
         // 기존 데이터 업데이트
         db()->execute(
@@ -192,6 +197,7 @@ try {
                 customer_email = ?,
                 status = 'READY',
                 payment_key = NULL,
+                order_data = ?,
                 updated_at = NOW()
              WHERE order_id = ?",
             [
@@ -199,6 +205,7 @@ try {
                 $amount,
                 $customerName,
                 $customerEmail,
+                $orderDataJson,
                 $orderId
             ]
         );
@@ -207,14 +214,15 @@ try {
         // 새 레코드 삽입
         db()->insert(
             "INSERT INTO payment_orders 
-                (order_id, order_name, amount, customer_name, customer_email, status, payment_key) 
-             VALUES (?, ?, ?, ?, ?, 'READY', NULL)",
+                (order_id, order_name, amount, customer_name, customer_email, status, payment_key, order_data) 
+             VALUES (?, ?, ?, ?, ?, 'READY', NULL, ?)",
             [
                 $orderId,
                 $orderName,
                 $amount,
                 $customerName,
-                $customerEmail
+                $customerEmail,
+                $orderDataJson
             ]
         );
         error_log('[Payment Ready] payment_orders 저장: orderId=' . $orderId);

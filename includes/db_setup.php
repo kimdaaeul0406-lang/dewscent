@@ -388,8 +388,9 @@ function ensure_tables_exist() {
                 amount INT NOT NULL COMMENT '결제 금액',
                 customer_name VARCHAR(100) NOT NULL COMMENT '구매자 이름',
                 customer_email VARCHAR(255) NOT NULL COMMENT '구매자 이메일',
-                status VARCHAR(20) DEFAULT 'READY' COMMENT 'READY, DONE, FAIL',
+                status VARCHAR(20) DEFAULT 'READY' COMMENT 'READY, PROCESSING, DONE, FAIL',
                 payment_key VARCHAR(255) DEFAULT NULL COMMENT '토스페이먼츠 paymentKey',
+                order_data TEXT DEFAULT NULL COMMENT '주문 상세 정보 (JSON) - items, customer, payment 등',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
                 INDEX idx_order_id (order_id),
@@ -397,6 +398,16 @@ function ensure_tables_exist() {
                 INDEX idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        
+        // order_data 컬럼 추가 (기존 테이블 마이그레이션)
+        try {
+            $columns = db()->fetchAll("SHOW COLUMNS FROM payment_orders LIKE 'order_data'");
+            if (empty($columns)) {
+                $conn->exec("ALTER TABLE payment_orders ADD COLUMN order_data TEXT DEFAULT NULL COMMENT '주문 상세 정보 (JSON) - items, customer, payment 등' AFTER payment_key");
+            }
+        } catch (PDOException $e) {
+            // 컬럼이 이미 존재하거나 다른 오류 (무시)
+        }
         
         // coupons 테이블 생성 (쿠폰 정보)
         $conn->exec("

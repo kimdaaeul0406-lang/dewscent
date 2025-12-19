@@ -20,7 +20,13 @@ class Database
             ];
             $this->pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
-            die("DB 연결 실패: " . $e->getMessage());
+            error_log('DB 연결 실패: ' . $e->getMessage());
+            // 프로덕션에서는 상세 오류 메시지 숨김
+            if (defined('APP_DEBUG') && APP_DEBUG) {
+                die("DB 연결 실패: " . $e->getMessage());
+            } else {
+                die("데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            }
         }
     }
 

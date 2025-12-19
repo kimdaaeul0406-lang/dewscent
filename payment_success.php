@@ -108,7 +108,7 @@ ensure_tables_exist();
 error_log('[Payment Success] 🔍 DB 조회 시작: orderId=' . $orderId . ', paymentKey=' . substr($paymentKey, 0, 20) . '...');
 
 $orderData = db()->fetchOne(
-    "SELECT order_id, order_name, amount, customer_name, customer_email, status, payment_key 
+    "SELECT order_id, order_name, amount, customer_name, customer_email, status, payment_key, order_data 
      FROM payment_orders 
      WHERE order_id = ?",
     [$orderId]
@@ -352,55 +352,84 @@ exit;
         </div>
         
         <script>
-        // sessionStorage에서 주문 정보 가져와서 orders 테이블에 저장
+        // payment_orders에서 주문 정보를 복구하여 orders 테이블에 저장
+        // 쿠폰 사용 처리는 api/orders.php에서 함께 처리됨 (중복 방지)
         (function() {
             try {
-                const pendingOrderData = sessionStorage.getItem('pending_order');
-                if (pendingOrderData) {
-                    const data = JSON.parse(pendingOrderData);
-                    const order = data.order;
-                    
-                    if (order) {
-                        // 주문 상품 정보를 서버에 전송
-                        fetch('/dewscent/api/orders.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'include',
-                            body: JSON.stringify({
-                                orderNumber: order.id,
-                                items: order.items,
-                                customer: order.customer,
-                                payment: order.payment,
-                                total: order.payment.total
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(result => {
-                            if (result.ok) {
-                                console.log('[Payment Success] ✅ 주문이 DB에 저장되었습니다:', result);
-                                // sessionStorage에서 제거
-                                sessionStorage.removeItem('pending_order');
-                                
-                                // 3초 후 주문 페이지로 자동 리다이렉트
-                                setTimeout(() => {
-                                    const orderId = '<?php echo htmlspecialchars($orderId, ENT_QUOTES, 'UTF-8'); ?>';
-                                    const basePath = '<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>';
-                                    const redirectUrl = (basePath || '') + '/index.php?order=' + encodeURIComponent(orderId);
-                                    window.location.href = redirectUrl;
-                                }, 3000);
-                            } else {
-                                console.error('[Payment Success] 주문 저장 실패:', result.message);
+                const orderId = '<?php echo htmlspecialchars($orderId, ENT_QUOTES, 'UTF-8'); ?>';
+                
+                // 서버에서 주문 정보 복구 및 저장 요청
+                fetch('/dewscent/api/orders.php?action=saveFromPayment&orderId=' + encodeURIComponent(orderId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.ok) {
+                        console.log('[Payment Success] ✅ 주문이 DB에 저장되었습니다:', result);
+                        // sessionStorage에서도 제거 (혹시 남아있을 수 있음)
+                        sessionStorage.removeItem('pending_order');
+                        
+                        // 3초 후 주문 페이지로 자동 리다이렉트
+                        setTimeout(() => {
+                            const basePath = '<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>';
+                            const redirectUrl = (basePath || '') + '/index.php?order=' + encodeURIComponent(orderId);
+                            window.location.href = redirectUrl;
+                        }, 3000);
+                    } else if (result.requiresSessionStorage) {
+                        // order_data가 없어서 sessionStorage 필요
+                        console.log('[Payment Success] order_data가 없어 sessionStorage 사용');
+                        const pendingOrderData = sessionStorage.getItem('pending_order');
+                        if (pendingOrderData) {
+                            const data = JSON.parse(pendingOrderData);
+                            const order = data.order;
+                            
+                            if (order) {
+                                // 주문 상품 정보를 서버에 전송
+                                fetch('/dewscent/api/orders.php', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    credentials: 'include',
+                                    body: JSON.stringify({
+                                        orderNumber: order.id,
+                                        items: order.items,
+                                        customer: order.customer,
+                                        payment: order.payment,
+                                        total: order.payment.total
+                                    })
+                                })
+                                .then(response => response.json())
+                                .then(result => {
+                                    if (result.ok) {
+                                        console.log('[Payment Success] ✅ 주문이 DB에 저장되었습니다:', result);
+                                        sessionStorage.removeItem('pending_order');
+                                    } else {
+                                        console.error('[Payment Success] 주문 저장 실패:', result.message);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('[Payment Success] 주문 저장 오류:', error);
+                                });
                             }
-                        })
-                        .catch(error => {
-                            console.error('[Payment Success] 주문 저장 오류:', error);
-                        });
+                        } else {
+                            console.error('[Payment Success] sessionStorage에도 주문 정보가 없습니다.');
+                        }
+                    } else {
+                        console.error('[Payment Success] 주문 저장 실패:', result.message);
+                        // 실패해도 사용자에게는 성공 페이지 표시 (이미 결제는 완료됨)
                     }
-                }
+                })
+                .catch(error => {
+                    console.error('[Payment Success] 주문 저장 오류:', error);
+                    // 오류가 발생해도 사용자에게는 성공 페이지 표시
+                });
             } catch (error) {
-                console.error('[Payment Success] sessionStorage 처리 오류:', error);
+                console.error('[Payment Success] 주문 저장 처리 오류:', error);
             }
         })();
         </script>

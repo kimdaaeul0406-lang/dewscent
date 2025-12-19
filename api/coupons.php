@@ -40,7 +40,7 @@ try {
     switch ($method) {
         case 'GET':
             if ($action === 'my') {
-                // 내 쿠폰 목록 조회
+                // 내 쿠폰 목록 조회 (사용하지 않은 쿠폰만 - used = 0)
                 $userCoupons = db()->fetchAll(
                     "SELECT uc.*, c.code, c.name, c.type, c.value, c.min_amount, c.max_discount, 
                             c.start_date, c.end_date, c.active
@@ -63,6 +63,22 @@ try {
                 echo json_encode([
                     'success' => true,
                     'coupons' => array_values($activeCoupons)
+                ], JSON_UNESCAPED_UNICODE);
+            } elseif ($action === 'my_all') {
+                // 내 쿠폰 목록 조회 (사용한 쿠폰 포함 - used = 0, 1 모두)
+                $userCoupons = db()->fetchAll(
+                    "SELECT uc.*, c.code, c.name, c.type, c.value, c.min_amount, c.max_discount, 
+                            c.start_date, c.end_date, c.active
+                     FROM user_coupons uc
+                     JOIN coupons c ON uc.coupon_id = c.id
+                     WHERE uc.user_id = ?
+                     ORDER BY uc.used ASC, uc.received_at DESC",
+                    [$userId]
+                );
+                
+                echo json_encode([
+                    'success' => true,
+                    'coupons' => $userCoupons
                 ], JSON_UNESCAPED_UNICODE);
             } else {
                 // 전체 쿠폰 목록 조회
@@ -127,13 +143,32 @@ try {
                 
                 // 이미 받은 쿠폰인지 확인
                 $existing = db()->fetchOne(
-                    "SELECT id FROM user_coupons WHERE user_id = ? AND coupon_id = ?",
+                    "SELECT id, used FROM user_coupons WHERE user_id = ? AND coupon_id = ?",
                     [$userId, $couponId]
                 );
                 
                 if ($existing) {
+                    // 이미 사용한 쿠폰인 경우
+                    if ($existing['used'] == 1) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => '이미 사용한 쿠폰입니다. 다시 받을 수 없습니다.']);
+                        exit;
+                    }
+                    // 받았지만 아직 사용하지 않은 쿠폰
                     http_response_code(400);
                     echo json_encode(['success' => false, 'message' => '이미 받은 쿠폰입니다.']);
+                    exit;
+                }
+                
+                // coupon_usages에서도 확인 (이미 사용한 쿠폰인지)
+                $alreadyUsed = db()->fetchOne(
+                    "SELECT id FROM coupon_usages WHERE user_id = ? AND coupon_id = ?",
+                    [$userId, $couponId]
+                );
+                
+                if ($alreadyUsed) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'message' => '이미 사용한 쿠폰입니다. 다시 받을 수 없습니다.']);
                     exit;
                 }
                 
@@ -189,6 +224,7 @@ try {
                 
                 // 로그인한 경우 사용 가능한 쿠폰인지 확인
                 if ($userId) {
+                    // 보유한 쿠폰인지 확인 (used = 0인 것만)
                     $userCoupon = db()->fetchOne(
                         "SELECT * FROM user_coupons 
                          WHERE user_id = ? AND coupon_id = ? AND used = 0",
@@ -196,10 +232,46 @@ try {
                     );
                     
                     if (!$userCoupon) {
+                        // used = 1인 경우 이미 사용된 쿠폰
+                        $usedCoupon = db()->fetchOne(
+                            "SELECT id FROM user_coupons 
+                             WHERE user_id = ? AND coupon_id = ? AND used = 1",
+                            [$userId, $coupon['id']]
+                        );
+                        
+                        if ($usedCoupon) {
+                            error_log("[Coupons API] validate: 이미 사용된 쿠폰 (user_coupons.used=1): userId={$userId}, couponId={$coupon['id']}");
+                            echo json_encode([
+                                'success' => true,
+                                'valid' => false,
+                                'message' => '이미 사용한 쿠폰입니다. 계정당 한 번만 사용 가능합니다.'
+                            ], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
+                        
+                        // 보유하지 않은 쿠폰
+                        error_log("[Coupons API] validate: 보유하지 않은 쿠폰: userId={$userId}, couponId={$coupon['id']}");
                         echo json_encode([
                             'success' => true,
                             'valid' => false,
                             'message' => '보유하지 않은 쿠폰입니다.'
+                        ], JSON_UNESCAPED_UNICODE);
+                        exit;
+                    }
+                    
+                    // coupon_usages에서도 확인 (이중 체크)
+                    $alreadyUsed = db()->fetchOne(
+                        "SELECT id FROM coupon_usages 
+                         WHERE user_id = ? AND coupon_id = ?",
+                        [$userId, $coupon['id']]
+                    );
+                    
+                    if ($alreadyUsed) {
+                        error_log("[Coupons API] validate: 이미 사용된 쿠폰 (coupon_usages 존재): userId={$userId}, couponId={$coupon['id']}");
+                        echo json_encode([
+                            'success' => true,
+                            'valid' => false,
+                            'message' => '이미 사용한 쿠폰입니다. 계정당 한 번만 사용 가능합니다.'
                         ], JSON_UNESCAPED_UNICODE);
                         exit;
                     }
@@ -224,6 +296,27 @@ try {
                     exit;
                 }
                 
+                // 쿠폰 정보 가져오기
+                $coupon = db()->fetchOne("SELECT * FROM coupons WHERE id = ?", [$couponId]);
+                if (!$coupon) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'message' => '유효하지 않은 쿠폰입니다.']);
+                    exit;
+                }
+                
+                // 모든 쿠폰은 계정당 한 번만 사용 가능
+                $alreadyUsed = db()->fetchOne(
+                    "SELECT id FROM coupon_usages 
+                     WHERE user_id = ? AND coupon_id = ?",
+                    [$userId, $couponId]
+                );
+                
+                if ($alreadyUsed) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'message' => '이미 사용한 쿠폰입니다. 계정당 한 번만 사용 가능합니다.']);
+                    exit;
+                }
+                
                 // 사용 가능한 쿠폰인지 확인
                 $userCoupon = db()->fetchOne(
                     "SELECT * FROM user_coupons 
@@ -241,19 +334,54 @@ try {
                 db()->getConnection()->beginTransaction();
                 
                 try {
-                    // user_coupons 업데이트
-                    db()->execute(
-                        "UPDATE user_coupons SET used = 1, used_at = NOW(), order_id = ? 
+                    // 이미 사용된 쿠폰인지 다시 한 번 확인 (트랜잭션 내에서)
+                    $alreadyUsedInTx = db()->fetchOne(
+                        "SELECT id FROM coupon_usages 
                          WHERE user_id = ? AND coupon_id = ?",
-                        [$orderId, $userId, $couponId]
+                        [$userId, $couponId]
                     );
                     
-                    // coupon_usages에 기록
-                    db()->insert(
-                        "INSERT INTO coupon_usages (user_id, coupon_id, order_id, order_number, discount_amount) 
-                         VALUES (?, ?, ?, ?, ?)",
-                        [$userId, $couponId, $orderId, $orderNumber, $discountAmount]
+                    if ($alreadyUsedInTx) {
+                        db()->getConnection()->rollBack();
+                        error_log("[Coupons API] 이미 사용된 쿠폰: userId={$userId}, couponId={$couponId}");
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => '이미 사용한 쿠폰입니다. 계정당 한 번만 사용 가능합니다.']);
+                        exit;
+                    }
+                    
+                    // user_coupons 업데이트 (used = 0인 것만 업데이트하여 중복 방지)
+                    $updateResult = db()->execute(
+                        "UPDATE user_coupons SET used = 1, used_at = NOW(), order_id = ? 
+                         WHERE user_id = ? AND coupon_id = ? AND used = 0",
+                        [$orderId > 0 ? $orderId : null, $userId, $couponId]
                     );
+                    
+                    error_log("[Coupons API] user_coupons 업데이트 결과: {$updateResult}행 업데이트됨 (userId={$userId}, couponId={$couponId})");
+                    
+                    // 업데이트된 행이 없으면 이미 사용된 쿠폰
+                    if ($updateResult === 0) {
+                        db()->getConnection()->rollBack();
+                        error_log("[Coupons API] 업데이트된 행이 없음 - 이미 사용된 쿠폰: userId={$userId}, couponId={$couponId}");
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => '이미 사용한 쿠폰입니다.']);
+                        exit;
+                    }
+                    
+                    // coupon_usages에 기록 (중복 사용 방지)
+                    // order_id가 0이면 NULL로 설정 (테이블이 NULL 허용인 경우)
+                    try {
+                        $usageId = db()->insert(
+                            "INSERT INTO coupon_usages (user_id, coupon_id, order_id, order_number, discount_amount) 
+                             VALUES (?, ?, ?, ?, ?)",
+                            [$userId, $couponId, $orderId > 0 ? $orderId : 0, $orderNumber, $discountAmount]
+                        );
+                        error_log("[Coupons API] coupon_usages 기록 성공: id={$usageId} (userId={$userId}, couponId={$couponId})");
+                    } catch (Exception $e) {
+                        // order_id가 NOT NULL이고 0이 허용되지 않는 경우
+                        error_log("[Coupons API] coupon_usages 기록 실패 (계속 진행): " . $e->getMessage());
+                        // user_coupons의 used만 업데이트하고 coupon_usages는 건너뜀
+                        // 하지만 중복 체크는 user_coupons의 used로도 가능
+                    }
                     
                     // coupons의 used_count 증가
                     db()->execute(
@@ -263,6 +391,8 @@ try {
                     
                     db()->getConnection()->commit();
                     
+                    error_log("[Coupons API] 쿠폰 사용 성공: userId={$userId}, couponId={$couponId}, orderNumber={$orderNumber}");
+                    
                     echo json_encode([
                         'success' => true,
                         'message' => '쿠폰이 사용되었습니다.'
@@ -270,6 +400,8 @@ try {
                     
                 } catch (Exception $e) {
                     db()->getConnection()->rollBack();
+                    error_log("[Coupons API] 쿠폰 사용 실패: " . $e->getMessage());
+                    error_log("[Coupons API] 쿠폰 사용 실패 스택: " . $e->getTraceAsString());
                     throw $e;
                 }
                 

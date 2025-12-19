@@ -36,6 +36,7 @@ $basePrefix = $inPages ? '../' : '';
 
         <!-- 비회원만 주문 조회 링크 표시 (로그인한 사용자는 마이페이지에서 확인) -->
         <a href="<?php echo $basePrefix; ?>pages/order-lookup.php" id="orderLookupLink" style="color:var(--sage);">주문 조회</a>
+        <span id="userNameDisplay" style="display:none;color:var(--sage);margin-right:0.5rem;"></span>
         <a href="#" id="mypageLink" style="display:none;" onclick="openMypageTab('profile'); return false;">마이페이지</a>
         <a href="#" id="logoutLink" style="display:none;" onclick="logoutUser(); return false;">로그아웃</a>
 
