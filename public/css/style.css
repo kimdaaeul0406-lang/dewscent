@@ -2073,6 +2073,13 @@ body.cart-page .best-header::after {
   .header-left {
     display: none;
   }
+  .header-right {
+    gap: 1rem;
+  }
+  .header-right a {
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
   .emotion-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2104,6 +2111,19 @@ body.cart-page .best-header::after {
   }
 }
 @media (max-width: 480px) {
+  /* 헤더 모바일 최적화 */
+  header {
+    padding: 0.8rem 1rem;
+  }
+  .header-right {
+    gap: 0.6rem;
+  }
+  .header-right a {
+    font-size: 0.65rem;
+  }
+  .logo {
+    font-size: 1.3rem;
+  }
   .emotion-grid {
     grid-template-columns: 1fr;
   }
@@ -2111,21 +2131,41 @@ body.cart-page .best-header::after {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
+  /* 슬라이더 모바일 - 좌우 카드 숨기고 중앙만 표시 */
   .slider-container {
-    height: 380px;
+    height: 350px;
   }
   .slide-card {
-    width: 200px;
-    height: 270px;
+    width: 260px;
+    height: 320px;
   }
-  .slide-card.pos-left {
-    transform: translateX(-140px) scale(0.8);
+  .slide-card.pos-left,
+  .slide-card.pos-right {
+    opacity: 0.3;
+    transform: translateX(0) scale(0.7);
+    pointer-events: none;
   }
   .slide-card.pos-center {
     transform: translateX(0) scale(1);
   }
-  .slide-card.pos-right {
-    transform: translateX(140px) scale(0.8);
+}
+@media (max-width: 380px) {
+  /* 아주 작은 화면 (iPhone SE 등) */
+  header {
+    padding: 0.6rem 0.8rem;
+  }
+  .header-right {
+    gap: 0.4rem;
+  }
+  .header-right a {
+    font-size: 0.6rem;
+  }
+  .logo {
+    font-size: 1.2rem;
+  }
+  .slide-card {
+    width: 240px;
+    height: 300px;
   }
 }
 /* 향기 테스트 팝업 버튼 컬러 튜닝 */
