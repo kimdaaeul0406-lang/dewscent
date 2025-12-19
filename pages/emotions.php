@@ -54,8 +54,8 @@ $pageTitle = "기분으로 향 찾기 | DewScent";
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 <?php include __DIR__ . '/../includes/modals.php'; ?>
 
-<script src="../public/js/api.js"></script>
-<script src="../public/js/main.js"></script>
+<script src="../public/js/api.js?v=4"></script>
+<script src="../public/js/main.js?v=9"></script>
 <script>
 // URL에서 감정 키 가져오기
 function getUrlEmotion() {

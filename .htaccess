@@ -55,7 +55,9 @@ ErrorDocument 500 /index.php
 
     # 세션 보안
     php_value session.cookie_httponly 1
-    php_value session.cookie_secure 1
+    # session.cookie_secure는 PHP 코드에서 HTTPS일 때만 설정 (includes/config.php)
+    # HTTP 환경에서도 작동하도록 .htaccess에서는 주석 처리
+    # php_value session.cookie_secure 1
     php_value session.use_strict_mode 1
 </IfModule>
 

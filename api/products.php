@@ -9,9 +9,15 @@ if (session_status() === PHP_SESSION_NONE) {
 
 header('Content-Type: application/json; charset=utf-8');
 
-// CORS 설정 - 같은 도메인만 허용 (프로덕션용)
+// CORS 설정 - 프로덕션 도메인도 허용
 $allowed_origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
-if (strpos($allowed_origin, 'localhost') !== false || $allowed_origin === '') {
+// SITE_URL에서 도메인 추출하여 허용 목록 생성
+$siteUrl = defined('SITE_URL') ? SITE_URL : '';
+$siteDomain = $siteUrl ? parse_url($siteUrl, PHP_URL_HOST) : '';
+// localhost, 프로덕션 도메인, 또는 빈 값(같은 도메인)인 경우 허용
+if (strpos($allowed_origin, 'localhost') !== false || 
+    ($siteDomain && strpos($allowed_origin, $siteDomain) !== false) || 
+    $allowed_origin === '') {
     header('Access-Control-Allow-Origin: ' . ($allowed_origin ?: '*'));
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
