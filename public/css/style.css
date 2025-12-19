@@ -1631,6 +1631,13 @@ footer {
   background: var(--sage-lighter);
   border-radius: 8px;
   margin: 0 auto 0.8rem;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* 인라인 스타일의 background-image가 있을 때 기본 배경 제거 */
+.recommended-item-image[style*="background-image"] {
+  background: transparent !important;
 }
 .recommended-item-name {
   font-size: 0.8rem;

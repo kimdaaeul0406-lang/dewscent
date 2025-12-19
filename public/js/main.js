@@ -1662,7 +1662,18 @@ function openModal(id) {
   if (id === "testModal") {
     currentTestStep = 0;
     testAnswers = [];
-    renderTestStep();
+    // products가 없으면 먼저 로드
+    if (typeof products === "undefined" || products.length === 0) {
+      if (typeof loadProducts === "function") {
+        loadProducts().then(() => {
+          renderTestStep();
+        });
+      } else {
+        renderTestStep();
+      }
+    } else {
+      renderTestStep();
+    }
   }
 }
 
@@ -1700,6 +1711,92 @@ function renderTestStep() {
     const resultType = calculateResult();
     const result = scentResults[resultType];
 
+    // DB에서 가져온 실제 제품들 중에서 감정 타입에 맞게 랜덤 선택
+    let recommendedProducts = [];
+
+    // products가 없으면 로드 시도
+    if (
+      (typeof products === "undefined" || !products || products.length === 0) &&
+      typeof loadProducts === "function"
+    ) {
+      loadProducts().then(() => {
+        renderTestStep(); // 다시 렌더링
+      });
+      return;
+    }
+
+    if (typeof products !== "undefined" && products && products.length > 0) {
+      // 판매중인 제품만 필터링
+      const availableProducts = products.filter((p) => p.status === "판매중");
+
+      // 감정 타입별 카테고리 매핑 (더 넓은 범위)
+      const emotionCategoryMap = {
+        floral: ["향수", "바디미스트", "디퓨저", "헤어미스트", "룸스프레이"],
+        fresh: ["바디미스트", "섬유유연제", "헤어미스트", "향수", "룸스프레이"],
+        woody: ["향수", "디퓨저", "바디미스트", "룸스프레이"],
+        oriental: ["향수", "바디미스트", "디퓨저", "헤어미스트"],
+      };
+
+      const categories = emotionCategoryMap[resultType] || [
+        "향수",
+        "바디미스트",
+        "디퓨저",
+      ];
+
+      // 카테고리로 필터링
+      let filtered = availableProducts.filter((p) => {
+        const pCategory = p.category || p.type || "";
+        return categories.includes(pCategory);
+      });
+
+      // 카테고리 매칭이 없거나 너무 적으면 전체 상품에서 선택
+      if (filtered.length < 2) {
+        filtered = availableProducts;
+      }
+
+      // 카테고리별로 그룹화하여 다양성 보장
+      const byCategory = {};
+      filtered.forEach((p) => {
+        const cat = p.category || p.type || "기타";
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(p);
+      });
+
+      // 각 카테고리에서 최대 1-2개씩 선택하여 다양성 확보
+      const diverseProducts = [];
+      const categoryKeys = Object.keys(byCategory);
+
+      // 카테고리가 여러 개 있으면 각각에서 골고루 선택
+      if (categoryKeys.length > 1) {
+        categoryKeys.forEach((cat) => {
+          const items = byCategory[cat];
+          // 각 카테고리에서 최대 2개씩 랜덤 선택
+          const shuffled = [...items].sort(() => Math.random() - 0.5);
+          diverseProducts.push(...shuffled.slice(0, 2));
+        });
+        filtered = diverseProducts;
+      }
+
+      // 완전 랜덤 셔플 (매번 다른 결과를 위해 타임스탬프 기반 시드 추가)
+      const shuffled = [...filtered];
+      // 더 강력한 랜덤 셔플
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor((Math.random() * Date.now()) % (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      // 한 번 더 셔플
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      // 최대 4개 선택
+      recommendedProducts = shuffled.slice(0, 4);
+    } else {
+      // products가 없으면 빈 배열
+      recommendedProducts = [];
+    }
+
     body.innerHTML = `
         <div class="test-result">
           <div class="test-result-icon">DewScent</div>
@@ -1708,18 +1805,50 @@ function renderTestStep() {
           <p>${result.desc}</p>
           <p style="font-weight:500;margin-bottom:1rem">추천 제품</p>
           <div class="recommended-products">
-            ${result.products
-              .map((idx) => {
-                const p = products[idx];
-                return `
-                  <div class="recommended-item" onclick="closeModal('testModal');openProductModal(${idx})">
-                    <div class="recommended-item-image"></div>
-                    <p class="recommended-item-name">${p.name}</p>
-                    <p class="recommended-item-type">${p.type}</p>
-                  </div>
-                `;
-              })
-              .join("")}
+            ${
+              recommendedProducts.length > 0
+                ? recommendedProducts
+                    .map((product) => {
+                      // products 배열에서 인덱스 찾기
+                      const productIndex = products.findIndex(
+                        (p) => p.id === product.id
+                      );
+                      const idx = productIndex >= 0 ? productIndex : 0;
+
+                      // 이미지 URL 처리
+                      const img = product.imageUrl || product.image || "";
+                      let imageStyle = "";
+                      if (
+                        img &&
+                        img.trim() &&
+                        img !== "null" &&
+                        img !== "NULL" &&
+                        img.length > 10
+                      ) {
+                        // Base64 이미지인 경우 따옴표 없이, 일반 URL은 따옴표로
+                        const imageUrl = img.startsWith("data:")
+                          ? img
+                          : `'${img}'`;
+                        imageStyle = `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
+                      }
+
+                      return `
+                      <div class="recommended-item" onclick="closeModal('testModal');openProductModal(${idx})">
+                        <div class="recommended-item-image"${
+                          imageStyle ? ` style="${imageStyle}"` : ""
+                        }></div>
+                        <p class="recommended-item-name">${
+                          product.name || ""
+                        }</p>
+                        <p class="recommended-item-type">${
+                          product.type || product.category || ""
+                        }</p>
+                      </div>
+                    `;
+                    })
+                    .join("")
+                : '<p style="text-align:center;color:var(--light);padding:2rem;">추천 제품을 준비중입니다.</p>'
+            }
           </div>
           <button class="form-btn primary" onclick="closeModal('testModal')">쇼핑 계속하기</button>
         </div>
