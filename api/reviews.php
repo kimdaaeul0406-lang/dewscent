@@ -1,5 +1,16 @@
 <?php
+// 에러 리포팅 (배포 서버 디버깅용)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
+error_log('[Reviews API] ========== 요청 시작 ==========');
+error_log('[Reviews API] Request URI: ' . $_SERVER['REQUEST_URI']);
+error_log('[Reviews API] Request Method: ' . $_SERVER['REQUEST_METHOD']);
+
 session_start();
+error_log('[Reviews API] Session ID: ' . session_id());
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/db_setup.php';
@@ -7,11 +18,17 @@ require_once __DIR__ . '/../includes/db_setup.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // 테이블 자동 생성
-ensure_tables_exist();
+try {
+    ensure_tables_exist();
+    error_log('[Reviews API] Tables ensured');
+} catch (Exception $e) {
+    error_log('[Reviews API] Table creation error: ' . $e->getMessage());
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 // URL에서 product_id 추출: ?product_id=123
 $productId = !empty($_GET['product_id']) ? (int)$_GET['product_id'] : null;
+error_log('[Reviews API] product_id: ' . ($productId ?? 'null (관리자 모드)'));
 
 switch ($method) {
     case 'GET':
@@ -32,18 +49,38 @@ switch ($method) {
             $isAdmin = (!empty($_SESSION['role']) && $_SESSION['role'] === 'admin') || 
                        !empty($_SESSION['admin_logged_in']);
             
+            error_log('[Reviews API] 관리자 모드 체크: isAdmin=' . ($isAdmin ? 'true' : 'false'));
+            error_log('[Reviews API] role: ' . ($_SESSION['role'] ?? 'not set'));
+            error_log('[Reviews API] admin_logged_in: ' . (isset($_SESSION['admin_logged_in']) ? ($_SESSION['admin_logged_in'] ? 'true' : 'false') : 'not set'));
+            
             if (!$isAdmin) {
                 http_response_code(401);
+                error_log('[Reviews API] Access denied - not admin');
                 echo json_encode(['ok' => false, 'message' => '관리자 권한이 필요합니다.'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-            $reviews = db()->fetchAll(
-                "SELECT r.*, u.name as user_name, u.email as user_email, p.name as product_name
-                 FROM reviews r
-                 LEFT JOIN users u ON r.user_id = u.id
-                 LEFT JOIN products p ON r.product_id = p.id
-                 ORDER BY r.created_at DESC"
-            );
+            
+            try {
+                error_log('[Reviews API] DB query 시작 (전체 리뷰)');
+                $startTime = microtime(true);
+                
+                $reviews = db()->fetchAll(
+                    "SELECT r.*, u.name as user_name, u.email as user_email, p.name as product_name
+                     FROM reviews r
+                     LEFT JOIN users u ON r.user_id = u.id
+                     LEFT JOIN products p ON r.product_id = p.id
+                     ORDER BY r.created_at DESC"
+                );
+                
+                $queryTime = microtime(true) - $startTime;
+                error_log('[Reviews API] DB query 완료: ' . round($queryTime * 1000, 2) . 'ms, Reviews count: ' . count($reviews));
+            } catch (Exception $e) {
+                http_response_code(500);
+                error_log('[Reviews API] DB query error: ' . $e->getMessage());
+                error_log('[Reviews API] Stack trace: ' . $e->getTraceAsString());
+                echo json_encode(['ok' => false, 'message' => '리뷰 목록 조회 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
         }
 
         // 날짜 포맷팅 및 사용자 정보 추가
@@ -55,6 +92,7 @@ switch ($method) {
             $review['userId'] = $review['user_email'] ?? '';
         }
 
+        error_log('[Reviews API] 응답 전송: ' . count($reviews) . '개 리뷰');
         echo json_encode($reviews, JSON_UNESCAPED_UNICODE);
         break;
 

@@ -29,7 +29,11 @@ require_once __DIR__ . '/../includes/db_setup.php';
 
 // 테이블 자동 생성
 ensure_tables_exist();
-require_once __DIR__ . '/../admin/guard.php';
+
+// 에러 리포팅 (배포 서버 디버깅용)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = isset($_SERVER['PATH_INFO']) ? trim($_SERVER['PATH_INFO'], '/') : '';
@@ -92,12 +96,17 @@ function addVariantsToProduct($product) {
     return $product;
 }
 
+// 관리자 API 체크 (GET 요청은 public, 나머지는 관리자만)
+if ($method !== 'GET') {
+    require_once __DIR__ . '/../admin/guard.php';
+}
+
 try {
     switch ($method) {
         case 'GET':
             if ($id) {
-                // 단일 상품 조회 (variants 포함)
-                $product = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$id]);
+                // 단일 상품 조회 (variants 포함) - 인덱스 활용
+                $product = db()->fetchOne("SELECT * FROM products WHERE id = ? LIMIT 1", [$id]);
                 if ($product) {
                     $product = addVariantsToProduct($product);
                     echo json_encode($product);
@@ -106,11 +115,176 @@ try {
                     echo json_encode(['error' => '상품을 찾을 수 없습니다.']);
                 }
             } else {
-                // 전체 상품 목록 (variants 포함)
-                $products = db()->fetchAll("SELECT * FROM products ORDER BY id DESC");
-                foreach ($products as &$p) {
-                    $p = addVariantsToProduct($p);
+                // 쿼리 실행 시간 측정 시작
+                $startTime = microtime(true);
+                
+                // 전체 상품 목록 조회 (판매중 상품만, 상태 인덱스 활용)
+                // 페이징 지원
+                $status = $_GET['status'] ?? null;
+                $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
+                $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+                
+                $query = "SELECT id, name, type, price, originalPrice, rating, reviews, badge, `desc`, 
+                         image, detail_image, stock, status, fragrance_type, emotion_keys, created_at, updated_at
+                         FROM products";
+                $params = [];
+                
+                // 판매중 상품만 필터링 (status 파라미터가 없으면 기본적으로 판매중만)
+                // 인덱스 활용을 위해 status 조건 먼저
+                // 주의: stock 조건은 없음 (테스트/전시 목적상 stock=0이어도 표시)
+                if ($status) {
+                    $query .= " WHERE status = ?";
+                    $params[] = $status;
+                } else {
+                    // 프론트엔드에서는 기본적으로 판매중 상품만 (인덱스 활용)
+                    $query .= " WHERE status = '판매중'";
                 }
+                
+                // stock 조건은 제거 (테스트/전시 목적상 stock=0이어도 표시)
+                // 이전에 stock > 0 조건이 있었다면 제거됨
+                
+                $query .= " ORDER BY id DESC";
+                
+                // LIMIT 적용 (N+1 방지 및 성능 최적화)
+                if ($limit !== null && $limit > 0) {
+                    $query .= " LIMIT ? OFFSET ?";
+                    $params[] = $limit;
+                    $params[] = $offset;
+                }
+                
+                // DB 연결 확인 및 전체 상품 수 확인 (디버깅)
+                try {
+                    $totalCount = db()->fetchOne("SELECT COUNT(*) as cnt FROM products");
+                    $totalProducts = (int)($totalCount['cnt'] ?? 0);
+                    error_log('[Products API] DB 연결 성공 - 전체 상품 수: ' . $totalProducts);
+                    
+                    // status별 분포 확인 (디버깅)
+                    $statusDistribution = db()->fetchAll("SELECT status, COUNT(*) as c FROM products GROUP BY status");
+                    $statusInfo = [];
+                    foreach ($statusDistribution as $row) {
+                        $statusInfo[] = $row['status'] . ':' . $row['c'];
+                    }
+                    error_log('[Products API] Status 분포: ' . implode(', ', $statusInfo));
+                    
+                    // '판매중' 상품 수 확인
+                    $sellingCount = db()->fetchOne("SELECT COUNT(*) as cnt FROM products WHERE status = '판매중'");
+                    $sellingProducts = (int)($sellingCount['cnt'] ?? 0);
+                    error_log('[Products API] 판매중 상품 수: ' . $sellingProducts);
+                } catch (Exception $e) {
+                    error_log('[Products API] DB 연결/통계 확인 실패: ' . $e->getMessage());
+                }
+                
+                error_log('[Products API] Query: ' . $query);
+                error_log('[Products API] Params: ' . json_encode($params));
+                
+                $queryStart = microtime(true);
+                try {
+                    $products = db()->fetchAll($query, $params);
+                    $queryTime = microtime(true) - $queryStart;
+                    $rowCount = count($products);
+                    error_log('[Products API] Main query time: ' . round($queryTime * 1000, 2) . 'ms, Products count: ' . $rowCount);
+                    
+                    // 결과가 빈 배열일 때 상세 로그
+                    if ($rowCount === 0) {
+                        error_log('[Products API] 경고: 조회 결과가 0개입니다.');
+                        error_log('[Products API] - 전체 상품 수: ' . ($totalProducts ?? 'unknown'));
+                        error_log('[Products API] - 판매중 상품 수: ' . ($sellingProducts ?? 'unknown'));
+                        error_log('[Products API] - 쿼리 조건: status = "판매중" (stock 조건 없음)');
+                        
+                        // stock 분포도 확인 (디버깅)
+                        try {
+                            $stockDistribution = db()->fetchAll("SELECT CASE WHEN stock = 0 THEN 'stock=0' WHEN stock > 0 THEN 'stock>0' ELSE 'stock<0' END as stock_group, COUNT(*) as c FROM products WHERE status = '판매중' GROUP BY stock_group");
+                            $stockInfo = [];
+                            foreach ($stockDistribution as $row) {
+                                $stockInfo[] = $row['stock_group'] . ':' . $row['c'];
+                            }
+                            error_log('[Products API] 판매중 상품 stock 분포: ' . implode(', ', $stockInfo));
+                        } catch (Exception $e) {
+                            error_log('[Products API] Stock 분포 확인 실패: ' . $e->getMessage());
+                        }
+                    }
+                } catch (Exception $e) {
+                    $queryTime = microtime(true) - $queryStart;
+                    error_log('[Products API] DB query error: ' . $e->getMessage());
+                    error_log('[Products API] Stack trace: ' . $e->getTraceAsString());
+                    http_response_code(500);
+                    echo json_encode(['ok' => false, 'error' => '상품 목록 조회 중 오류가 발생했습니다.', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                
+                // N+1 문제 해결: 모든 variants를 한 번에 조회
+                $variantStart = microtime(true);
+                $productIds = array_column($products, 'id');
+                $allVariants = [];
+                if (!empty($productIds)) {
+                    try {
+                        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+                        $variantQuery = "SELECT id, product_id, volume, price, stock, is_default, sort_order
+                                         FROM product_variants
+                                         WHERE product_id IN ($placeholders)
+                                         ORDER BY product_id ASC, sort_order ASC, price ASC";
+                        error_log('[Products API] Variants query: ' . $variantQuery);
+                        error_log('[Products API] Variants params: ' . json_encode($productIds));
+                        $allVariants = db()->fetchAll($variantQuery, $productIds);
+                    } catch (Exception $e) {
+                        error_log('[Products API] Variants query error: ' . $e->getMessage());
+                        error_log('[Products API] Variants stack trace: ' . $e->getTraceAsString());
+                        // variants 조회 실패해도 상품 목록은 반환 (variants는 빈 배열로)
+                        $allVariants = [];
+                    }
+                }
+                
+                // variants를 product_id로 그룹화
+                $variantsByProduct = [];
+                foreach ($allVariants as $variant) {
+                    $pid = $variant['product_id'];
+                    if (!isset($variantsByProduct[$pid])) {
+                        $variantsByProduct[$pid] = [];
+                    }
+                    $variantsByProduct[$pid][] = $variant;
+                }
+                $variantTime = microtime(true) - $variantStart;
+                error_log('[Products API] Variants query time: ' . round($variantTime * 1000, 2) . 'ms, Variants count: ' . count($allVariants));
+                
+                // variants를 각 상품에 추가 (DB 쿼리 없이)
+                foreach ($products as &$p) {
+                    $p['variants'] = $variantsByProduct[$p['id']] ?? [];
+                    // 다른 필드 매핑 (기존 addVariantsToProduct 로직)
+                    if (isset($p['type']) && !isset($p['category'])) {
+                        $p['category'] = $p['type'];
+                    }
+                    if (isset($p['emotion_keys']) && is_string($p['emotion_keys']) && !empty($p['emotion_keys'])) {
+                        try {
+                            $p['emotionKeys'] = json_decode($p['emotion_keys'], true);
+                            if (!is_array($p['emotionKeys'])) {
+                                $p['emotionKeys'] = [];
+                            }
+                        } catch (Exception $e) {
+                            $p['emotionKeys'] = [];
+                        }
+                    } else {
+                        $p['emotionKeys'] = [];
+                    }
+                    if (isset($p['fragrance_type']) && !isset($p['fragranceType'])) {
+                        $p['fragranceType'] = $p['fragrance_type'];
+                    }
+                    if (isset($p['image']) && $p['image'] !== null && $p['image'] !== '') {
+                        $trimmedImage = trim($p['image']);
+                        if ($trimmedImage !== '' && $trimmedImage !== 'null' && $trimmedImage !== 'NULL' && strlen($trimmedImage) > 10 && !isset($p['imageUrl'])) {
+                            $p['imageUrl'] = $trimmedImage;
+                        }
+                    }
+                    if (isset($p['detail_image']) && $p['detail_image'] !== null && $p['detail_image'] !== '') {
+                        $trimmedDetailImage = trim($p['detail_image']);
+                        if ($trimmedDetailImage !== '' && $trimmedDetailImage !== 'null' && $trimmedDetailImage !== 'NULL' && strlen($trimmedDetailImage) > 10 && !isset($p['detailImageUrl'])) {
+                            $p['detailImageUrl'] = $trimmedDetailImage;
+                        }
+                    }
+                }
+                
+                $totalTime = microtime(true) - $startTime;
+                error_log('[Products API] Total time: ' . round($totalTime * 1000, 2) . 'ms, Products: ' . count($products));
+                
                 echo json_encode($products);
             }
             break;
@@ -167,8 +341,24 @@ try {
                 }
             }
 
-            $sql = "INSERT INTO products (name, type, price, originalPrice, rating, reviews, badge, `desc`, image, detail_image, status, fragrance_type, emotion_keys)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            // status 값 처리: 기본값 '판매중' 보장
+            $status = !empty($data['status']) ? trim($data['status']) : '판매중';
+            // 유효한 status 값 검증
+            $validStatuses = ['판매중', '품절', '숨김'];
+            if (!in_array($status, $validStatuses)) {
+                $status = '판매중'; // 기본값으로 강제 설정
+            }
+            
+            // stock 값 처리: 기본값 10 (테스트/전시 목적)
+            $stock = isset($data['stock']) ? (int)$data['stock'] : 10;
+            if ($stock < 0) {
+                $stock = 10; // 음수면 기본값으로 설정
+            }
+            
+            error_log('[Products API] 상품 등록 시작 - name: ' . $data['name'] . ', status: ' . $status . ', stock: ' . $stock);
+            
+            $sql = "INSERT INTO products (name, type, price, originalPrice, rating, reviews, badge, `desc`, image, detail_image, stock, status, fragrance_type, emotion_keys)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $params = [
                 $data['name'],
                 $category,
@@ -180,17 +370,32 @@ try {
                 $data['desc'] ?? '',
                 $imageData,
                 $detailImageData,
-                $data['status'] ?? '판매중',
+                $stock, // stock 값 추가 (기본값 10)
+                $status, // 검증된 status 값 사용
                 $fragranceType,
                 $emotionKeys
             ];
 
-            $newId = db()->insert($sql, $params);
-            $newProduct = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$newId]);
-            $newProduct = addVariantsToProduct($newProduct);
-
-            http_response_code(201);
-            echo json_encode($newProduct);
+            try {
+                $newId = db()->insert($sql, $params);
+                error_log('[Products API] 상품 INSERT 성공 - id: ' . $newId . ', name: ' . $data['name']);
+                
+                $newProduct = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$newId]);
+                if ($newProduct) {
+                    error_log('[Products API] 등록된 상품 확인 - id: ' . $newProduct['id'] . ', name: ' . $newProduct['name'] . ', status: ' . ($newProduct['status'] ?? 'not set'));
+                    $newProduct = addVariantsToProduct($newProduct);
+                } else {
+                    error_log('[Products API] 경고: INSERT 후 상품 조회 실패 - id: ' . $newId);
+                }
+                
+                http_response_code(201);
+                echo json_encode($newProduct);
+            } catch (Exception $e) {
+                error_log('[Products API] 상품 INSERT 실패 - name: ' . $data['name'] . ', error: ' . $e->getMessage());
+                error_log('[Products API] SQL: ' . $sql);
+                error_log('[Products API] Params: ' . json_encode($params));
+                throw $e;
+            }
             break;
 
         case 'PUT':
@@ -225,6 +430,12 @@ try {
                 $category = $existing['type'] ?? '향수';
             }
 
+            // stock 값 처리 (수정 시에는 기존 값 유지, 명시적으로 전달되면 업데이트)
+            $stock = isset($data['stock']) ? (int)$data['stock'] : ($existing['stock'] ?? 10);
+            if ($stock < 0) {
+                $stock = $existing['stock'] ?? 10; // 음수면 기존 값 또는 기본값 사용
+            }
+
             // 향기 타입 및 감정 키 처리
             $fragranceType = isset($data['fragranceType']) ? (!empty($data['fragranceType']) ? trim($data['fragranceType']) : null) : $existing['fragrance_type'];
             $emotionKeys = null;
@@ -240,7 +451,13 @@ try {
                 $emotionKeys = $existing['emotion_keys'] ?? null;
             }
 
-            $sql = "UPDATE products SET
+            // stock 값 처리 (수정 시에는 기존 값 유지, 명시적으로 전달되면 업데이트)
+            $stock = isset($data['stock']) ? (int)$data['stock'] : ($existing['stock'] ?? 10);
+            if ($stock < 0) {
+                $stock = $existing['stock'] ?? 10; // 음수면 기존 값 또는 기본값 사용
+            }
+            
+            $sql = "UPDATE products SET 
                     name = ?,
                     type = ?,
                     price = ?,
@@ -251,6 +468,7 @@ try {
                     `desc` = ?,
                     image = ?,
                     detail_image = ?,
+                    stock = ?,
                     status = ?,
                     fragrance_type = ?,
                     emotion_keys = ?
@@ -290,6 +508,7 @@ try {
                 $data['desc'] ?? $existing['desc'],
                 $imageData,
                 $detailImageData,
+                $stock, // stock 값 추가
                 $data['status'] ?? $existing['status'] ?? '판매중',
                 $fragranceType,
                 $emotionKeys,

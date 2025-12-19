@@ -1,5 +1,16 @@
 <?php
+// 에러 리포팅 (배포 서버 디버깅용)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
+error_log('[Inquiries API] ========== 요청 시작 ==========');
+error_log('[Inquiries API] Request URI: ' . $_SERVER['REQUEST_URI']);
+error_log('[Inquiries API] Request Method: ' . $_SERVER['REQUEST_METHOD']);
+
 session_start();
+error_log('[Inquiries API] Session ID: ' . session_id());
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/db_setup.php';
@@ -7,12 +18,21 @@ require_once __DIR__ . '/../includes/db_setup.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // 테이블 자동 생성
-ensure_tables_exist();
+try {
+    ensure_tables_exist();
+    error_log('[Inquiries API] Tables ensured');
+} catch (Exception $e) {
+    error_log('[Inquiries API] Table creation error: ' . $e->getMessage());
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 // 관리자 여부 확인 (두 가지 방식 모두 지원)
 $isAdmin = (!empty($_SESSION['role']) && $_SESSION['role'] === 'admin') || 
            !empty($_SESSION['admin_logged_in']);
+           
+error_log('[Inquiries API] isAdmin: ' . ($isAdmin ? 'true' : 'false'));
+error_log('[Inquiries API] role: ' . ($_SESSION['role'] ?? 'not set'));
+error_log('[Inquiries API] admin_logged_in: ' . (isset($_SESSION['admin_logged_in']) ? ($_SESSION['admin_logged_in'] ? 'true' : 'false') : 'not set'));
 
 // 관리자 API 체크 함수
 function ensure_admin_api(): bool {
@@ -39,32 +59,52 @@ switch ($method) {
         }
 
         // 관리자는 모든 문의, 일반 사용자는 자신의 문의만
-        if ($isAdmin) {
-            $inquiries = db()->fetchAll(
-                "SELECT i.*, u.name as user_name, u.email as user_email 
-                 FROM inquiries i 
-                 LEFT JOIN users u ON i.user_id = u.id 
-                 ORDER BY i.created_at DESC"
-            );
-        } else {
-            $inquiries = db()->fetchAll(
-                "SELECT * FROM inquiries WHERE user_id = ? ORDER BY created_at DESC",
-                [$_SESSION['user_id']]
-            );
-        }
-
-        // 날짜 포맷팅
-        foreach ($inquiries as &$inq) {
-            if (!empty($inq['created_at'])) {
-                $inq['createdAt'] = substr($inq['created_at'], 0, 10);
+        try {
+            error_log('[Inquiries API] DB query 시작');
+            $startTime = microtime(true);
+            
+            if ($isAdmin) {
+                error_log('[Inquiries API] 관리자 모드 - 전체 문의 조회');
+                $inquiries = db()->fetchAll(
+                    "SELECT i.*, u.name as user_name, u.email as user_email 
+                     FROM inquiries i 
+                     LEFT JOIN users u ON i.user_id = u.id 
+                     ORDER BY i.created_at DESC"
+                );
+            } else {
+                error_log('[Inquiries API] 일반 사용자 모드 - user_id: ' . ($_SESSION['user_id'] ?? 'not set'));
+                $inquiries = db()->fetchAll(
+                    "SELECT * FROM inquiries WHERE user_id = ? ORDER BY created_at DESC",
+                    [$_SESSION['user_id']]
+                );
             }
-            if (!empty($inq['answered_at'])) {
-                $inq['answeredAt'] = substr($inq['answered_at'], 0, 10);
-            }
-            $inq['orderNo'] = $inq['order_no'] ?? null;
-        }
 
-        echo json_encode($inquiries, JSON_UNESCAPED_UNICODE);
+            $queryTime = microtime(true) - $startTime;
+            error_log('[Inquiries API] DB query 완료: ' . round($queryTime * 1000, 2) . 'ms, Inquiries count: ' . count($inquiries));
+
+            // 날짜 포맷팅
+            foreach ($inquiries as &$inq) {
+                if (!empty($inq['created_at'])) {
+                    $inq['createdAt'] = substr($inq['created_at'], 0, 10);
+                }
+                if (!empty($inq['answered_at'])) {
+                    $inq['answeredAt'] = substr($inq['answered_at'], 0, 10);
+                }
+                $inq['orderNo'] = $inq['order_no'] ?? null;
+            }
+
+            error_log('[Inquiries API] 응답 전송: ' . count($inquiries) . '개 문의');
+            echo json_encode($inquiries, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            http_response_code(500);
+            error_log('[Inquiries API] Error: ' . $e->getMessage());
+            error_log('[Inquiries API] Stack trace: ' . $e->getTraceAsString());
+            $errorMsg = '문의 목록 조회 중 오류가 발생했습니다.';
+            if (defined('APP_DEBUG') && APP_DEBUG) {
+                $errorMsg .= ' ' . $e->getMessage();
+            }
+            echo json_encode(['ok' => false, 'message' => $errorMsg], JSON_UNESCAPED_UNICODE);
+        }
         break;
 
     case 'POST':

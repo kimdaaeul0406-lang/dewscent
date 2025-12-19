@@ -4,21 +4,26 @@ require_once __DIR__ . '/../includes/db.php';
 
 $pageTitle = "관리자 로그인 | DewScent";
 
-// 이미 로그인되어 있으면 대시보드로
-if (!empty($_SESSION['admin_logged_in'])) {
-	header('Location: dashboard.php');
+// 이미 로그인되어 있으면 대시보드로 (또는 return URL로)
+if (!empty($_SESSION['admin_logged_in']) || (!empty($_SESSION['role']) && $_SESSION['role'] === 'admin')) {
+	$returnUrl = $_GET['next'] ?? 'dashboard.php';
+	// return URL이 외부 사이트를 가리키지 않도록 검증
+	if (strpos($returnUrl, '://') === false && strpos($returnUrl, '../') === false) {
+		header('Location: ' . $returnUrl);
+	} else {
+		header('Location: dashboard.php');
+	}
 	exit;
 }
 
 $error = null;
-
-// GET으로 직접 접근 시에도 로그인 폼 표시 (관리자가 아닌 경우 guard.php에서 리다이렉트됨)
-// POST가 아닌 경우 로그인 폼만 표시하고 처리하지 않음
+$next = $_GET['next'] ?? 'dashboard.php';
 
 // DB 연동 로그인 검증
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$email = trim($_POST['username'] ?? ''); // 이메일 또는 이름으로 로그인
 	$password = trim($_POST['password'] ?? '');
+	$next = trim($_POST['next'] ?? $_GET['next'] ?? 'dashboard.php');
 
 	if ($email === '' || $password === '') {
 		$error = '이메일과 비밀번호를 입력해주세요.';
@@ -75,13 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 					exit; // 임시로 여기서 종료하여 확인
 				}
 				
-				header('Location: dashboard.php');
+				// return URL로 리다이렉트 (보안 검증)
+				if (strpos($next, '://') === false && strpos($next, '../') === false) {
+					header('Location: ' . $next);
+				} else {
+					header('Location: dashboard.php');
+				}
 				exit;
 			} else {
 				$error = '이메일 또는 비밀번호가 올바르지 않습니다.';
+				error_log('[Admin Login] 로그인 실패 - email: ' . $email);
 			}
 		} catch (Exception $e) {
 			$error = 'DB 연결 오류가 발생했습니다.';
+			error_log('[Admin Login] DB 오류: ' . $e->getMessage());
 		}
 	}
 }
@@ -115,7 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						<p style="color:var(--rose);font-size:0.9rem;margin:0;"><?= htmlspecialchars($error) ?></p>
 					</div>
 				<?php endif; ?>
-				<form method="post" action="index.php">
+				<form method="post" action="login.php">
+					<input type="hidden" name="next" value="<?= htmlspecialchars($next) ?>">
 					<div class="form-group">
 						<label class="form-label">이메일</label>
 						<input type="text" name="username" class="form-input" placeholder="admin@example.com" required>
@@ -136,5 +149,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<script src="../public/js/main.js?v=4"></script>
 </body>
 </html>
-
-

@@ -90,6 +90,11 @@ function getUrlSearch() {
 	return params.get('search') || null;
 }
 
+// 페이지 변경 시 첫 페이지로 리셋
+function resetToFirstPage() {
+	window.currentPage = 1;
+}
+
 // URL 파라미터에서 카테고리 읽기
 function getUrlCategory() {
 	const params = new URLSearchParams(window.location.search);
@@ -176,7 +181,13 @@ function sortProducts(list, sortBy) {
 	return sorted;
 }
 
-function renderAllProducts() {
+// 페이징 변수
+window.currentPage = 1;
+const PRODUCTS_PER_PAGE = 24; // 한 페이지에 24개씩 표시
+
+function renderAllProducts(page) {
+	if (!page) page = window.currentPage || 1;
+	window.currentPage = page;
 	const container = document.getElementById('allProductsGrid');
 	const countEl = document.getElementById('productCount');
 	if (!container) return;
@@ -211,10 +222,16 @@ function renderAllProducts() {
 		if (subEl) subEl.textContent = '새롭게 출시된 향기를 만나보세요';
 	}
 
-	countEl.textContent = sorted.length;
+	// 페이징 적용
+	const totalCount = sorted.length;
+	const startIdx = (page - 1) * PRODUCTS_PER_PAGE;
+	const endIdx = startIdx + PRODUCTS_PER_PAGE;
+	const paginatedProducts = sorted.slice(startIdx, endIdx);
+	
+	countEl.textContent = totalCount;
 
 	// 상품이 없을 때 메시지 표시
-	if (sorted.length === 0) {
+	if (totalCount === 0) {
 		container.className = 'products-grid';
 		container.innerHTML = `
 			<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:400px;padding:4rem 2rem;">
@@ -227,18 +244,16 @@ function renderAllProducts() {
 		return;
 	}
 
-	if (currentView === 'grid') {
+		if (currentView === 'grid') {
 		container.className = 'products-grid';
-		container.innerHTML = sorted.map((product, idx) => `
+		container.innerHTML = paginatedProducts.map((product, idx) => {
+			const img = product.imageUrl || product.image || '';
+			const hasImage = img && img.trim() && img !== 'null' && img !== 'NULL' && img.length > 10;
+			const imgSrc = hasImage ? img.replace(/'/g, '') : '';
+			return `
 			<div class="product-card" onclick="openProductModal(${products.indexOf(product)})">
-				<div class="product-image" style="position:relative;${(() => {
-					const img = product.imageUrl || product.image || '';
-					if (img && img.trim() && img !== 'null' && img !== 'NULL' && img.length > 10) {
-						const imageUrl = img.startsWith('data:') ? img : `'${img}'`;
-						return `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
-					}
-					return '';
-				})()}">
+				<div class="product-image" style="position:relative;background-color:var(--sage-lighter);overflow:hidden;">
+					${hasImage ? `<img src="${imgSrc}" loading="lazy" width="300" height="375" alt="${(product.name || '').replace(/"/g, '&quot;')}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.style.background='var(--sage-lighter)';">` : ''}
 					${product.badge ? `<span class="product-badge">${product.badge}</span>` : ''}
 					<button class="product-wishlist" data-id="${product.id}" onclick="event.stopPropagation();toggleWishlist(this)">
 						${inWishlist(product.id) ? '♥' : '♡'}
@@ -264,19 +279,18 @@ function renderAllProducts() {
 					}
 				</div>
 			</div>
-		`).join('');
+		`;
+		}).join('');
 	} else {
 		container.className = 'products-list';
-		container.innerHTML = sorted.map((product, idx) => `
+		container.innerHTML = paginatedProducts.map((product, idx) => {
+			const img = product.imageUrl || product.image || '';
+			const hasImage = img && img.trim() && img !== 'null' && img !== 'NULL' && img.length > 10;
+			const imgSrc = hasImage ? img.replace(/'/g, '') : '';
+			return `
 			<div class="product-list-item" onclick="openProductModal(${products.indexOf(product)})">
-				<div class="product-list-image" style="${(() => {
-					const img = product.imageUrl || product.image;
-					if (img) {
-						const imageUrl = img.startsWith('data:') ? img : `'${img}'`;
-						return `background-image:url(${imageUrl});background-size:cover;background-position:center;`;
-					}
-					return '';
-				})()}">
+				<div class="product-list-image" style="background-color:var(--sage-lighter);overflow:hidden;">
+					${hasImage ? `<img src="${imgSrc}" loading="lazy" width="150" height="150" alt="${(product.name || '').replace(/"/g, '&quot;')}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.style.background='var(--sage-lighter)';">` : ''}
 					${product.badge ? `<span class="product-badge">${product.badge}</span>` : ''}
 				</div>
 				<div class="product-list-info">
@@ -314,6 +328,75 @@ function renderAllProducts() {
 			</div>
 		`).join('');
 	}
+	
+	// 페이징 컨트롤 추가
+	renderPagination(totalCount, page);
+}
+
+// 페이징 컨트롤 렌더링
+function renderPagination(totalCount, currentPage) {
+	const totalPages = Math.ceil(totalCount / PRODUCTS_PER_PAGE);
+	if (totalPages <= 1) return; // 페이지가 1개 이하면 페이징 표시 안 함
+	
+	const container = document.getElementById('allProductsGrid');
+	if (!container) return;
+	
+	// 기존 페이징 제거
+	const existingPagination = container.parentElement.querySelector('.products-pagination');
+	if (existingPagination) {
+		existingPagination.remove();
+	}
+	
+	// 페이징 생성
+	const pagination = document.createElement('div');
+	pagination.className = 'products-pagination';
+	pagination.style.cssText = 'grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:0.5rem;margin-top:2rem;padding:1rem;';
+	
+	// 이전 버튼
+	const prevBtn = document.createElement('button');
+	prevBtn.textContent = '이전';
+	prevBtn.disabled = currentPage === 1;
+	prevBtn.style.cssText = 'padding:0.5rem 1rem;border:1px solid var(--border);background:white;border-radius:4px;cursor:pointer;';
+	if (!prevBtn.disabled) {
+		prevBtn.style.cursor = 'pointer';
+		prevBtn.onclick = () => {
+			window.currentPage = currentPage - 1;
+			renderAllProducts(window.currentPage);
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		};
+	} else {
+		prevBtn.style.cursor = 'not-allowed';
+		prevBtn.style.opacity = '0.5';
+	}
+	
+	// 페이지 번호
+	const pageInfo = document.createElement('span');
+	pageInfo.textContent = `${currentPage} / ${totalPages}`;
+	pageInfo.style.cssText = 'padding:0 1rem;color:var(--mid);';
+	
+	// 다음 버튼
+	const nextBtn = document.createElement('button');
+	nextBtn.textContent = '다음';
+	nextBtn.disabled = currentPage >= totalPages;
+	nextBtn.style.cssText = 'padding:0.5rem 1rem;border:1px solid var(--border);background:white;border-radius:4px;cursor:pointer;';
+	if (!nextBtn.disabled) {
+		nextBtn.style.cursor = 'pointer';
+		nextBtn.onclick = () => {
+			window.currentPage = currentPage + 1;
+			renderAllProducts(window.currentPage);
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		};
+	} else {
+		nextBtn.style.cursor = 'not-allowed';
+		nextBtn.style.opacity = '0.5';
+	}
+	
+	pagination.appendChild(prevBtn);
+	pagination.appendChild(pageInfo);
+	pagination.appendChild(nextBtn);
+	
+	// 컨테이너 다음에 추가
+	container.parentElement.appendChild(pagination);
 }
 
 // 빠른 장바구니 추가
@@ -338,9 +421,10 @@ function quickAddToCart(productId) {
 }
 
 // 정렬 변경
-document.getElementById('productSort').addEventListener('change', (e) => {
+document.getElementById('productSort')?.addEventListener('change', (e) => {
 	currentSort = e.target.value;
-	renderAllProducts();
+	resetToFirstPage();
+	renderAllProducts(1);
 });
 
 // 뷰 토글
@@ -349,15 +433,61 @@ document.querySelectorAll('.view-btn').forEach(btn => {
 		document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
 		btn.classList.add('active');
 		currentView = btn.dataset.view;
-		renderAllProducts();
+		resetToFirstPage();
+		renderAllProducts(1);
 	});
+});
 });
 
 // 초기 렌더링 (상품 로드 완료 후)
 document.addEventListener('DOMContentLoaded', async () => {
-	// main.js의 loadProducts()가 완료될 때까지 기다림
-	await loadProducts();
-	renderAllProducts();
+	// 상품 개수 표시 먼저 업데이트 (placeholder 제거)
+	const countEl = document.getElementById('productCount');
+	if (countEl) countEl.textContent = '0';
+	
+	try {
+		// main.js의 loadProducts()가 완료될 때까지 기다림
+		await loadProducts();
+		
+		// 에러가 발생했는지 확인
+		if (window.productLoadError) {
+			const container = document.getElementById('allProductsGrid');
+			if (container) {
+				container.innerHTML = `
+					<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:400px;padding:4rem 2rem;">
+						<div style="text-align:center;max-width:500px;">
+							<p style="font-size:1.3rem;color:var(--rose);margin-bottom:.8rem;font-weight:500;font-family:'Cormorant Garamond',serif;">상품을 불러오는 중 오류가 발생했습니다</p>
+							<p style="font-size:.95rem;color:var(--light);line-height:1.6;margin-bottom:1rem;">${window.productLoadError}</p>
+							<p style="font-size:.85rem;color:var(--light);line-height:1.6;">페이지를 새로고침하거나 잠시 후 다시 시도해주세요.</p>
+						</div>
+					</div>
+				`;
+			}
+			console.error('[products.php] 상품 로드 에러:', window.productLoadError);
+		} else {
+			renderAllProducts(1);
+		}
+	} catch (e) {
+		console.error('[products.php] 렌더링 에러:', e);
+		const container = document.getElementById('allProductsGrid');
+		const countEl = document.getElementById('productCount');
+		if (container) {
+			container.innerHTML = `
+				<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:400px;padding:4rem 2rem;">
+					<div style="text-align:center;max-width:500px;">
+						<p style="font-size:1.3rem;color:var(--rose);margin-bottom:.8rem;font-weight:500;font-family:'Cormorant Garamond',serif;">오류가 발생했습니다</p>
+						<p style="font-size:.95rem;color:var(--light);line-height:1.6;">${e.message || '알 수 없는 오류가 발생했습니다.'}</p>
+					</div>
+				</div>
+			`;
+		}
+		if (countEl) countEl.textContent = '0';
+	}
+	
+	// Lazy loading 초기화
+	if (typeof initLazyLoading === 'function') {
+		initLazyLoading();
+	}
 });
 </script>
 </body>

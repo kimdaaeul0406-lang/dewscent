@@ -130,7 +130,10 @@ function ensure_tables_exist() {
                 fragrance_type VARCHAR(50) DEFAULT NULL COMMENT '향기 타입 (시트러스, 플로럴, 우디 등)',
                 emotion_keys TEXT DEFAULT NULL COMMENT '감정 키들 (JSON 배열 형식)',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_status (status),
+                INDEX idx_type (type),
+                INDEX idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
         
@@ -162,6 +165,34 @@ function ensure_tables_exist() {
             } catch (PDOException $e) {
                 // 컬럼이 이미 존재하거나 다른 오류 (무시)
             }
+        }
+        
+        // 인덱스 추가 (쿼리 최적화 - 기존 테이블에 없으면 추가)
+        try {
+            $indexes = db()->fetchAll("SHOW INDEXES FROM products WHERE Key_name = 'idx_status'");
+            if (empty($indexes)) {
+                $conn->exec("CREATE INDEX idx_status ON products(status)");
+            }
+        } catch (PDOException $e) {
+            // 인덱스가 이미 존재하거나 다른 오류 (무시)
+        }
+        
+        try {
+            $indexes = db()->fetchAll("SHOW INDEXES FROM products WHERE Key_name = 'idx_type'");
+            if (empty($indexes)) {
+                $conn->exec("CREATE INDEX idx_type ON products(type)");
+            }
+        } catch (PDOException $e) {
+            // 인덱스가 이미 존재하거나 다른 오류 (무시)
+        }
+        
+        try {
+            $indexes = db()->fetchAll("SHOW INDEXES FROM products WHERE Key_name = 'idx_created_at'");
+            if (empty($indexes)) {
+                $conn->exec("CREATE INDEX idx_created_at ON products(created_at)");
+            }
+        } catch (PDOException $e) {
+            // 인덱스가 이미 존재하거나 다른 오류 (무시)
         }
         
         // image와 detail_image 컬럼이 VARCHAR(255)이면 TEXT로 변경 (Base64 이미지 지원 - 필수!)
@@ -478,6 +509,191 @@ function ensure_tables_exist() {
                 INSERT INTO coupons (code, name, type, value, min_amount, max_discount, active, created_at)
                 VALUES ('WELCOME10', '신규 회원 10% 할인', 'percent', 10, 0, 10000, 1, NOW())
             ");
+        }
+        
+        // banners 테이블 생성
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS banners (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                subtitle VARCHAR(500) DEFAULT NULL,
+                link VARCHAR(500) DEFAULT NULL,
+                image_url TEXT DEFAULT NULL,
+                `order` INT DEFAULT 0 COMMENT '정렬 순서',
+                active TINYINT(1) DEFAULT 1 COMMENT '활성화 여부',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_order (`order`),
+                INDEX idx_active (active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // popups 테이블 생성
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS popups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT DEFAULT NULL,
+                link VARCHAR(500) DEFAULT NULL,
+                image_url TEXT DEFAULT NULL,
+                `order` INT DEFAULT 0 COMMENT '정렬 순서',
+                active TINYINT(1) DEFAULT 1 COMMENT '활성화 여부',
+                start_date DATE DEFAULT NULL COMMENT '시작일',
+                end_date DATE DEFAULT NULL COMMENT '종료일',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_order (`order`),
+                INDEX idx_active (active),
+                INDEX idx_dates (start_date, end_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // main_products 테이블 생성 (메인 상품 배치)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS main_products (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL COMMENT '상품 ID',
+                `order` INT DEFAULT 0 COMMENT '정렬 순서',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_product (product_id),
+                INDEX idx_order (`order`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // notices 테이블 생성 (공지사항/이벤트)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS notices (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                type VARCHAR(20) NOT NULL COMMENT 'notice 또는 event',
+                title VARCHAR(255) NOT NULL,
+                content TEXT DEFAULT NULL,
+                image_url TEXT DEFAULT NULL,
+                link VARCHAR(500) DEFAULT NULL,
+                start_date DATE DEFAULT NULL COMMENT '시작일',
+                end_date DATE DEFAULT NULL COMMENT '종료일',
+                active TINYINT(1) DEFAULT 1 COMMENT '활성화 여부',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_type (type),
+                INDEX idx_active (active),
+                INDEX idx_dates (start_date, end_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // site_settings 테이블 생성 (사이트 설정 - 단일 행)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS site_settings (
+                id INT PRIMARY KEY DEFAULT 1,
+                site_name VARCHAR(100) DEFAULT 'DewScent',
+                site_slogan VARCHAR(255) DEFAULT '당신의 향기를 찾아서',
+                contact_email VARCHAR(255) DEFAULT NULL,
+                contact_phone VARCHAR(50) DEFAULT NULL,
+                address TEXT DEFAULT NULL,
+                business_hours VARCHAR(255) DEFAULT NULL,
+                kakao_channel VARCHAR(255) DEFAULT NULL,
+                instagram_url VARCHAR(500) DEFAULT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CHECK (id = 1)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // emotions 테이블 생성 (감정 섹션)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS emotions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                `key` VARCHAR(50) NOT NULL UNIQUE COMMENT '감정 키 (calm, warm, fresh 등)',
+                title VARCHAR(255) NOT NULL,
+                `desc` TEXT DEFAULT NULL,
+                `order` INT DEFAULT 0 COMMENT '정렬 순서',
+                active TINYINT(1) DEFAULT 1 COMMENT '활성화 여부',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_order (`order`),
+                INDEX idx_active (active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // sections 테이블 생성 (섹션 타이틀 - 단일 행)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS sections (
+                id INT PRIMARY KEY DEFAULT 1,
+                emotion_label VARCHAR(100) DEFAULT 'FIND YOUR SCENT',
+                emotion_title VARCHAR(255) DEFAULT '오늘, 어떤 기분인가요?',
+                emotion_subtitle VARCHAR(500) DEFAULT '감정에 맞는 향기를 추천해드릴게요',
+                best_label VARCHAR(100) DEFAULT 'BEST SELLERS',
+                best_title VARCHAR(255) DEFAULT '가장 사랑받는 향기',
+                best_subtitle VARCHAR(500) DEFAULT '많은 분들이 선택한 듀센트의 베스트셀러',
+                best_quote VARCHAR(255) DEFAULT '— 향기는 기억을 여는 열쇠 —',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CHECK (id = 1)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // emotion_recommendations 테이블 생성 (감정별 추천 상품)
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS emotion_recommendations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                emotion_key VARCHAR(50) NOT NULL COMMENT '감정 키',
+                product_id INT NOT NULL COMMENT '상품 ID',
+                `order` INT DEFAULT 0 COMMENT '정렬 순서',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_emotion_product (emotion_key, product_id),
+                INDEX idx_emotion_key (emotion_key),
+                INDEX idx_order (`order`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        // 기본 배너 데이터 삽입 (없는 경우만)
+        $bannerCount = db()->fetchOne("SELECT COUNT(*) as count FROM banners");
+        if ($bannerCount && $bannerCount['count'] == 0) {
+            $defaultBanners = [
+                ['나에게 맞는 향기 찾기', '3분 향기 테스트로 나만의 향을 발견하세요', '#fragrance-test', '', 1],
+                ['새로운 향기의 시작', 'DewScent 2025 컬렉션', 'pages/products.php', '', 2],
+                ['봄의 향기를 담다', '벚꽃 에디션 출시', 'pages/products.php', '', 3],
+                ['특별한 선물', '기프트 세트 20% 할인', 'pages/products.php', '', 4],
+                ['시그니처 향기', '베스트셀러 모음', 'pages/products.php', '', 5]
+            ];
+            foreach ($defaultBanners as $banner) {
+                db()->insert(
+                    "INSERT INTO banners (title, subtitle, link, image_url, `order`, active) VALUES (?, ?, ?, ?, ?, 1)",
+                    $banner
+                );
+            }
+        }
+        
+        // 기본 감정 데이터 삽입 (없는 경우만)
+        $emotionCount = db()->fetchOne("SELECT COUNT(*) as count FROM emotions");
+        if ($emotionCount && $emotionCount['count'] == 0) {
+            $defaultEmotions = [
+                ['calm', '차분해지고 싶은 날', '마음이 고요해지는 향', 1],
+                ['warm', '따뜻함이 필요한 순간', '포근한 온기를 담은 향', 2],
+                ['fresh', '상쾌하게 시작하고 싶을 때', '기분 좋은 청량감', 3],
+                ['romantic', '설레는 마음을 담아', '로맨틱한 플로럴 노트', 4]
+            ];
+            foreach ($defaultEmotions as $emotion) {
+                db()->insert(
+                    "INSERT INTO emotions (`key`, title, `desc`, `order`, active) VALUES (?, ?, ?, ?, 1)",
+                    $emotion
+                );
+            }
+        }
+        
+        // 기본 섹션 설정 삽입 (없는 경우만)
+        $sectionExists = db()->fetchOne("SELECT id FROM sections WHERE id = 1");
+        if (!$sectionExists) {
+            db()->insert(
+                "INSERT INTO sections (id) VALUES (1)"
+            );
+        }
+        
+        // 기본 사이트 설정 삽입 (없는 경우만)
+        $settingsExists = db()->fetchOne("SELECT id FROM site_settings WHERE id = 1");
+        if (!$settingsExists) {
+            db()->insert(
+                "INSERT INTO site_settings (id, site_name, site_slogan) VALUES (1, 'DewScent', '당신의 향기를 찾아서')"
+            );
         }
         
         // 기본 관리자 계정 생성 (없는 경우만)

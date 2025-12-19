@@ -1,5 +1,16 @@
 <?php
+// 에러 리포팅 (배포 서버 디버깅용)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
+error_log('[Orders API] ========== 요청 시작 ==========');
+error_log('[Orders API] Request URI: ' . $_SERVER['REQUEST_URI']);
+error_log('[Orders API] Request Method: ' . $_SERVER['REQUEST_METHOD']);
+
 session_start();
+error_log('[Orders API] Session ID: ' . session_id());
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/db_setup.php';
@@ -7,7 +18,12 @@ require_once __DIR__ . '/../includes/db_setup.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // 테이블 자동 생성
-ensure_tables_exist();
+try {
+    ensure_tables_exist();
+    error_log('[Orders API] Tables ensured');
+} catch (Exception $e) {
+    error_log('[Orders API] Table creation error: ' . $e->getMessage());
+}
 
 // 공통 함수: 관리자 여부 확인
 function is_admin_user() {
@@ -335,13 +351,19 @@ switch ($method) {
         $guestPhone = trim($_GET['guestPhone'] ?? '');
 
         // 관리자는 모든 주문, 일반 사용자는 자신의 주문만, 비회원은 이메일/전화번호로 조회 (주문번호는 선택사항)
+        error_log('[Orders API] isAdmin: ' . ($isAdmin ? 'true' : 'false'));
+        error_log('[Orders API] role: ' . ($_SESSION['role'] ?? 'not set'));
+        error_log('[Orders API] admin_logged_in: ' . (isset($_SESSION['admin_logged_in']) ? ($_SESSION['admin_logged_in'] ? 'true' : 'false') : 'not set'));
+        error_log('[Orders API] user_id: ' . ($_SESSION['user_id'] ?? 'not set'));
+        
         $where = [];
         $params = [];
         $currentUserId = $_SESSION['user_id'] ?? null;
-        
+
         // 로그인한 사용자가 있으면 무조건 자신의 주문만 조회 (비회원 주문 제외)
         if ($isAdmin) {
             // 관리자는 모든 주문 조회
+            error_log('[Orders API] 관리자 모드 - 전체 주문 조회');
             // 관리자도 이메일/전화번호로 필터링 가능
             if ($guestEmail) {
                 $where[] = 'LOWER(TRIM(o.guest_email)) = LOWER(TRIM(?))';
@@ -420,16 +442,21 @@ switch ($method) {
         // 모든 상태의 주문 조회 (취소된 주문 포함)
         $sql .= ' ORDER BY o.created_at DESC, o.id DESC';
 
-        // 디버깅: 쿼리 로그 (디버그 모드에서만)
-        if (defined('APP_DEBUG') && APP_DEBUG) {
-            error_log("주문 조회 SQL: " . $sql);
-            error_log("주문 조회 파라미터: " . json_encode($params));
-        }
+        // 디버깅: 쿼리 로그
+        error_log('[Orders API] SQL: ' . $sql);
+        error_log('[Orders API] Parameters: ' . json_encode($params));
         
         try {
+            error_log('[Orders API] DB query 시작');
+            $startTime = microtime(true);
+            
             $rows = db()->fetchAll($sql, $params);
+            
+            $queryTime = microtime(true) - $startTime;
+            error_log('[Orders API] DB query 완료: ' . round($queryTime * 1000, 2) . 'ms, Orders count: ' . count($rows));
         } catch (Exception $e) {
-            error_log("주문 조회 SQL 실행 오류: " . $e->getMessage());
+            error_log('[Orders API] DB query error: ' . $e->getMessage());
+            error_log('[Orders API] Stack trace: ' . $e->getTraceAsString());
             http_response_code(500);
             echo json_encode(['ok' => false, 'message' => '주문 조회 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
             exit;
@@ -560,6 +587,7 @@ switch ($method) {
         });
         $orders = array_values($orders); // 인덱스 재정렬
 
+        error_log('[Orders API] 응답 전송: ' . count($orders) . '개 주문');
         echo json_encode($orders, JSON_UNESCAPED_UNICODE);
         break;
 

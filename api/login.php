@@ -44,12 +44,17 @@ if (!$verified) {
 }
 
 regenerate_session();
-$_SESSION['user_id'] = (int) $user['id'];
+
+// DB 값을 그대로 세션에 매핑 (필수)
+$_SESSION['user_id'] = (int) $user['id'];  // DB의 id
+$_SESSION['role'] = !empty($user['is_admin']) ? 'admin' : 'user';  // DB의 is_admin을 기반으로 role 설정
+$_SESSION['is_admin'] = !empty($user['is_admin']) ? 1 : 0;  // DB의 is_admin 값 그대로
+
+// 호환성을 위한 추가 세션키
 $_SESSION['username'] = $user['name'] ?? '';
 $_SESSION['email'] = $user['email'] ?? '';
-$_SESSION['role'] = !empty($user['is_admin']) ? 'admin' : 'user';
 
-// 관리자인 경우 admin_logged_in도 설정 (관리자 대시보드 호환성)
+// 관리자인 경우 추가 세션키 설정
 if (!empty($user['is_admin'])) {
     $_SESSION['admin_logged_in'] = true;
     $_SESSION['admin_email'] = $user['email'] ?? '';

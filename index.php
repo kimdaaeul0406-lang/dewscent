@@ -11,7 +11,12 @@ $pageTitle = "DewScent | 당신의 향기를 찾아서";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $pageTitle; ?></title>
 
-    <!-- 폰트 -->
+    <!-- DNS Prefetch & Preconnect (외부 리소스 로딩 최적화) -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="dns-prefetch" href="https://js.tosspayments.com">
+    
+    <!-- 폰트 (display=swap으로 폰트 로딩 최적화) -->
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 
     <!-- 메인 스타일 -->
@@ -33,13 +38,10 @@ $pageTitle = "DewScent | 당신의 향기를 찾아서";
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
     <?php include __DIR__ . '/includes/modals.php'; ?>
 
-    <!-- 토스페이먼츠 결제 스크립트 -->
-    <script src="https://js.tosspayments.com/v1/payment"></script>
-    <!-- 토스페이먼츠 결제위젯 v2 SDK -->
-    <script src="https://js.tosspayments.com/v2/standard"></script>
+    <!-- 토스페이먼츠 스크립트는 결제 페이지에서만 로드 (index.php에서는 제거) -->
     
-    <!-- API 클라이언트 + 메인 스크립트 (캐시 방지용 버전 파라미터) -->
-    <script src="public/js/api.js?v=4" onerror="console.error('api.js 로드 실패')"></script>
-    <script src="public/js/main.js?v=9" onerror="console.error('main.js 로드 실패')"></script>
+    <!-- API 클라이언트 + 메인 스크립트 (defer로 최적화) -->
+    <script src="public/js/api.js?v=5" defer onerror="console.error('api.js 로드 실패')"></script>
+    <script src="public/js/main.js?v=10" defer onerror="console.error('main.js 로드 실패')"></script>
 </body>
 </html>

@@ -7,17 +7,99 @@
 // 상품 데이터 - API에서 로드 (관리자가 등록한 상품)
 let products = [];
 
-// 상품 데이터 로드 함수
-async function loadProducts() {
+// 이미지 Lazy Loading (Intersection Observer)
+function initLazyLoading() {
+  if ('IntersectionObserver' in window) {
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target;
+          const bgUrl = img.getAttribute('data-bg');
+          if (bgUrl) {
+            const imageUrl = bgUrl.startsWith('data:') ? bgUrl : `'${bgUrl}'`;
+            img.style.backgroundImage = `url(${imageUrl})`;
+            img.classList.add('loaded');
+            observer.unobserve(img);
+          }
+        }
+      });
+    }, {
+      rootMargin: '50px' // 뷰포트 50px 전에 미리 로드
+    });
+
+    // 모든 lazy-image 요소 관찰
+    document.querySelectorAll('.lazy-image:not(.loaded)').forEach(img => {
+      imageObserver.observe(img);
+    });
+  } else {
+    // IntersectionObserver를 지원하지 않는 브라우저: 즉시 로드
+    document.querySelectorAll('.lazy-image').forEach(img => {
+      const bgUrl = img.getAttribute('data-bg');
+      if (bgUrl) {
+        const imageUrl = bgUrl.startsWith('data:') ? bgUrl : `'${bgUrl}'`;
+        img.style.backgroundImage = `url(${imageUrl})`;
+      }
+    });
+  }
+}
+
+// 상품 데이터 로드 함수 (타임아웃 8초, 페이징 지원)
+async function loadProducts(options = {}) {
   try {
     if (typeof API !== "undefined" && API.getPublicProducts) {
-      products = await API.getPublicProducts();
+      // 타임아웃 제어
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('상품 로드 시간 초과 (8초)')), 8000)
+      );
+      
+      // 초기 로드는 제한 없이 모든 상품 로드 (메인 페이지용)
+      // 상품 목록 페이지는 페이징 옵션 전달
+      const loadOptions = options.limit ? options : {}; // limit이 있으면 페이징, 없으면 전체
+      
+      const result = await Promise.race([
+        API.getPublicProducts(loadOptions),
+        timeoutPromise
+      ]);
+      
+      // API 응답이 에러인지 확인
+      if (result && typeof result === 'object' && result.ok === false) {
+        throw new Error(result.message || result.error || '상품 목록을 불러올 수 없습니다.');
+      }
+      
+      // 배열이 아닌 경우 에러 처리
+      if (!Array.isArray(result)) {
+        console.error('[loadProducts] API 응답이 배열이 아닙니다:', result);
+        throw new Error('상품 목록 형식이 올바르지 않습니다.');
+      }
+      
+      products = result;
+      
+      // 상품이 0개인 경우 로그 출력 (에러와 구분)
+      if (products.length === 0) {
+        console.warn('[loadProducts] 상품이 0개입니다. DB에 상품이 있는지 확인하세요.');
+      } else {
+        console.log(`[loadProducts] ${products.length}개 상품 로드 완료`);
+      }
     } else {
+      console.warn('[loadProducts] API가 정의되지 않았습니다. fallback 데이터 사용');
       // API가 없으면 fallback (하드코딩 데이터)
       products = getDefaultProducts();
     }
   } catch (e) {
-    console.error("상품 로드 실패:", e);
+    console.error("[loadProducts] 상품 로드 실패:", e);
+    // 에러 메시지를 화면에 표시할 수 있도록 전역 변수에 저장
+    window.productLoadError = e.message || '상품을 불러오는 중 오류가 발생했습니다.';
+    
+    // 에러를 error_log에도 출력 (서버에서 확인 가능하도록)
+    if (typeof fetch !== 'undefined') {
+      // 서버에 에러 로그 전송 시도 (선택적)
+      fetch('/api/log-error.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'loadProducts failed', message: e.message, stack: e.stack })
+      }).catch(() => {}); // 실패해도 무시
+    }
+    
     products = getDefaultProducts();
   }
 }
@@ -529,7 +611,7 @@ const positions = [
 let sliderInterval;
 
 // 관리자가 등록한 배너 로드
-function loadBannerSlider() {
+async function loadBannerSlider() {
   const track = document.getElementById("sliderTrack");
   const dotsContainer = document.getElementById("sliderDots");
   if (!track || !dotsContainer) return;
@@ -574,21 +656,26 @@ function loadBannerSlider() {
   ];
 
   // 관리자 배너가 있으면 사용
-  if (typeof API !== "undefined" && API.getActiveBanners) {
-    const adminBanners = API.getActiveBanners();
-    if (adminBanners.length > 0) {
-      // 관리자가 등록한 배너 사용 (최대 5개)
-      banners = adminBanners.slice(0, 5);
-      // 5개 미만이면 반복해서 채움
-      if (banners.length < 5) {
-        const originalBanners = [...banners];
-        while (banners.length < 5) {
-          originalBanners.forEach((b) => {
-            if (banners.length < 5) banners.push(b);
-          });
+  try {
+    if (typeof API !== "undefined" && API.getActiveBanners) {
+      const adminBanners = API.getActiveBanners();
+      if (adminBanners && adminBanners.length > 0) {
+        // 관리자가 등록한 배너 사용 (최대 5개)
+        banners = adminBanners.slice(0, 5);
+        // 5개 미만이면 반복해서 채움
+        if (banners.length < 5) {
+          const originalBanners = [...banners];
+          while (banners.length < 5) {
+            originalBanners.forEach((b) => {
+              if (banners.length < 5) banners.push(b);
+            });
+          }
         }
       }
     }
+  } catch (e) {
+    console.error("배너 로드 오류:", e);
+    // 오류 발생 시 기본 배너 사용
   }
 
   // 슬라이드 카드 생성
@@ -815,22 +902,12 @@ async function openEmotionRecommendation(emotionKey, emotionData) {
               productIndex >= 0
                 ? `openProductModal(${productIndex});closeEmotionRecommendation();`
                 : `window.location.href='pages/products.php';`;
+            const img = product.imageUrl || product.image || "";
+            const hasImage = img && img.trim() && img !== "null" && img !== "NULL" && img.length > 10;
+            
             return `
           <div class="product-card" style="cursor:pointer;" onclick="${onClickHandler}">
-            <div class="product-image" style="position:relative;${(() => {
-              const img = product.imageUrl || product.image || "";
-              if (
-                img &&
-                img.trim() &&
-                img !== "null" &&
-                img !== "NULL" &&
-                img.length > 10
-              ) {
-                const imageUrl = img.startsWith("data:") ? img : `'${img}'`;
-                return `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
-              }
-              return "";
-            })()}">
+            <div class="product-image lazy-image" ${hasImage ? `data-bg="${img.replace(/'/g, "&apos;")}"` : ''} style="position:relative;${hasImage ? `background-size:cover !important;background-position:center !important;background-color:var(--sage-lighter) !important;` : ''}">
               ${
                 product.badge
                   ? `<span class="product-badge">${product.badge}</span>`
@@ -1035,7 +1112,7 @@ loadSectionTitles();
 // ───────────────────────────
 // 4. 상품 그리드 렌더링
 // ───────────────────────────
-function renderProducts() {
+async function renderProducts() {
   const grid = document.getElementById("productsGrid");
   if (!grid) return;
 
@@ -1043,13 +1120,18 @@ function renderProducts() {
   let displayProducts = products.slice(0, 4);
 
   if (typeof API !== "undefined" && API.getMainProductIds) {
-    const selectedIds = API.getMainProductIds();
-    if (selectedIds && selectedIds.length > 0) {
+    try {
+      const selectedIds = await API.getMainProductIds();
+      if (selectedIds && selectedIds.length > 0) {
       // 선택된 ID에 해당하는 상품 찾기
       const filtered = products.filter((p) => selectedIds.includes(p.id));
-      if (filtered.length > 0) {
-        displayProducts = filtered;
+        if (filtered.length > 0) {
+          displayProducts = filtered;
+        }
       }
+    } catch (err) {
+      console.error('메인 상품 조회 오류:', err);
+      // 오류 시 기본 상품 사용
     }
   }
 
@@ -1063,23 +1145,13 @@ function renderProducts() {
       // products 배열에서 실제 인덱스 찾기 (메인상품 설정 시 올바른 상품 열기)
       const actualIndex = products.findIndex((p) => p.id === product.id);
       const productIndex = actualIndex >= 0 ? actualIndex : index;
+      const img = product.imageUrl || product.image || "";
+      const hasImage = img && img.trim() && img !== "null" && img !== "NULL" && img.length > 10;
+      const imageUrl = hasImage && img.startsWith("data:") ? img : (hasImage ? `'${img}'` : '');
+      
       return `
         <div class="product-card" onclick="openProductModal(${productIndex})">
-          <div class="product-image" style="position:relative;${(() => {
-            const img = product.imageUrl || product.image || "";
-            if (
-              img &&
-              img.trim() &&
-              img !== "null" &&
-              img !== "NULL" &&
-              img.length > 10
-            ) {
-              // Base64 이미지인 경우 따옴표 없이, 일반 URL은 따옴표로
-              const imageUrl = img.startsWith("data:") ? img : `'${img}'`;
-              return `background-image:url(${imageUrl}) !important;background-size:cover !important;background-position:center !important;background-color:transparent !important;`;
-            }
-            return "";
-          })()}">
+          <div class="product-image lazy-image" ${hasImage ? `data-bg="${img.replace(/'/g, "&apos;")}"` : ''} style="position:relative;${hasImage ? `background-size:cover !important;background-position:center !important;background-color:var(--sage-lighter) !important;` : ''}">
             ${
               product.badge
                 ? `<span class="product-badge">${product.badge}</span>`
@@ -1410,7 +1482,9 @@ function loadSidebarMenu() {
 // 처음 로드 시 상품 렌더링 (API에서 상품 로드 후)
 (async function initProducts() {
   await loadProducts();
-  renderProducts();
+  await renderProducts();
+  // Lazy loading 초기화 (상품 이미지 최적화)
+  initLazyLoading();
   loadSidebarMenu(); // 햄버거 메뉴 동적 로드
   initSearch();
   loadNotices();
@@ -1421,7 +1495,7 @@ function loadSidebarMenu() {
 
 // DOM 로드 완료 후에도 햄버거 메뉴 로드 (안전장치)
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", async function () {
     setTimeout(() => {
       loadSidebarMenu();
     }, 100);
@@ -1769,8 +1843,8 @@ function renderTestStep() {
       }
 
       // 테스트 답변을 기반으로 시드 생성 (같은 답변 = 같은 결과)
-      const answerSeed = testAnswers.join('-');
-      const seedHash = answerSeed.split('').reduce((acc, char, idx) => {
+      const answerSeed = testAnswers.join("-");
+      const seedHash = answerSeed.split("").reduce((acc, char, idx) => {
         return acc + char.charCodeAt(0) * (idx + 1);
       }, 0);
 
@@ -1792,8 +1866,8 @@ function renderTestStep() {
           const items = byCategory[cat];
           // 시드 기반 정렬 (같은 답변이면 같은 순서)
           const sorted = [...items].sort((a, b) => {
-            const hashA = ((a.id * seedHash) + catIdx) % 1000;
-            const hashB = ((b.id * seedHash) + catIdx) % 1000;
+            const hashA = (a.id * seedHash + catIdx) % 1000;
+            const hashB = (b.id * seedHash + catIdx) % 1000;
             return hashA - hashB;
           });
           diverseProducts.push(...sorted.slice(0, 2));
@@ -1833,16 +1907,13 @@ function renderTestStep() {
                       );
                       const idx = productIndex >= 0 ? productIndex : 0;
 
-                      // 이미지 URL 처리
+                      // 이미지 URL 처리 (lazy loading)
                       const img = product.imageUrl || product.image || "";
+                      const hasImage = img && img.trim() && img !== "null" && img !== "NULL" && img.length > 10;
+                      let imageClass = hasImage ? 'lazy-image' : '';
+                      let imageAttr = hasImage ? `data-bg="${img.replace(/'/g, "&apos;")}"` : '';
                       let imageStyle = "";
-                      if (
-                        img &&
-                        img.trim() &&
-                        img !== "null" &&
-                        img !== "NULL" &&
-                        img.length > 10
-                      ) {
+                      if (hasImage) {
                         // Base64 이미지인 경우 따옴표 없이, 일반 URL은 따옴표로
                         const imageUrl = img.startsWith("data:")
                           ? img
@@ -4646,7 +4717,9 @@ function submitReview() {
 const USER_KEY = "ds_current_user";
 
 function apiUrl(path) {
-  const base = (window.DS_BASE_URL || "").replace(/\/$/, "");
+  let base = (window.DS_BASE_URL || "").replace(/\/$/, "");
+  // HTTPS 강제 (Mixed Content 방지)
+  base = base.replace(/^http:\/\//, 'https://');
   return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
 }
 

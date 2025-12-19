@@ -223,27 +223,59 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    console.log("[API] Request:", finalUrl, opts); // 디버깅용
-    const res = await fetch(finalUrl, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      ...opts,
-    });
-    if (!res.ok) {
-      let errorMessage = `API Error: ${res.status}`;
-      try {
-        const errorData = await res.json();
-        if (errorData.message) {
-          errorMessage = errorData.message;
+
+    // HTTPS 강제 (Mixed Content 방지)
+    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
+
+    // 타임아웃 설정 (10초)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const res = await fetch(secureUrl, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        ...opts,
+      });
+      clearTimeout(timeoutId);
+      
+      // HTTP 에러 상태 코드 처리
+      if (!res.ok) {
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch (e) {
+          errorData = { error: `HTTP ${res.status}: ${res.statusText}`, message: res.statusText };
         }
-      } catch (e) {
-        // JSON 파싱 실패 시 기본 메시지 사용
+        const error = new Error(errorData.message || errorData.error || `HTTP ${res.status}`);
+        error.status = res.status;
+        error.data = errorData;
+        throw error;
       }
-      const error = new Error(errorMessage);
-      error.status = res.status;
-      throw error;
+      
+      if (!res.ok) {
+        let errorMessage = `API Error: ${res.status}`;
+        try {
+          const errorData = await res.json();
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 기본 메시지 사용
+        }
+        const error = new Error(errorMessage);
+        error.status = res.status;
+        throw error;
+      }
+      return await res.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('요청 시간 초과 (10초)');
+      }
+      throw err;
     }
-    return await res.json();
   }
 
   async function postJSON(path, data, opts = {}) {
@@ -259,29 +291,47 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    console.log("[API] POST Request:", finalUrl, data); // 디버깅용
-    const res = await fetch(finalUrl, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      ...opts,
-    });
-    if (!res.ok) {
-      let errorMessage = `API Error: ${res.status}`;
-      try {
-        const errorData = await res.json();
-        if (errorData.message) {
-          errorMessage = errorData.message;
+    
+    // HTTPS 강제 (Mixed Content 방지)
+    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
+    
+    // 타임아웃 설정 (10초)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    try {
+      const res = await fetch(secureUrl, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+        ...opts,
+      });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) {
+        let errorMessage = `API Error: ${res.status}`;
+        try {
+          const errorData = await res.json();
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 기본 메시지 사용
         }
-      } catch (e) {
-        // JSON 파싱 실패 시 기본 메시지 사용
+        const error = new Error(errorMessage);
+        error.status = res.status;
+        throw error;
       }
-      const error = new Error(errorMessage);
-      error.status = res.status;
-      throw error;
+      return await res.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('요청 시간 초과 (10초)');
+      }
+      throw err;
     }
-    return await res.json();
   }
 
   async function putJSON(path, data, opts = {}) {
@@ -297,29 +347,46 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    console.log("[API] PUT Request:", finalUrl, data); // 디버깅용
-    const res = await fetch(finalUrl, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      ...opts,
-    });
-    if (!res.ok) {
-      let errorMessage = `API Error: ${res.status}`;
-      try {
-        const errorData = await res.json();
-        if (errorData.message) {
-          errorMessage = errorData.message;
+    
+    // HTTPS 강제
+    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
+    
+    // 타임아웃 설정
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    try {
+      const res = await fetch(secureUrl, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+        ...opts,
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        let errorMessage = `API Error: ${res.status}`;
+        try {
+          const errorData = await res.json();
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 기본 메시지 사용
         }
-      } catch (e) {
-        // JSON 파싱 실패 시 기본 메시지 사용
+        const error = new Error(errorMessage);
+        error.status = res.status;
+        throw error;
       }
-      const error = new Error(errorMessage);
-      error.status = res.status;
-      throw error;
+      return await res.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('요청 시간 초과 (10초)');
+      }
+      throw err;
     }
-    return await res.json();
   }
 
   async function patchJSON(path, data, opts = {}) {
@@ -335,38 +402,62 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    console.log("[API] PATCH Request:", finalUrl, data); // 디버깅용
-    const res = await fetch(finalUrl, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      ...opts,
-    });
-
-    // 응답 본문 확인
-    const text = await res.text();
-    let jsonData;
-
+    
+    // HTTPS 강제
+    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
+    
+    // 타임아웃 설정
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     try {
-      jsonData = text ? JSON.parse(text) : {};
-    } catch (e) {
-      console.error("[API] JSON 파싱 실패:", text, e);
-      const error = new Error(
-        "서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-      );
-      error.status = res.status;
-      throw error;
-    }
+      const res = await fetch(secureUrl, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+        ...opts,
+      });
+      clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      let errorMessage = jsonData.message || `API Error: ${res.status}`;
-      const error = new Error(errorMessage);
-      error.status = res.status;
-      throw error;
-    }
+      // 응답 본문 확인
+      const text = await res.text();
+      let jsonData;
 
-    return jsonData;
+      try {
+        jsonData = text ? JSON.parse(text) : {};
+      } catch (e) {
+        console.error("[API] JSON 파싱 실패:", text, e);
+        const error = new Error(
+          "서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        );
+        error.status = res.status;
+        throw error;
+      }
+
+      if (!res.ok) {
+        let errorMessage = jsonData.message || `API Error: ${res.status}`;
+        const error = new Error(errorMessage);
+        error.status = res.status;
+        throw error;
+      }
+
+      return jsonData;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('요청 시간 초과 (10초)');
+      }
+      throw err;
+    }
+  } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('요청 시간 초과 (10초)');
+      }
+      throw err;
+    }
   }
 
   // 공개 API (목업/실API 스위치)
@@ -647,18 +738,31 @@
     });
   }
 
-  // 프론트엔드용 상품 목록 (판매중인 것만)
-  async function getPublicProducts() {
+  // 프론트엔드용 상품 목록 (판매중인 것만, 페이징 지원)
+  async function getPublicProducts(options = {}) {
     if (USE_MOCK_API) {
       await delay(50);
-      const products = getStoredProducts();
-      return products.filter((p) => p.status === "판매중");
+      const products = getStoredProducts().filter((p) => p.status === "판매중");
+      // 페이징 적용
+      if (options.limit) {
+        const offset = options.offset || 0;
+        return products.slice(offset, offset + options.limit);
+      }
+      return products;
     }
-    return await getJSON("/products.php");
+    // 페이징 파라미터 추가
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit);
+    if (options.offset) params.append('offset', options.offset);
+    const queryString = params.toString();
+    return await getJSON(`/products.php${queryString ? '?' + queryString : ''}`);
   }
 
   // ========== 배너/캐러셀 관리 ==========
-  const BANNERS_KEY = "dewscent_banners";
+  let bannersCache = null;
+  let bannersCacheTime = 0;
+  const BANNERS_CACHE_DURATION = 60000; // 1분 캐시
+  
   const defaultBanners = [
     {
       id: 1,
@@ -707,79 +811,142 @@
     },
   ];
 
-  function getBanners() {
+  async function getBanners() {
     try {
-      const stored = localStorage.getItem(BANNERS_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(BANNERS_KEY, JSON.stringify(defaultBanners));
-      return defaultBanners;
-    } catch {
-      return defaultBanners;
-    }
-  }
-  function setBanners(banners) {
-    localStorage.setItem(BANNERS_KEY, JSON.stringify(banners));
-  }
-  function getActiveBanners() {
-    return getBanners()
-      .filter((b) => b.active)
-      .sort((a, b) => a.order - b.order);
-  }
-
-  // ========== 팝업 관리 ==========
-  const POPUPS_KEY = "dewscent_popups";
-  const defaultPopups = [
-    {
-      id: 1,
-      title: "신규 회원 10% 할인",
-      content: "첫 구매 시 10% 할인 쿠폰을 드려요!",
-      link: "",
-      imageUrl: "",
-      order: 1,
-      active: true,
-      startDate: "",
-      endDate: "",
-    },
-  ];
-
-  function getPopups() {
-    try {
-      const stored = localStorage.getItem(POPUPS_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(POPUPS_KEY, JSON.stringify(defaultPopups));
-      return defaultPopups;
-    } catch {
-      return defaultPopups;
-    }
-  }
-  function setPopups(popups) {
-    localStorage.setItem(POPUPS_KEY, JSON.stringify(popups));
-  }
-  function getActivePopups() {
-    const now = new Date().toISOString().split("T")[0];
-    return getPopups()
-      .filter((p) => {
-        if (!p.active) return false;
-        if (p.startDate && p.startDate > now) return false;
-        if (p.endDate && p.endDate < now) return false;
-        return true;
-      })
-      .sort((a, b) => a.order - b.order);
-  }
-
-  // ========== 메인 상품 배치 관리 ==========
-  const MAIN_PRODUCTS_KEY = "dewscent_main_products";
-  function getMainProductIds() {
-    try {
-      const stored = localStorage.getItem(MAIN_PRODUCTS_KEY);
-      if (stored) return JSON.parse(stored);
-      return []; // 비어있으면 전체 상품 중 상위 4개 표시
-    } catch {
+      const now = Date.now();
+      if (bannersCache && now - bannersCacheTime < BANNERS_CACHE_DURATION) {
+        return bannersCache;
+      }
+      
+      const banners = await getJSON("/banners.php");
+      bannersCache = banners || [];
+      bannersCacheTime = now;
+      return bannersCache;
+    } catch (e) {
+      console.error("배너 조회 오류:", e);
       return [];
     }
   }
-  function setMainProductIds(ids) {
-    localStorage.setItem(MAIN_PRODUCTS_KEY, JSON.stringify(ids));
+  
+  async function setBanners(banners) {
+    try {
+      // 개별 배너를 POST/PUT으로 저장
+      for (const banner of banners) {
+        if (banner.id) {
+          await putJSON("/banners.php", banner);
+        } else {
+          await postJSON("/banners.php", banner);
+        }
+      }
+      bannersCache = banners;
+      bannersCacheTime = Date.now();
+    } catch (e) {
+      console.error("배너 저장 오류:", e);
+      throw e;
+    }
+  }
+  
+  async function getActiveBanners() {
+    try {
+      const banners = await getBanners();
+      if (!banners || !Array.isArray(banners)) {
+        return [];
+      }
+      const activeBanners = banners.filter((b) => b.active !== false && b.active !== 0);
+      return activeBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+    } catch (e) {
+      console.error("활성 배너 조회 오류:", e);
+      return [];
+    }
+  }
+  
+  function clearBannersCache() {
+    bannersCache = null;
+    bannersCacheTime = 0;
+  }
+
+  // ========== 팝업 관리 ==========
+  let popupsCache = null;
+  let popupsCacheTime = 0;
+  const POPUPS_CACHE_DURATION = 60000; // 1분 캐시
+
+  async function getPopups() {
+    try {
+      const now = Date.now();
+      if (popupsCache && now - popupsCacheTime < POPUPS_CACHE_DURATION) {
+        return popupsCache;
+      }
+      
+      const popups = await getJSON("/popups.php");
+      popupsCache = popups || [];
+      popupsCacheTime = now;
+      return popupsCache;
+    } catch (e) {
+      console.error("팝업 조회 오류:", e);
+      return [];
+    }
+  }
+  
+  async function setPopups(popups) {
+    try {
+      await postJSON("/popups.php", popups);
+      popupsCache = popups;
+      popupsCacheTime = Date.now();
+    } catch (e) {
+      console.error("팝업 저장 오류:", e);
+      throw e;
+    }
+  }
+  
+  async function getActivePopups() {
+    try {
+      const popups = await getPopups();
+      const now = new Date().toISOString().split("T")[0];
+      return popups
+        .filter((p) => {
+          if (!p.active && p.active !== 0) return false;
+          if (p.startDate && p.startDate > now) return false;
+          if (p.endDate && p.endDate < now) return false;
+          return true;
+        })
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+    } catch (e) {
+      console.error("활성 팝업 조회 오류:", e);
+      return [];
+    }
+  }
+
+  // ========== 메인 상품 배치 관리 ==========
+  let mainProductsCache = null;
+  let mainProductsCacheTime = 0;
+  const MAIN_PRODUCTS_CACHE_DURATION = 60000; // 1분 캐시
+
+  async function getMainProductIds() {
+    try {
+      const now = Date.now();
+      if (mainProductsCache && now - mainProductsCacheTime < MAIN_PRODUCTS_CACHE_DURATION) {
+        return mainProductsCache;
+      }
+      
+      const ids = await getJSON("/main-products.php");
+      mainProductsCache = ids || [];
+      mainProductsCacheTime = now;
+      return mainProductsCache;
+    } catch (e) {
+      console.error("메인 상품 조회 오류:", e);
+      return [];
+    }
+  }
+  
+  async function setMainProductIds(ids) {
+    try {
+      await putJSON("/main-products.php", { productIds: ids });
+      mainProductsCache = ids;
+      mainProductsCacheTime = Date.now();
+    } catch (e) {
+      console.error("메인 상품 저장 오류:", e);
+      throw e;
+    }
   }
 
   // ========== 쿠폰 관리 ==========
@@ -905,156 +1072,169 @@
   }
 
   // ========== 공지사항/이벤트 관리 ==========
-  const NOTICES_KEY = "dewscent_notices";
-  const defaultNotices = [
-    {
-      id: 1,
-      type: "notice", // notice 또는 event
-      title: "신규 회원 10% 할인 이벤트",
-      content: "첫 구매 시 10% 할인 쿠폰을 드려요!",
-      imageUrl: "",
-      link: "",
-      startDate: "",
-      endDate: "",
-      active: true,
-      createdAt: new Date().toISOString().split("T")[0],
-    },
-  ];
+  let noticesCache = null;
+  let noticesCacheTime = 0;
+  const NOTICES_CACHE_DURATION = 60000; // 1분 캐시
 
-  function getNotices() {
+  async function getNotices() {
     try {
-      const stored = localStorage.getItem(NOTICES_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(NOTICES_KEY, JSON.stringify(defaultNotices));
-      return defaultNotices;
-    } catch {
-      return defaultNotices;
+      const now = Date.now();
+      if (noticesCache && now - noticesCacheTime < NOTICES_CACHE_DURATION) {
+        return noticesCache;
+      }
+      
+      const notices = await getJSON("/notices.php");
+      noticesCache = notices || [];
+      noticesCacheTime = now;
+      return noticesCache;
+    } catch (e) {
+      console.error("공지사항 조회 오류:", e);
+      return [];
     }
   }
-  function setNotices(notices) {
-    localStorage.setItem(NOTICES_KEY, JSON.stringify(notices));
+  
+  async function setNotices(notices) {
+    try {
+      await postJSON("/notices.php", notices);
+      noticesCache = notices;
+      noticesCacheTime = Date.now();
+    } catch (e) {
+      console.error("공지사항 저장 오류:", e);
+      throw e;
+    }
   }
-  function getActiveNotices() {
-    const now = new Date().toISOString().split("T")[0];
-    return getNotices()
-      .filter((n) => {
-        if (!n.active) return false;
-        if (n.startDate && n.startDate > now) return false;
-        if (n.endDate && n.endDate < now) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        // 이벤트가 공지사항보다 먼저, 그 다음 날짜순
-        if (a.type !== b.type) return a.type === "event" ? -1 : 1;
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      });
+  
+  async function getActiveNotices() {
+    try {
+      const notices = await getNotices();
+      const now = new Date().toISOString().split("T")[0];
+      return notices
+        .filter((n) => {
+          if (!n.active && n.active !== 0) return false;
+          if (n.startDate && n.startDate > now) return false;
+          if (n.endDate && n.endDate < now) return false;
+          return true;
+        })
+        .sort((a, b) => {
+          // 이벤트가 공지사항보다 먼저, 그 다음 날짜순
+          if (a.type !== b.type) return a.type === "event" ? -1 : 1;
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+    } catch (e) {
+      console.error("활성 공지사항 조회 오류:", e);
+      return [];
+    }
   }
 
   // ========== 사이트 설정 ==========
-  const SITE_SETTINGS_KEY = "dewscent_site_settings";
-  const defaultSiteSettings = {
-    siteName: "DewScent",
-    siteSlogan: "당신의 향기를 찾아서",
-    contactEmail: "hello@dewscent.kr",
-    contactPhone: "02-1234-5678",
-    address: "서울시 강남구 테헤란로 123",
-    businessHours: "평일 10:00 ~ 17:00",
-    kakaoChannel: "듀센트 고객센터",
-    instagramUrl: "https://instagram.com",
-  };
+  let siteSettingsCache = null;
+  let siteSettingsCacheTime = 0;
+  const SITE_SETTINGS_CACHE_DURATION = 300000; // 5분 캐시
 
-  function getSiteSettings() {
+  async function getSiteSettings() {
     try {
-      const stored = localStorage.getItem(SITE_SETTINGS_KEY);
-      if (stored) return { ...defaultSiteSettings, ...JSON.parse(stored) };
-      return defaultSiteSettings;
-    } catch {
-      return defaultSiteSettings;
+      const now = Date.now();
+      if (siteSettingsCache && now - siteSettingsCacheTime < SITE_SETTINGS_CACHE_DURATION) {
+        return siteSettingsCache;
+      }
+      
+      const settings = await getJSON("/settings.php");
+      siteSettingsCache = settings || {};
+      siteSettingsCacheTime = now;
+      return siteSettingsCache;
+    } catch (e) {
+      console.error("사이트 설정 조회 오류:", e);
+      return {};
     }
   }
-  function setSiteSettings(settings) {
-    localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(settings));
+  
+  async function setSiteSettings(settings) {
+    try {
+      await putJSON("/settings.php", settings);
+      siteSettingsCache = settings;
+      siteSettingsCacheTime = Date.now();
+    } catch (e) {
+      console.error("사이트 설정 저장 오류:", e);
+      throw e;
+    }
   }
 
   // ========== 감정 섹션 관리 ==========
-  const EMOTIONS_KEY = "dewscent_emotions";
-  const defaultEmotions = [
-    {
-      id: 1,
-      key: "calm",
-      title: "차분해지고 싶은 날",
-      desc: "마음이 고요해지는 향",
-      order: 1,
-      active: true,
-    },
-    {
-      id: 2,
-      key: "warm",
-      title: "따뜻함이 필요한 순간",
-      desc: "포근한 온기를 담은 향",
-      order: 2,
-      active: true,
-    },
-    {
-      id: 3,
-      key: "fresh",
-      title: "상쾌하게 시작하고 싶을 때",
-      desc: "기분 좋은 청량감",
-      order: 3,
-      active: true,
-    },
-    {
-      id: 4,
-      key: "romantic",
-      title: "설레는 마음을 담아",
-      desc: "로맨틱한 플로럴 노트",
-      order: 4,
-      active: true,
-    },
-  ];
+  let emotionsCache = null;
+  let emotionsCacheTime = 0;
+  const EMOTIONS_CACHE_DURATION = 60000; // 1분 캐시
 
-  function getEmotions() {
+  async function getEmotions() {
     try {
-      const stored = localStorage.getItem(EMOTIONS_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(EMOTIONS_KEY, JSON.stringify(defaultEmotions));
-      return defaultEmotions;
-    } catch {
-      return defaultEmotions;
+      const now = Date.now();
+      if (emotionsCache && now - emotionsCacheTime < EMOTIONS_CACHE_DURATION) {
+        return emotionsCache;
+      }
+      
+      const emotions = await getJSON("/emotions.php");
+      emotionsCache = emotions || [];
+      emotionsCacheTime = now;
+      return emotionsCache;
+    } catch (e) {
+      console.error("감정 조회 오류:", e);
+      return [];
     }
   }
-  function setEmotions(emotions) {
-    localStorage.setItem(EMOTIONS_KEY, JSON.stringify(emotions));
+  
+  async function setEmotions(emotions) {
+    try {
+      await postJSON("/emotions.php", emotions);
+      emotionsCache = emotions;
+      emotionsCacheTime = Date.now();
+    } catch (e) {
+      console.error("감정 저장 오류:", e);
+      throw e;
+    }
   }
-  function getActiveEmotions() {
-    return getEmotions()
-      .filter((e) => e.active)
-      .sort((a, b) => a.order - b.order);
+  
+  async function getActiveEmotions() {
+    try {
+      const emotions = await getEmotions();
+      return emotions
+        .filter((e) => e.active && e.active !== 0)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+    } catch (e) {
+      console.error("활성 감정 조회 오류:", e);
+      return [];
+    }
   }
 
   // ========== 섹션 타이틀 관리 ==========
-  const SECTIONS_KEY = "dewscent_sections";
-  const defaultSections = {
-    emotionLabel: "FIND YOUR SCENT",
-    emotionTitle: "오늘, 어떤 기분인가요?",
-    emotionSubtitle: "감정에 맞는 향기를 추천해드릴게요",
-    bestLabel: "BEST SELLERS",
-    bestTitle: "가장 사랑받는 향기",
-    bestSubtitle: "많은 분들이 선택한 듀센트의 베스트셀러",
-    bestQuote: "— 향기는 기억을 여는 열쇠 —",
-  };
+  let sectionsCache = null;
+  let sectionsCacheTime = 0;
+  const SECTIONS_CACHE_DURATION = 300000; // 5분 캐시
 
-  function getSections() {
+  async function getSections() {
     try {
-      const stored = localStorage.getItem(SECTIONS_KEY);
-      if (stored) return { ...defaultSections, ...JSON.parse(stored) };
-      return defaultSections;
-    } catch {
-      return defaultSections;
+      const now = Date.now();
+      if (sectionsCache && now - sectionsCacheTime < SECTIONS_CACHE_DURATION) {
+        return sectionsCache;
+      }
+      
+      const sections = await getJSON("/sections.php");
+      sectionsCache = sections || {};
+      sectionsCacheTime = now;
+      return sectionsCache;
+    } catch (e) {
+      console.error("섹션 조회 오류:", e);
+      return {};
     }
   }
-  function setSections(sections) {
-    localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections));
+  
+  async function setSections(sections) {
+    try {
+      await putJSON("/sections.php", sections);
+      sectionsCache = sections;
+      sectionsCacheTime = Date.now();
+    } catch (e) {
+      console.error("섹션 저장 오류:", e);
+      throw e;
+    }
   }
 
   // ========== 감정별 추천 상품 관리 ==========
@@ -1088,7 +1268,9 @@
   function setWeeklyRecommendations(emotionKey, productIds) {
     try {
       const stored = localStorage.getItem(WEEKLY_RECOMMENDATIONS_KEY);
-      let data = stored ? JSON.parse(stored) : { weekSeed: getWeeklySeed(), recommendations: {} };
+      let data = stored
+        ? JSON.parse(stored)
+        : { weekSeed: getWeeklySeed(), recommendations: {} };
 
       // 주간 시드가 다르면 리셋
       if (data.weekSeed !== getWeeklySeed()) {
@@ -1179,37 +1361,33 @@
       return [];
     }
 
-    // 관리자가 설정한 추천 상품이 있으면 사용
-    const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
-    if (stored) {
-      try {
-        const recommendations = JSON.parse(stored);
-        const emotionRecs = recommendations[emotionKey];
-        if (
-          emotionRecs &&
-          emotionRecs.productIds &&
-          emotionRecs.productIds.length > 0
-        ) {
-          // 중복 제거: Set을 사용하여 고유한 ID만 유지
-          const uniqueIds = [...new Set(emotionRecs.productIds)];
-          const recommendedProducts = uniqueIds
-            .map((id) =>
-              allProducts.find((p) => p.id === id || p.id === parseInt(id))
-            )
-            .filter((p) => p && p.status === "판매중")
-            .filter(
-              (p, index, self) =>
-                index === self.findIndex((prod) => prod.id === p.id)
-            );
+    // 관리자가 설정한 추천 상품이 있으면 사용 (DB에서 가져오기)
+    try {
+      const recommendations = await getJSON(`/emotion-recommendations.php?emotion_key=${emotionKey}`);
+      if (Array.isArray(recommendations) && recommendations.length > 0) {
+        // product_id 목록 추출
+        const productIds = recommendations
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+          .map(item => item.productId);
+        
+        const uniqueIds = [...new Set(productIds)];
+        const recommendedProducts = uniqueIds
+          .map((id) =>
+            allProducts.find((p) => p.id === id || p.id === parseInt(id))
+          )
+          .filter((p) => p && p.status === "판매중")
+          .filter(
+            (p, index, self) =>
+              index === self.findIndex((prod) => prod.id === p.id)
+          );
 
-          if (recommendedProducts.length > 0) {
-            // 관리자에서 선택한 순서대로 반환 (limit 적용)
-            return recommendedProducts.slice(0, limit);
-          }
+        if (recommendedProducts.length > 0) {
+          // 관리자에서 선택한 순서대로 반환 (limit 적용)
+          return recommendedProducts.slice(0, limit);
         }
-      } catch (e) {
-        console.error("Error parsing recommendations:", e);
       }
+    } catch (e) {
+      console.error("Error getting recommendations from DB:", e);
     }
 
     // 관리자 설정이 없으면 7일 주기 랜덤 추천 사용
@@ -1244,17 +1422,21 @@
 
       // 7일 주기 시드 기반 셔플
       const weeklySeed = getWeeklySeed();
-      const emotionSeed = emotionKey.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const emotionSeed = emotionKey
+        .split("")
+        .reduce((acc, c) => acc + c.charCodeAt(0), 0);
       const combinedSeed = weeklySeed * 1000 + emotionSeed;
 
       const shuffled = [...emotionMatchedProducts].sort((a, b) => {
-        const hashA = ((a.id * combinedSeed) % 10000);
-        const hashB = ((b.id * combinedSeed) % 10000);
+        const hashA = (a.id * combinedSeed) % 10000;
+        const hashB = (b.id * combinedSeed) % 10000;
         return hashA - hashB;
       });
 
       // 주간 추천 캐시 저장
-      const productIds = shuffled.slice(0, Math.max(limit, 10)).map((p) => p.id);
+      const productIds = shuffled
+        .slice(0, Math.max(limit, 10))
+        .map((p) => p.id);
       setWeeklyRecommendations(emotionKey, productIds);
 
       return shuffled.slice(0, limit);
@@ -1281,12 +1463,14 @@
 
     if (filtered.length > 0) {
       const weeklySeed = getWeeklySeed();
-      const emotionSeed = emotionKey.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const emotionSeed = emotionKey
+        .split("")
+        .reduce((acc, c) => acc + c.charCodeAt(0), 0);
       const combinedSeed = weeklySeed * 1000 + emotionSeed;
 
       const shuffled = [...filtered].sort((a, b) => {
-        const hashA = ((a.id * combinedSeed) % 10000);
-        const hashB = ((b.id * combinedSeed) % 10000);
+        const hashA = (a.id * combinedSeed) % 10000;
+        const hashB = (b.id * combinedSeed) % 10000;
         return hashA - hashB;
       });
 
@@ -1424,31 +1608,37 @@
   }
 
   // 감정별 추천 상품 설정 (관리자용)
-  function setEmotionRecommendations(emotionKey, productIds) {
+  async function setEmotionRecommendations(emotionKey, productIds) {
     try {
-      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
-      const recommendations = stored ? JSON.parse(stored) : {};
       // 중복 제거: Set을 사용하여 고유한 ID만 저장
       const uniqueIds = [...new Set(productIds)];
-      recommendations[emotionKey] = {
-        productIds: uniqueIds,
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(
-        EMOTION_RECOMMENDATIONS_KEY,
-        JSON.stringify(recommendations)
-      );
+      await postJSON("/emotion-recommendations.php", {
+        emotionKey: emotionKey,
+        productIds: uniqueIds
+      });
     } catch (e) {
       console.error("Error setting recommendations:", e);
+      throw e;
     }
   }
 
   // 모든 감정별 추천 상품 가져오기 (관리자용)
-  function getAllEmotionRecommendations() {
+  async function getAllEmotionRecommendations() {
     try {
-      const stored = localStorage.getItem(EMOTION_RECOMMENDATIONS_KEY);
-      return stored ? JSON.parse(stored) : {};
-    } catch {
+      const recommendations = await getJSON("/emotion-recommendations.php");
+      // DB 형식을 JavaScript 형식으로 변환
+      const result = {};
+      if (Array.isArray(recommendations)) {
+        recommendations.forEach(item => {
+          if (!result[item.emotionKey]) {
+            result[item.emotionKey] = { productIds: [], updatedAt: null };
+          }
+          result[item.emotionKey].productIds.push(item.productId);
+        });
+      }
+      return result;
+    } catch (e) {
+      console.error("Error getting recommendations:", e);
       return {};
     }
   }

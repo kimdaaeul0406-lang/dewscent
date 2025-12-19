@@ -1,7 +1,31 @@
 <?php
+// 에러 리포팅 임시 활성화 (배포 서버 디버깅용)
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // 화면에는 표시하지 않음
+ini_set('log_errors', 1); // 로그 파일에만 기록
+
+// config.php에서 세션 시작하므로 여기서는 시작하지 않음
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/guard.php';
+
+// 디버깅: 세션 상태 로깅 (세션 시작 후)
+error_log('[Admin Dashboard] ========== Dashboard 접근 ==========');
+error_log('[Admin Dashboard] Request URI: ' . $_SERVER['REQUEST_URI']);
+error_log('[Admin Dashboard] PHP_SELF: ' . $_SERVER['PHP_SELF']);
+error_log('[Admin Dashboard] SCRIPT_NAME: ' . $_SERVER['SCRIPT_NAME']);
+error_log('[Admin Dashboard] Session Status: ' . (session_status() === PHP_SESSION_ACTIVE ? 'ACTIVE' : 'INACTIVE'));
+error_log('[Admin Dashboard] Session ID: ' . session_id());
+error_log('[Admin Dashboard] Session Save Path: ' . session_save_path());
+error_log('[Admin Dashboard] Session Data: ' . json_encode($_SESSION, JSON_UNESCAPED_UNICODE));
+error_log('[Admin Dashboard] admin_logged_in: ' . (isset($_SESSION['admin_logged_in']) ? ($_SESSION['admin_logged_in'] ? 'true' : 'false') : 'not set'));
+error_log('[Admin Dashboard] role: ' . ($_SESSION['role'] ?? 'not set'));
+error_log('[Admin Dashboard] user_id: ' . ($_SESSION['user_id'] ?? 'not set'));
+error_log('[Admin Dashboard] is_admin check before ensure_admin');
+
+// 권한 체크 (리다이렉트되면 여기서 종료)
 ensure_admin();
+
+error_log('[Admin Dashboard] Access granted - continuing');
 
 $pageTitle = "관리자 대시보드 | DewScent";
 $adminEmail = $_SESSION['admin_email'] ?? 'admin';
@@ -12,14 +36,36 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title><?= htmlspecialchars($pageTitle) ?></title>
+	<!-- DNS Prefetch -->
+	<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+	<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+	<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+	
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="../public/css/style.css?v=7">
-	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 	<script>
 		// API 기본 URL 설정 (관리자 대시보드용)
 		window.DS_BASE_URL = "<?php echo rtrim(SITE_URL, '/'); ?>";
 	</script>
-	<script src="../public/js/api.js?v=4"></script>
+	<script src="../public/js/api.js?v=6"></script>
+	<script>
+		// API 로드 확인 및 에러 처리
+		if (typeof window.API === 'undefined') {
+			console.error('API 객체가 로드되지 않았습니다. api.js 파일을 확인해주세요.');
+			// API가 없을 때 대체 처리
+			window.API = {
+				getUsers: () => Promise.reject(new Error('API is not defined')),
+				getAdminOrders: () => Promise.reject(new Error('API is not defined')),
+				getInquiries: () => Promise.reject(new Error('API is not defined')),
+				getCoupons: () => Promise.reject(new Error('API is not defined')),
+				getReviews: () => Promise.reject(new Error('API is not defined')),
+				getBanners: () => Promise.reject(new Error('API is not defined')),
+				getPopups: () => Promise.reject(new Error('API is not defined')),
+				getEmotions: () => Promise.reject(new Error('API is not defined')),
+			};
+		}
+	</script>
 	<style>
 		/* 관리 영역 간단 레이아웃 */
 		.admin-wrap { max-width: 1100px; margin: 0 auto; }
@@ -784,6 +830,12 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			const container = document.getElementById('inquiriesAdminBody');
 			if (!container) return;
 
+			if (typeof API === 'undefined') {
+				container.innerHTML = `<p style="text-align:center;color:var(--rose);padding:2rem;">API를 불러오는 중입니다...</p>`;
+				setTimeout(() => renderAdminInquiries(), 500);
+				return;
+			}
+
 			container.innerHTML = `<p style="text-align:center;color:var(--light);padding:2rem;">불러오는 중...</p>`;
 
 			try {
@@ -875,6 +927,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		async function renderUsers() {
 			const tbody = document.getElementById('usersTableBody');
 			if (!tbody) return;
+			
+			if (typeof API === 'undefined') {
+				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--rose)">API를 불러오는 중입니다...</td></tr>`;
+				setTimeout(() => renderUsers(), 500);
+				return;
+			}
+			
 			tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>`;
 			
 			try {
@@ -902,6 +961,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		async function renderAdminOrders() {
 			const tbody = document.getElementById('ordersTableBody');
 			if (!tbody) return;
+			
+			if (typeof API === 'undefined') {
+				tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--rose)">API를 불러오는 중입니다...</td></tr>`;
+				setTimeout(() => renderAdminOrders(), 500);
+				return;
+			}
+			
 			tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--light)">불러오는 중...</td></tr>`;
 			
 			try {
@@ -1680,18 +1746,26 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		}
 
 		// ========== 배너 관리 ==========
-		function renderBanners() {
+		async function renderBanners() {
+			if (typeof API === 'undefined') {
+				const tbody = document.getElementById('bannersTableBody');
+				if (tbody) {
+					tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--rose);">API를 불러오는 중입니다...</td></tr>`;
+					setTimeout(() => renderBanners(), 500);
+				}
+				return;
+			}
 			const tbody = document.getElementById('bannersTableBody');
 			if (!tbody) return;
-			const banners = API.getBanners();
-			if (!banners.length) {
+			const banners = await API.getBanners();
+			if (!banners || !banners.length) {
 				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 배너가 없습니다.</td></tr>`;
 				// 개수 표시 업데이트
 				const countText = document.getElementById('bannerCountText');
 				if (countText) countText.textContent = '(0/5개)';
 				return;
 			}
-			const sortedBanners = banners.sort((a,b) => a.order - b.order);
+			const sortedBanners = banners.sort((a,b) => (a.order || 0) - (b.order || 0));
 			tbody.innerHTML = sortedBanners.map(b => `
 				<tr>
 					<td>${b.order}</td>
@@ -1714,9 +1788,9 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				countText.style.color = bannerCount >= 5 ? 'var(--rose)' : 'var(--light)';
 			}
 		}
-		function openBannerForm() {
-			const banners = API.getBanners();
-			if (banners.length >= 5) {
+		async function openBannerForm() {
+			const banners = await API.getBanners();
+			if (banners && banners.length >= 5) {
 				alert('배너는 최대 5개까지 등록할 수 있습니다. 기존 배너를 삭제하거나 수정해주세요.');
 				return;
 			}
@@ -1734,8 +1808,8 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			document.getElementById('bannerImagePreview').src = '';
 		}
 		function closeBannerForm() { document.getElementById('bannerFormWrap').style.display = 'none'; }
-		function editBanner(id) {
-			const banners = API.getBanners();
+		async function editBanner(id) {
+			const banners = await API.getBanners();
 			const b = banners.find(x => x.id === id);
 			if (!b) return;
 			document.getElementById('bannerFormWrap').style.display = 'block';
@@ -1757,7 +1831,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				preview.src = '';
 			}
 		}
-		function saveBanner() {
+		async function saveBanner() {
 			const editId = document.getElementById('bannerEditId').value;
 			const title = document.getElementById('bannerTitle').value.trim();
 			if (!title) {
@@ -1771,81 +1845,103 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				link: linkValue || 'pages/products.php', // 링크가 비어있으면 기본값 사용
 				order: parseInt(document.getElementById('bannerOrder').value) || 1,
 				imageUrl: document.getElementById('bannerImageUrl').value.trim(),
-				active: document.getElementById('bannerActive').checked
+				active: document.getElementById('bannerActive').checked ? 1 : 0
 			};
-			let banners = API.getBanners();
 			
-			// 새로 등록하는 경우 최대 5개 제한 확인
-			if (!editId) {
-				if (banners.length >= 5) {
-					alert('배너는 최대 5개까지 등록할 수 있습니다.');
-					return;
-				}
-				data.id = Date.now();
-				banners.push(data);
-			} else {
-				const idx = banners.findIndex(b => b.id === parseInt(editId));
-				if (idx !== -1) {
-					banners[idx] = { ...banners[idx], ...data };
-				}
+			if (editId) {
+				data.id = parseInt(editId);
 			}
 			
-			API.setBanners(banners);
-			closeBannerForm();
-			renderBanners();
-			alert('저장되었습니다.');
+			try {
+				if (editId) {
+					await API.putJSON(`/banners.php`, data);
+				} else {
+					// 새로 등록하는 경우 최대 5개 제한 확인
+					const banners = await API.getBanners();
+					if (banners && banners.length >= 5) {
+						alert('배너는 최대 5개까지 등록할 수 있습니다.');
+						return;
+					}
+					await API.postJSON(`/banners.php`, data);
+				}
+				closeBannerForm();
+				await renderBanners();
+				alert('저장되었습니다.');
+			} catch (err) {
+				console.error('배너 저장 오류:', err);
+				alert('배너 저장 중 오류가 발생했습니다.');
+			}
 		}
-		function deleteBanner(id) {
+		
+		async function deleteBanner(id) {
 			if (!confirm('정말 삭제하시겠습니까?')) return;
-			let banners = API.getBanners().filter(b => b.id !== id);
-			API.setBanners(banners);
-			renderBanners();
+			try {
+				const baseUrl = window.DS_BASE_URL || '';
+				const response = await fetch(`${baseUrl}/api/banners.php?id=${id}`, {
+					method: 'DELETE',
+					credentials: 'include'
+				});
+				if (!response.ok) throw new Error('삭제 실패');
+				await renderBanners();
+				alert('삭제되었습니다.');
+			} catch (err) {
+				console.error('배너 삭제 오류:', err);
+				alert('배너 삭제 중 오류가 발생했습니다.');
+			}
 		}
 		
 		// 기본 배너 5개로 초기화
-		function resetDefaultBanners() {
+		async function resetDefaultBanners() {
 			if (!confirm('기본 배너 5개로 초기화하시겠습니까?\n현재 등록된 배너가 모두 삭제됩니다.')) return;
-			const defaultBanners = [
-				{
-					id: 1,
-					title: "새로운 향기의 시작",
-					subtitle: "DewScent 2025 컬렉션",
-					link: "pages/products.php",
-					imageUrl: "",
-					order: 1,
-					active: true,
-				},
-				{
-					id: 2,
-					title: "봄의 향기를 담다",
-					subtitle: "벚꽃 에디션 출시",
-					link: "pages/products.php",
-					imageUrl: "",
-					order: 2,
-					active: true,
-				},
-				{
-					id: 3,
-					title: "특별한 선물",
-					subtitle: "기프트 세트 20% 할인",
-					link: "pages/products.php",
-					imageUrl: "",
-					order: 3,
-					active: true,
-				},
-				{
-					id: 4,
-					title: "시그니처 향기",
-					subtitle: "베스트셀러 모음",
-					link: "pages/products.php",
-					imageUrl: "",
-					order: 4,
-					active: true,
-				},
-				{
-					id: 5,
-					title: "신상품 출시",
-					subtitle: "한정판 특가",
+			
+			try {
+				const baseUrl = window.DS_BASE_URL || '';
+				// 기존 배너 모두 삭제 (병렬 처리로 빠르게)
+				const banners = await API.getBanners();
+				await Promise.all(banners.map(banner => 
+					fetch(`${baseUrl}/api/banners.php?id=${banner.id}`, {
+						method: 'DELETE',
+						credentials: 'include'
+					})
+				));
+				
+				// 기본 배너 생성
+				const defaultBanners = [
+					{
+						title: "나에게 맞는 향기 찾기",
+						subtitle: "3분 향기 테스트로 나만의 향을 발견하세요",
+						link: "#fragrance-test",
+						imageUrl: "",
+						order: 1,
+						active: 1,
+					},
+					{
+						title: "새로운 향기의 시작",
+						subtitle: "DewScent 2025 컬렉션",
+						link: "pages/products.php",
+						imageUrl: "",
+						order: 2,
+						active: 1,
+					},
+					{
+						title: "봄의 향기를 담다",
+						subtitle: "벚꽃 에디션 출시",
+						link: "pages/products.php",
+						imageUrl: "",
+						order: 3,
+						active: 1,
+					},
+					{
+						title: "특별한 선물",
+						subtitle: "기프트 세트 20% 할인",
+						link: "pages/products.php",
+						imageUrl: "",
+						order: 4,
+						active: 1,
+					},
+					{
+						title: "시그니처 향기",
+						subtitle: "베스트셀러 모음",
 					link: "pages/products.php",
 					imageUrl: "",
 					order: 5,
@@ -1853,16 +1949,28 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				},
 			];
 			API.setBanners(defaultBanners);
-			renderBanners();
+			await renderBanners();
 			alert('기본 배너 5개로 초기화되었습니다.');
+			} catch (err) {
+				console.error('기본 배너 초기화 오류:', err);
+				alert('기본 배너 초기화 중 오류가 발생했습니다.');
+			}
 		}
 
 		// ========== 팝업 관리 ==========
-		function renderPopups() {
+		async function renderPopups() {
+			if (typeof API === 'undefined') {
+				const tbody = document.getElementById('popupsTableBody');
+				if (tbody) {
+					tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--rose);">API를 불러오는 중입니다...</td></tr>`;
+					setTimeout(() => renderPopups(), 500);
+				}
+				return;
+			}
 			const tbody = document.getElementById('popupsTableBody');
 			if (!tbody) return;
-			const popups = API.getPopups();
-			if (!popups.length) {
+			const popups = await API.getPopups();
+			if (!popups || !popups.length) {
 				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 팝업이 없습니다.</td></tr>`;
 				return;
 			}
@@ -1924,16 +2032,24 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		function deletePopup(id) { if (!confirm('정말 삭제하시겠습니까?')) return; let popups = API.getPopups().filter(p => p.id !== id); API.setPopups(popups); renderPopups(); }
 
 		// ========== 감정 카드 관리 ==========
-		function renderEmotions() {
+		async function renderEmotions() {
+			if (typeof API === 'undefined') {
+				const tbody = document.getElementById('emotionsTableBody');
+				if (tbody) {
+					tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--rose);">API를 불러오는 중입니다...</td></tr>`;
+					setTimeout(() => renderEmotions(), 500);
+				}
+				return;
+			}
 			const tbody = document.getElementById('emotionsTableBody');
 			if (!tbody) return;
-			const emotions = API.getEmotions();
-			if (!emotions.length) {
+			const emotions = await API.getEmotions();
+			if (!emotions || !emotions.length) {
 				tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--light)">등록된 감정 카드가 없습니다.</td></tr>';
 				return;
 			}
-			tbody.innerHTML = emotions.sort((a,b) => a.order - b.order).map(e => {
-				const recommendations = API.getAllEmotionRecommendations();
+			const recommendations = await API.getAllEmotionRecommendations();
+			tbody.innerHTML = emotions.sort((a,b) => (a.order || 0) - (b.order || 0)).map(e => {
 				const recCount = recommendations[e.key]?.productIds?.length || 0;
 				return `
 				<tr>
@@ -2360,6 +2476,12 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			const container = document.getElementById('reviewsAdminBody');
 			if (!container) return;
 			
+			if (typeof API === 'undefined') {
+				container.innerHTML = '<p style="text-align:center;color:var(--rose);padding:2rem;">API를 불러오는 중입니다...</p>';
+				setTimeout(() => renderAdminReviews(), 500);
+				return;
+			}
+			
 			container.innerHTML = '<p style="text-align:center;color:var(--light);padding:2rem;">리뷰 목록을 불러오는 중...</p>';
 			
 			try {
@@ -2622,15 +2744,23 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		};
 
 		// ========== 공지사항/이벤트 관리 ==========
-		function renderNotices() {
+		async function renderNotices() {
 			const tbody = document.getElementById('noticesTableBody');
 			if (!tbody) return;
-			const notices = API.getNotices();
-			if (notices.length === 0) {
-				tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 공지/이벤트가 없습니다.</td></tr>';
+			
+			if (typeof API === 'undefined') {
+				tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--rose)">API를 불러오는 중입니다...</td></tr>';
+				setTimeout(() => renderNotices(), 500);
 				return;
 			}
-			tbody.innerHTML = notices.map(n => {
+			
+			try {
+				const notices = await API.getNotices();
+				if (notices.length === 0) {
+					tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--light)">등록된 공지/이벤트가 없습니다.</td></tr>';
+					return;
+				}
+				tbody.innerHTML = notices.map(n => {
 				const period = (n.startDate || '') + (n.endDate ? ' ~ ' + n.endDate : '');
 				return `
 					<tr>
@@ -2644,7 +2774,11 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 						</td>
 					</tr>
 				`;
-			}).join('');
+				}).join('');
+			} catch (err) {
+				console.error('공지사항 로드 오류:', err);
+				tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--rose);">공지사항을 불러오는 중 오류가 발생했습니다.</td></tr>`;
+			}
 		}
 		function openNoticeForm() {
 			document.getElementById('noticeForm').style.display = 'block';
@@ -2662,7 +2796,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		function closeNoticeForm() {
 			document.getElementById('noticeForm').style.display = 'none';
 		}
-		function saveNotice() {
+		async function saveNotice() {
 			const editId = document.getElementById('noticeEditId').value;
 			const type = document.getElementById('noticeType').value;
 			const title = document.getElementById('noticeTitle').value.trim();
@@ -2671,62 +2805,98 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				alert('제목과 내용을 입력해주세요.');
 				return;
 			}
-			const notices = API.getNotices();
-			if (editId) {
-				const idx = notices.findIndex(n => n.id === parseInt(editId));
-				if (idx !== -1) {
-					notices[idx] = {
-						...notices[idx],
+			
+			if (typeof API === 'undefined') {
+				alert('API를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+				return;
+			}
+			
+			try {
+				const notices = await API.getNotices();
+				if (editId) {
+					const idx = notices.findIndex(n => n.id === parseInt(editId));
+					if (idx !== -1) {
+						notices[idx] = {
+							...notices[idx],
+							type, title, content,
+							startDate: document.getElementById('noticeStartDate').value || '',
+							endDate: document.getElementById('noticeEndDate').value || '',
+							link: document.getElementById('noticeLink').value.trim() || '',
+							imageUrl: document.getElementById('noticeImageUrl').value.trim() || '',
+							active: document.getElementById('noticeActive').checked
+						};
+					}
+				} else {
+					notices.push({
+						id: Date.now(),
 						type, title, content,
 						startDate: document.getElementById('noticeStartDate').value || '',
 						endDate: document.getElementById('noticeEndDate').value || '',
 						link: document.getElementById('noticeLink').value.trim() || '',
 						imageUrl: document.getElementById('noticeImageUrl').value.trim() || '',
-						active: document.getElementById('noticeActive').checked
-					};
+						active: document.getElementById('noticeActive').checked,
+						createdAt: new Date().toISOString().split('T')[0]
+					});
 				}
-			} else {
-				notices.push({
-					id: Date.now(),
-					type, title, content,
-					startDate: document.getElementById('noticeStartDate').value || '',
-					endDate: document.getElementById('noticeEndDate').value || '',
-					link: document.getElementById('noticeLink').value.trim() || '',
-					imageUrl: document.getElementById('noticeImageUrl').value.trim() || '',
-					active: document.getElementById('noticeActive').checked,
-					createdAt: new Date().toISOString().split('T')[0]
-				});
+				await API.setNotices(notices);
+				closeNoticeForm();
+				await renderNotices();
+				alert('저장되었습니다. 메인 페이지 상단에 표시됩니다.');
+			} catch (err) {
+				console.error('공지사항 저장 오류:', err);
+				alert('공지사항 저장 중 오류가 발생했습니다.');
 			}
-			API.setNotices(notices);
-			closeNoticeForm();
-			renderNotices();
-			alert('저장되었습니다. 메인 페이지 상단에 표시됩니다.');
 		}
-		function editNotice(id) {
-			const notices = API.getNotices();
-			const notice = notices.find(n => n.id === id);
-			if (!notice) return;
-			document.getElementById('noticeEditId').value = id;
-			document.getElementById('noticeType').value = notice.type;
-			document.getElementById('noticeTitle').value = notice.title;
-			document.getElementById('noticeContent').value = notice.content;
-			document.getElementById('noticeStartDate').value = notice.startDate || '';
-			document.getElementById('noticeEndDate').value = notice.endDate || '';
-			document.getElementById('noticeLink').value = notice.link || '';
-			document.getElementById('noticeImageUrl').value = notice.imageUrl || '';
-			document.getElementById('noticeActive').checked = notice.active !== false;
-			if (notice.imageUrl) {
-				const preview = document.getElementById('noticeImagePreview');
-				preview.src = notice.imageUrl;
-				preview.style.display = 'block';
+		async function editNotice(id) {
+			if (typeof API === 'undefined') {
+				alert('API를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+				return;
 			}
-			document.getElementById('noticeForm').style.display = 'block';
+			
+			try {
+				const notices = await API.getNotices();
+				const notice = notices.find(n => n.id === id);
+				if (!notice) {
+					alert('공지사항을 찾을 수 없습니다.');
+					return;
+				}
+				document.getElementById('noticeEditId').value = id;
+				document.getElementById('noticeType').value = notice.type;
+				document.getElementById('noticeTitle').value = notice.title;
+				document.getElementById('noticeContent').value = notice.content;
+				document.getElementById('noticeStartDate').value = notice.startDate || '';
+				document.getElementById('noticeEndDate').value = notice.endDate || '';
+				document.getElementById('noticeLink').value = notice.link || '';
+				document.getElementById('noticeImageUrl').value = notice.imageUrl || '';
+				document.getElementById('noticeActive').checked = notice.active !== false;
+				if (notice.imageUrl) {
+					const preview = document.getElementById('noticeImagePreview');
+					preview.src = notice.imageUrl;
+					preview.style.display = 'block';
+				}
+				document.getElementById('noticeForm').style.display = 'block';
+			} catch (err) {
+				console.error('공지사항 편집 오류:', err);
+				alert('공지사항 정보를 불러오는 중 오류가 발생했습니다.');
+			}
 		}
-		function deleteNotice(id) {
+		async function deleteNotice(id) {
 			if (!confirm('정말 삭제하시겠습니까?')) return;
-			const notices = API.getNotices().filter(n => n.id !== id);
-			API.setNotices(notices);
-			renderNotices();
+			
+			if (typeof API === 'undefined') {
+				alert('API를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+				return;
+			}
+			
+			try {
+				const notices = await API.getNotices();
+				const filtered = notices.filter(n => n.id !== id);
+				await API.setNotices(filtered);
+				await renderNotices();
+			} catch (err) {
+				console.error('공지사항 삭제 오류:', err);
+				alert('공지사항 삭제 중 오류가 발생했습니다.');
+			}
 		}
 		function uploadNoticeImage(input) {
 			if (input.files && input.files[0]) {
@@ -2751,9 +2921,15 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		async function renderCoupons() {
 			const tbody = document.getElementById('couponsTableBody');
 			if (!tbody) return;
-			
+
+			if (typeof API === 'undefined') {
+				tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--rose)">API를 불러오는 중입니다...</td></tr>';
+				setTimeout(() => renderCoupons(), 500);
+				return;
+			}
+
 			tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--light)">불러오는 중입니다...</td></tr>';
-			
+
 			try {
 				const coupons = await API.getCoupons();
 				if (coupons.length === 0) {
@@ -2906,7 +3082,7 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 		// ========== 탭 전환 ==========
 		const allTabs = ['overview','banners','popups','emotions','sections','mainproducts','products','reviews','inquiries','users','orders','coupons','notices','settings'];
 		document.querySelectorAll('.admin-tab').forEach((btn) => {
-			btn.addEventListener('click', () => {
+			btn.addEventListener('click', async () => {
 				document.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
 				btn.classList.add('active');
 				const tab = btn.dataset.tab;
@@ -2920,12 +3096,12 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					if (tab === 'users') renderUsers();
 					if (tab === 'orders') renderAdminOrders();
 					if (tab === 'coupons') renderCoupons();
-					if (tab === 'notices') renderNotices();
+					if (tab === 'notices') await renderNotices();
 					if (tab === 'products') renderProducts();
 					if (tab === 'inquiries') renderAdminInquiries();
-					if (tab === 'banners') renderBanners();
-					if (tab === 'popups') renderPopups();
-					if (tab === 'emotions') renderEmotions();
+					if (tab === 'banners') await renderBanners();
+					if (tab === 'popups') await renderPopups();
+					if (tab === 'emotions') await renderEmotions();
 					if (tab === 'sections') renderSectionsForm();
 					if (tab === 'mainproducts') renderMainProducts();
 					if (tab === 'reviews') renderAdminReviews();
@@ -2952,8 +3128,14 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 				const kstTime = new Date(now.getTime() + (kstOffset + now.getTimezoneOffset()) * 60000);
 				const today = kstTime.toISOString().split('T')[0];
 				
-				// 문의 데이터
-				const inquiries = await API.getInquiries();
+				// 3개의 API를 병렬로 동시 호출 (순차 호출보다 3배 빠름)
+				const [inquiries, users, orders] = await Promise.all([
+					API.getInquiries().catch(err => { console.error('문의 데이터 로드 오류:', err); return []; }),
+					API.getUsers().catch(err => { console.error('회원 데이터 로드 오류:', err); return []; }),
+					API.getAdminOrders().catch(err => { console.error('주문 데이터 로드 오류:', err); return []; })
+				]);
+				
+				// 문의 데이터 업데이트
 				if (inquiries && Array.isArray(inquiries)) {
 					const waiting = inquiries.filter(inq => inq.status === 'waiting').length;
 					const waitingEl = document.getElementById('kpi-waiting-inquiries');
@@ -2962,34 +3144,24 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 					if (totalEl) totalEl.textContent = inquiries.length;
 				}
 				
-				// 회원 데이터 (오늘 가입)
-				try {
-					const users = await API.getUsers();
-					if (users && Array.isArray(users)) {
-						const todaySignups = users.filter(u => {
-							const joinedDate = u.joinedAt || u.created_at?.substring(0, 10) || '';
-							return joinedDate === today;
-						}).length;
-						const signupsEl = document.getElementById('kpi-today-signups');
-						if (signupsEl) signupsEl.textContent = todaySignups;
-					}
-				} catch (err) {
-					console.error('오늘 가입 수 로드 오류:', err);
+				// 회원 데이터 업데이트 (오늘 가입)
+				if (users && Array.isArray(users)) {
+					const todaySignups = users.filter(u => {
+						const joinedDate = u.joinedAt || u.created_at?.substring(0, 10) || '';
+						return joinedDate === today;
+					}).length;
+					const signupsEl = document.getElementById('kpi-today-signups');
+					if (signupsEl) signupsEl.textContent = todaySignups;
 				}
 				
-				// 주문 데이터 (오늘 주문)
-				try {
-					const orders = await API.getAdminOrders();
-					if (orders && Array.isArray(orders)) {
-						const todayOrders = orders.filter(o => {
-							const orderDate = o.orderedAt || '';
-							return orderDate === today;
-						}).length;
-						const ordersEl = document.getElementById('kpi-today-orders');
-						if (ordersEl) ordersEl.textContent = todayOrders;
-					}
-				} catch (err) {
-					console.error('오늘 주문 수 로드 오류:', err);
+				// 주문 데이터 업데이트 (오늘 주문)
+				if (orders && Array.isArray(orders)) {
+					const todayOrders = orders.filter(o => {
+						const orderDate = o.orderedAt || '';
+						return orderDate === today;
+					}).length;
+					const ordersEl = document.getElementById('kpi-today-orders');
+					if (ordersEl) ordersEl.textContent = todayOrders;
 				}
 			} catch (err) {
 				console.error('KPI 업데이트 오류:', err);
@@ -3256,9 +3428,37 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 			});
 		}
 		
-		// 페이지 로드 시 날짜 초기화 및 통계 로드
-		document.addEventListener('DOMContentLoaded', function() {
-			resetDateRange();
+		// 페이지 로드 시 날짜 초기화 및 통계 로드 (약간의 지연을 두어 KPI 먼저 로드)
+		// API가 로드될 때까지 대기하는 함수
+		function waitForAPI(maxAttempts = 50) {
+			return new Promise((resolve, reject) => {
+				let attempts = 0;
+				const checkAPI = () => {
+					if (typeof window.API !== 'undefined' && window.API) {
+						resolve(window.API);
+					} else if (attempts < maxAttempts) {
+						attempts++;
+						setTimeout(checkAPI, 100);
+					} else {
+						reject(new Error('API 로드 시간 초과'));
+					}
+				};
+				checkAPI();
+			});
+		}
+		
+		document.addEventListener('DOMContentLoaded', async function() {
+			// API가 로드될 때까지 대기
+			try {
+				await waitForAPI();
+				// 통계는 약간 지연시켜서 KPI 로딩과 겹치지 않도록
+				setTimeout(() => {
+					resetDateRange();
+				}, 100);
+			} catch (err) {
+				console.error('API 로드 실패:', err);
+				alert('관리자 도구를 초기화하는 중 오류가 발생했습니다. 페이지를 새로고침해주세요.');
+			}
 		});
 	</script>
 </body>

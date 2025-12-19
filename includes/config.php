@@ -24,8 +24,14 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_path', '/');
 
     // HTTPS 환경에서만 Secure 쿠키 사용
-    if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+    // 배포 서버에서 리버스 프록시 사용 시 HTTP_X_FORWARDED_PROTO 체크
+    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
+               (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+               (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    if ($isHttps) {
         ini_set('session.cookie_secure', '1');
+    } else {
+        ini_set('session.cookie_secure', '0'); // HTTP에서는 명시적으로 0
     }
 
     session_start();
@@ -39,6 +45,52 @@ function regenerate_session(): void
     }
 }
 
+// 로컬 설정 파일 로드 (있는 경우) - 최우선
+$localConfigPath = __DIR__ . '/config.local.php';
+if (file_exists($localConfigPath)) {
+    require_once $localConfigPath;
+}
+
+// .env 파일 로드 (있는 경우) - 환경 변수를 먼저 로드해야 함
+$envPath = __DIR__ . '/../.env';
+$envLoaded = false;
+
+if (file_exists($envPath)) {
+    error_log('[Config] .env 파일 발견: ' . $envPath);
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $loadedCount = 0;
+    
+    foreach ($lines as $line) {
+        $line = trim($line);
+        // 빈 줄 또는 주석 건너뛰기
+        if (empty($line) || strpos($line, '#') === 0) {
+            continue;
+        }
+        // KEY=VALUE 형식 파싱
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            // 따옴표 제거
+            $value = trim($value, '"\'');
+            
+            if (!empty($key)) {
+                // 환경 변수 설정 (putenv와 $_ENV 둘 다 설정)
+                putenv("$key=$value");
+                $_ENV[$key] = $value;
+                // $_SERVER에도 설정 (일부 환경에서 필요)
+                $_SERVER[$key] = $value;
+                $loadedCount++;
+            }
+        }
+    }
+    
+    $envLoaded = true;
+    error_log('[Config] .env 파일에서 ' . $loadedCount . '개 변수 로드됨');
+} else {
+    error_log('[Config] .env 파일을 찾을 수 없음: ' . $envPath);
+}
+
 // MySQL 데이터베이스 설정 (환경변수 우선, 없으면 기본값)
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_USER', getenv('DB_USER') ?: 'root');
@@ -48,35 +100,40 @@ define('DB_CHARSET', 'utf8mb4');
 
 // 사이트 설정
 define('SITE_NAME', 'DewScent');
-define('SITE_URL', getenv('SITE_URL') ?: 'http://localhost/dewscent');
 
-// 로컬 설정 파일 로드 (있는 경우)
-$localConfigPath = __DIR__ . '/config.local.php';
-if (file_exists($localConfigPath)) {
-    require_once $localConfigPath;
-}
-
-// .env 파일 로드 (있는 경우)
-$envPath = __DIR__ . '/../.env';
-if (file_exists($envPath)) {
-    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) {
-            continue; // 주석 건너뛰기
-        }
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
-            // 따옴표 제거
-            $value = trim($value, '"\'');
-            if (!empty($key) && !getenv($key)) {
-                putenv("$key=$value");
-                $_ENV[$key] = $value;
-            }
-        }
+// SITE_URL 자동 감지 (HTTPS 우선, Mixed Content 방지)
+$siteUrl = getenv('SITE_URL');
+if (empty($siteUrl)) {
+    // 현재 요청이 HTTPS인지 확인
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
+                (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+                (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) 
+                ? 'https' : 'http';
+    
+    // 호스트 자동 감지
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    
+    // 경로 자동 감지
+    $scriptPath = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+    $scriptPath = str_replace('\\', '/', $scriptPath);
+    // admin이나 api 디렉토리인 경우 상위 디렉토리로
+    if (strpos($scriptPath, '/admin') !== false || strpos($scriptPath, '/api') !== false) {
+        $scriptPath = dirname($scriptPath);
+    }
+    // 루트 디렉토리인 경우 빈 문자열로
+    if ($scriptPath === '/' || $scriptPath === '.') {
+        $scriptPath = '';
+    }
+    
+    $siteUrl = $protocol . '://' . $host . $scriptPath;
+} else {
+    // 환경 변수에 설정되어 있어도 현재 요청이 HTTPS면 HTTPS로 강제
+    if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
+        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
+        $siteUrl = preg_replace('/^http:/', 'https:', $siteUrl);
     }
 }
+define('SITE_URL', rtrim($siteUrl, '/'));
 
 // 카카오 소셜 로그인 설정
 // 우선순위: config.local.php (define) > .env (getenv) > 환경 변수 (getenv)
