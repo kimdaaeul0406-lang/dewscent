@@ -49,7 +49,7 @@ if (defined('APP_DEBUG') && APP_DEBUG) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>결제하기 - DewScent</title>
-    <link rel="stylesheet" href="/dewscent/public/css/style.css">
+    <link rel="stylesheet" href="public/css/style.css">
     <script src="https://js.tosspayments.com/v1/payment"></script>
     <style>
         .payment-container {

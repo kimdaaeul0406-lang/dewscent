@@ -33,7 +33,7 @@ if (!empty($orderId)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>결제 실패 - DewScent</title>
-    <link rel="stylesheet" href="/dewscent/public/css/style.css">
+    <link rel="stylesheet" href="public/css/style.css">
     <style>
         .fail-container {
             max-width: 600px;

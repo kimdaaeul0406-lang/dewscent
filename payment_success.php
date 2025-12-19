@@ -216,7 +216,7 @@ exit;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>결제 완료 - DewScent</title>
-    <link rel="stylesheet" href="/dewscent/public/css/style.css">
+    <link rel="stylesheet" href="public/css/style.css">
     <style>
         .success-container {
             max-width: 600px;
