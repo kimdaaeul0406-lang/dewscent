@@ -666,6 +666,11 @@ function goToSlide(index) {
 // 배너 클릭 시 링크 이동
 function handleBannerClick(link) {
   if (link && link !== "#" && link.trim() !== "") {
+    // 향기 테스트 모달 열기
+    if (link === "#fragrance-test") {
+      openModal("testModal");
+      return;
+    }
     // 상대 경로 처리
     if (link.startsWith("http://") || link.startsWith("https://")) {
       window.location.href = link;
@@ -1754,6 +1759,12 @@ function renderTestStep() {
         filtered = availableProducts;
       }
 
+      // 테스트 답변을 기반으로 시드 생성 (같은 답변 = 같은 결과)
+      const answerSeed = testAnswers.join('-');
+      const seedHash = answerSeed.split('').reduce((acc, char, idx) => {
+        return acc + char.charCodeAt(0) * (idx + 1);
+      }, 0);
+
       // 카테고리별로 그룹화하여 다양성 보장
       const byCategory = {};
       filtered.forEach((p) => {
@@ -1768,27 +1779,25 @@ function renderTestStep() {
 
       // 카테고리가 여러 개 있으면 각각에서 골고루 선택
       if (categoryKeys.length > 1) {
-        categoryKeys.forEach((cat) => {
+        categoryKeys.forEach((cat, catIdx) => {
           const items = byCategory[cat];
-          // 각 카테고리에서 최대 2개씩 랜덤 선택
-          const shuffled = [...items].sort(() => Math.random() - 0.5);
-          diverseProducts.push(...shuffled.slice(0, 2));
+          // 시드 기반 정렬 (같은 답변이면 같은 순서)
+          const sorted = [...items].sort((a, b) => {
+            const hashA = ((a.id * seedHash) + catIdx) % 1000;
+            const hashB = ((b.id * seedHash) + catIdx) % 1000;
+            return hashA - hashB;
+          });
+          diverseProducts.push(...sorted.slice(0, 2));
         });
         filtered = diverseProducts;
       }
 
-      // 완전 랜덤 셔플 (매번 다른 결과를 위해 타임스탬프 기반 시드 추가)
-      const shuffled = [...filtered];
-      // 더 강력한 랜덤 셔플
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor((Math.random() * Date.now()) % (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      // 한 번 더 셔플
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
+      // 시드 기반 정렬 (같은 답변을 선택하면 같은 순서)
+      const shuffled = [...filtered].sort((a, b) => {
+        const hashA = (a.id * seedHash) % 1000;
+        const hashB = (b.id * seedHash) % 1000;
+        return hashA - hashB;
+      });
 
       // 최대 4개 선택
       recommendedProducts = shuffled.slice(0, 4);

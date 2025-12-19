@@ -137,11 +137,11 @@ async function loadEmotionProducts(emotionKey, emotionData) {
 	grid.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--light);">추천 상품을 불러오는 중...</p>';
 	section.style.display = 'block';
 
-	// 추천 상품 가져오기
+	// 추천 상품 가져오기 (전체보기 페이지에서는 10개 추천)
 	let recommendations = [];
 	if (typeof API !== 'undefined' && API.getEmotionRecommendations) {
 		try {
-			recommendations = await API.getEmotionRecommendations(emotionKey);
+			recommendations = await API.getEmotionRecommendations(emotionKey, 10);
 		} catch (e) {
 			console.error('추천 상품 로드 실패:', e);
 		}
