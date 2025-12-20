@@ -1,6 +1,15 @@
 <?php
 session_start();
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/db_setup.php';
+
+// 배포 후 자동으로 테이블 생성 (최초 1회만 실행)
+try {
+    ensure_tables_exist();
+} catch (Exception $e) {
+    error_log('테이블 자동 생성 실패: ' . $e->getMessage());
+}
 
 $pageTitle = "DewScent | 당신의 향기를 찾아서";
 ?>
