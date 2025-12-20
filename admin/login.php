@@ -71,15 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				error_log('[Admin Login] 세션 설정 - user_id: ' . ($_SESSION['user_id'] ?? 'not set'));
 				error_log('[Admin Login] 세션 설정 - role: ' . ($_SESSION['role'] ?? 'not set'));
 				error_log('[Admin Login] 세션 설정 - is_admin: ' . ($_SESSION['is_admin'] ?? 'not set'));
-				
-				// 임시 디버깅 출력 (확인 후 제거)
-				if (defined('APP_DEBUG') && APP_DEBUG) {
-					echo "<pre>DEBUG - 세션 내용:\n";
-					var_dump($_SESSION);
-					echo "</pre>";
-					exit; // 임시로 여기서 종료하여 확인
-				}
-				
+
 				// return URL로 리다이렉트 (보안 검증)
 				if (strpos($next, '://') === false && strpos($next, '../') === false) {
 					header('Location: ' . $next);
@@ -105,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title><?= htmlspecialchars($pageTitle) ?></title>
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="../public/css/style.css?v=6">
+	<link rel="stylesheet" href="<?php echo SITE_URL; ?>/public/css/style.css?v=6">
 </head>
 <body class="cart-page">
 
@@ -146,6 +138,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		</section>
 	</main>
 
-	<script src="../public/js/main.js?v=4"></script>
+	<script src="<?php echo SITE_URL; ?>/public/js/main.js?v=4"></script>
 </body>
 </html>
