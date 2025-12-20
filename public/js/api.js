@@ -224,15 +224,12 @@
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
 
-    // HTTPS 강제 (Mixed Content 방지)
-    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
-
     // 타임아웃 설정 (10초)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const res = await fetch(secureUrl, {
+      const res = await fetch(finalUrl, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
@@ -291,16 +288,13 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    
-    // HTTPS 강제 (Mixed Content 방지)
-    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
-    
+
     // 타임아웃 설정 (10초)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     try {
-      const res = await fetch(secureUrl, {
+      const res = await fetch(finalUrl, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -347,16 +341,13 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    
-    // HTTPS 강제
-    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
-    
+
     // 타임아웃 설정
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     try {
-      const res = await fetch(secureUrl, {
+      const res = await fetch(finalUrl, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -402,16 +393,13 @@
     }
     // BASE_URL과 path를 합쳐서 최종 URL 생성
     const finalUrl = `${BASE_URL}${path}`;
-    
-    // HTTPS 강제
-    const secureUrl = finalUrl.replace(/^http:\/\//, 'https://');
-    
+
     // 타임아웃 설정
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     try {
-      const res = await fetch(secureUrl, {
+      const res = await fetch(finalUrl, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
