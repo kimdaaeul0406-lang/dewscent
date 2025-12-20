@@ -46,10 +46,6 @@ define('DB_PASS', getenv('DB_PASS') ?: '');
 define('DB_NAME', getenv('DB_NAME') ?: 'dewscent');
 define('DB_CHARSET', 'utf8mb4');
 
-// 사이트 설정
-define('SITE_NAME', 'DewScent');
-define('SITE_URL', getenv('SITE_URL') ?: 'http://localhost/dewscent');
-
 // 로컬 설정 파일 로드 (있는 경우)
 $localConfigPath = __DIR__ . '/config.local.php';
 if (file_exists($localConfigPath)) {
@@ -77,6 +73,10 @@ if (file_exists($envPath)) {
         }
     }
 }
+
+// 사이트 설정
+define('SITE_NAME', 'DewScent');
+define('SITE_URL', getenv('SITE_URL') ?: 'http://localhost/dewscent');
 
 // 카카오 소셜 로그인 설정
 // 우선순위: config.local.php (define) > .env (getenv) > 환경 변수 (getenv)
