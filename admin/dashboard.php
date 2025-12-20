@@ -42,13 +42,13 @@ $adminEmail = $_SESSION['admin_email'] ?? 'admin';
 	<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 	
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="../public/css/style.css?v=7">
+	<link rel="stylesheet" href="<?php echo SITE_URL; ?>/public/css/style.css?v=7">
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 	<script>
 		// API 기본 URL 설정 (관리자 대시보드용)
 		window.DS_BASE_URL = "<?php echo rtrim(SITE_URL, '/'); ?>";
 	</script>
-	<script src="../public/js/api.js?v=6"></script>
+	<script src="<?php echo SITE_URL; ?>/public/js/api.js?v=6"></script>
 	<script>
 		// API 로드 확인 및 에러 처리
 		if (typeof window.API === 'undefined') {
