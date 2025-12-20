@@ -8,7 +8,6 @@ error_log('[Inquiries API] ========== 요청 시작 ==========');
 error_log('[Inquiries API] Request URI: ' . $_SERVER['REQUEST_URI']);
 error_log('[Inquiries API] Request Method: ' . $_SERVER['REQUEST_METHOD']);
 
-session_start();
 error_log('[Inquiries API] Session ID: ' . session_id());
 
 require_once __DIR__ . '/../includes/config.php';

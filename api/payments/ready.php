@@ -9,7 +9,6 @@
 // .env 파일 로드
 require_once __DIR__ . '/../../config/env.php';
 
-session_start();
 require_once __DIR__ . '/../../includes/config.php';
 
 header('Content-Type: application/json; charset=utf-8');

@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/config.php';
 $pageTitle = "기분으로 향 찾기 | DewScent";
 ?>

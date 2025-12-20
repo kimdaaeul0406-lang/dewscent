@@ -10,7 +10,6 @@
  * 5. 세션 설정 후 메인 페이지로 리다이렉트
  */
 
-session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/db_setup.php';

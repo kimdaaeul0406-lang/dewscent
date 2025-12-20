@@ -1,6 +1,5 @@
 <?php
-// 세션 시작
-session_start();
+require_once __DIR__ . '/../includes/config.php';
 
 // 모든 세션 변수 삭제
 $_SESSION = array();

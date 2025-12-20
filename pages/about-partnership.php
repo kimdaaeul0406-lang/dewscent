@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/config.php';
 $pageTitle = "제휴 문의 | DewScent";
 ?>
