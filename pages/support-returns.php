@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/config.php';
 $pageTitle = "교환/반품 안내 | DewScent";
 ?>

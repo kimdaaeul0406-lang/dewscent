@@ -146,8 +146,10 @@ if (defined('KAKAO_CLIENT_ID')) {
     $kakaoClientId = getenv('KAKAO_CLIENT_ID') ?: '';
 }
 
+// 카카오 키가 없어도 사이트는 작동하도록 함 (소셜 로그인 기능만 비활성화)
 if (empty($kakaoClientId)) {
-    throw new RuntimeException('KAKAO_CLIENT_ID가 설정되지 않았습니다. .env 또는 config.local.php 파일을 확인하세요.');
+    error_log('[Config] 경고: KAKAO_CLIENT_ID가 설정되지 않았습니다. 카카오 로그인 기능이 비활성화됩니다.');
+    $kakaoClientId = 'NOT_SET'; // 기본값 설정
 }
 
 // 아직 정의되지 않은 경우에만 define
@@ -179,8 +181,11 @@ if (defined('NAVER_CLIENT_SECRET')) {
     $naverClientSecret = getenv('NAVER_CLIENT_SECRET') ?: '';
 }
 
+// 네이버 키가 없어도 사이트는 작동하도록 함 (소셜 로그인 기능만 비활성화)
 if (empty($naverClientId) || empty($naverClientSecret)) {
-    throw new RuntimeException('NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 설정되지 않았습니다. .env 또는 config.local.php 파일을 확인하세요.');
+    error_log('[Config] 경고: NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 설정되지 않았습니다. 네이버 로그인 기능이 비활성화됩니다.');
+    $naverClientId = $naverClientId ?: 'NOT_SET';
+    $naverClientSecret = $naverClientSecret ?: 'NOT_SET';
 }
 
 // 아직 정의되지 않은 경우에만 define
